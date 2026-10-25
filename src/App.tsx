@@ -1,0 +1,105 @@
+import { lazy, Suspense, useEffect } from 'react';
+import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from '@/auth/AuthContext';
+import { Layout, RequireAuth, RequireTeacher } from '@/components/Layout';
+import { Spinner } from '@/components/ui';
+import { supabaseConfigured } from '@/lib/supabase';
+import SinConfigurar from '@/pages/publico/SinConfigurar';
+import Bienvenida from '@/pages/publico/Bienvenida';
+import { Activar, CambiarClave, Ingresar, SinRegistro } from '@/pages/publico/Acceso';
+import Acerca from '@/pages/publico/Acerca';
+
+// Estudiante
+const Inicio = lazy(() => import('@/pages/estudiante/Inicio'));
+const Unirse = lazy(() => import('@/pages/estudiante/Unirse'));
+const Temario = lazy(() => import('@/pages/estudiante/Temario'));
+const ElegirCurso = lazy(() => import('@/pages/estudiante/ElegirCurso'));
+const Leccion = lazy(() => import('@/pages/estudiante/Leccion'));
+const Actividad = lazy(() => import('@/pages/estudiante/Actividad'));
+const Intento = lazy(() => import('@/pages/estudiante/Intento'));
+const Calificaciones = lazy(() => import('@/pages/estudiante/Calificaciones'));
+const Progreso = lazy(() => import('@/pages/estudiante/Progreso'));
+const Laboratorio = lazy(() => import('@/pages/estudiante/Laboratorio'));
+const Perfil = lazy(() => import('@/pages/estudiante/Perfil'));
+// Docente
+const InicioDocente = lazy(() => import('@/pages/docente/InicioDocente'));
+const Clase = lazy(() => import('@/pages/docente/Clase'));
+const Cursos = lazy(() => import('@/pages/docente/Cursos'));
+const CursoEditor = lazy(() => import('@/pages/docente/CursoEditor'));
+const LeccionEditor = lazy(() => import('@/pages/docente/LeccionEditor'));
+const Banco = lazy(() => import('@/pages/docente/Banco'));
+const EjercicioEditor = lazy(() => import('@/pages/docente/EjercicioEditor'));
+const ActividadEditor = lazy(() => import('@/pages/docente/ActividadEditor'));
+const RevisionIntento = lazy(() => import('@/pages/docente/RevisionIntento'));
+const EstudianteDetalle = lazy(() => import('@/pages/docente/EstudianteDetalle'));
+const Cuentas = lazy(() => import('@/pages/docente/Cuentas'));
+
+function Home() {
+  const { session, loading } = useAuth();
+  if (loading) return <Spinner />;
+  return session ? <Inicio /> : <Bienvenida />;
+}
+
+/** Con contraseña provisional, el único sitio accesible es el cambio de contraseña. */
+function ForzarCambioClave() {
+  const { session, profile } = useAuth();
+  const nav = useNavigate();
+  const loc = useLocation();
+  useEffect(() => {
+    if (session && profile?.must_change_password && loc.pathname !== '/cambiar-clave') nav('/cambiar-clave', { replace: true });
+  }, [session, profile, loc.pathname, nav]);
+  return null;
+}
+
+const auth = (el: JSX.Element) => <RequireAuth>{el}</RequireAuth>;
+const teacher = (el: JSX.Element) => <RequireTeacher>{el}</RequireTeacher>;
+
+export default function App() {
+  if (!supabaseConfigured) return <SinConfigurar />;
+  return (
+    <AuthProvider>
+      <HashRouter>
+        <ForzarCambioClave />
+        <Suspense fallback={<div className="p-8"><Spinner /></div>}>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route index element={<Home />} />
+              <Route path="ingresar" element={<Ingresar />} />
+              <Route path="cambiar-clave" element={<CambiarClave />} />
+              <Route path="activar" element={<Activar />} />
+              <Route path="registro" element={<SinRegistro />} />
+              <Route path="recuperar" element={<SinRegistro />} />
+              <Route path="acerca" element={<Acerca />} />
+
+              <Route path="unirse" element={auth(<Unirse />)} />
+              <Route path="temario" element={auth(<ElegirCurso />)} />
+              <Route path="curso/:courseId" element={auth(<Temario />)} />
+              <Route path="curso/:courseId/leccion/:lessonId" element={auth(<Leccion />)} />
+              <Route path="curso/:courseId/progreso" element={auth(<Progreso />)} />
+              <Route path="actividad/:activityId" element={auth(<Actividad />)} />
+              <Route path="intento/:attemptId" element={auth(<Intento />)} />
+              <Route path="calificaciones" element={auth(<Calificaciones />)} />
+              <Route path="laboratorio" element={auth(<Laboratorio />)} />
+              <Route path="laboratorio/:simKey" element={auth(<Laboratorio />)} />
+              <Route path="perfil" element={auth(<Perfil />)} />
+
+              <Route path="docente" element={teacher(<InicioDocente />)} />
+              <Route path="docente/clases/:classId" element={teacher(<Clase />)} />
+              <Route path="docente/cursos" element={teacher(<Cursos />)} />
+              <Route path="docente/cursos/:courseId" element={teacher(<CursoEditor />)} />
+              <Route path="docente/lecciones/:lessonId" element={teacher(<LeccionEditor />)} />
+              <Route path="docente/ejercicios" element={teacher(<Banco />)} />
+              <Route path="docente/ejercicios/:exerciseId" element={teacher(<EjercicioEditor />)} />
+              <Route path="docente/actividades/:activityId" element={teacher(<ActividadEditor />)} />
+              <Route path="docente/intentos/:attemptId" element={teacher(<RevisionIntento />)} />
+              <Route path="docente/clases/:classId/estudiantes/:userId" element={teacher(<EstudianteDetalle />)} />
+              <Route path="docente/cuentas" element={teacher(<Cuentas />)} />
+              <Route path="docente/usuarios" element={<Navigate to="/docente/cuentas" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
+          </Routes>
+        </Suspense>
+      </HashRouter>
+    </AuthProvider>
+  );
+}

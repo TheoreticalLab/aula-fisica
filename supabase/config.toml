@@ -1,0 +1,8 @@
+# Configuración mínima para la CLI de Supabase (npx supabase link / db push / functions deploy).
+project_id = "aula-fisica-basica"
+
+[functions.calificar]
+# La comprobación automática de la pasarela no es compatible con las nuevas claves de firma (JWT signing keys)
+# de los proyectos recientes. La función verifica ella misma la sesión con auth.getUser() y rechaza
+# cualquier petición sin un usuario válido (ver supabase/functions/calificar/index.ts).
+verify_jwt = false

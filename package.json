@@ -1,0 +1,57 @@
+{
+  "name": "aula-fisica-basica",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Aula Virtual de Física Básica: lecciones, ejercicios con calificación automática, simuladores y panel docente.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "semilla": "vite-node scripts/generar-semilla.ts",
+    "verificar-publicacion": "vite-node scripts/verificar-publicacion.ts",
+    "verificar": "tsc -b && vitest run && vite build && vite-node scripts/verificar-publicacion.ts && vite-node scripts/ops/aula.ts revisar-migraciones",
+    "comprobar-credenciales": "vite-node scripts/ops/aula.ts comprobar-credenciales",
+    "estado": "vite-node scripts/ops/aula.ts estado",
+    "respaldo": "vite-node scripts/ops/aula.ts respaldo",
+    "probar": "vite-node scripts/ops/aula.ts probar",
+    "plan": "vite-node scripts/ops/aula.ts plan",
+    "aplicar": "vite-node scripts/ops/aula.ts aplicar",
+    "revisar-migraciones": "vite-node scripts/ops/aula.ts revisar-migraciones"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "katex": "^0.16.11",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
+    "react-router-dom": "^6.26.2",
+    "recharts": "^2.12.7",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.0",
+    "remark-math": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/katex": "^0.16.7",
+    "@types/node": "^20.16.10",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "autoprefixer": "^10.4.20",
+    "pg": "^8.23.1",
+    "postcss": "^8.4.47",
+    "supabase": "^2.122.0",
+    "tailwindcss": "^3.4.13",
+    "typescript": "~5.6.2",
+    "vite": "^5.4.8",
+    "vite-node": "^2.1.2",
+    "vitest": "^2.1.2"
+  },
+  "engines": {
+    "node": ">=18.18"
+  }
+}

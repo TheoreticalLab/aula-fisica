@@ -1,0 +1,13 @@
+node_modules
+dist
+*.local
+.env
+.env.*
+!.env.example
+# Claves de respuesta, pistas, explicaciones y semilla generada: NUNCA en el repositorio público.
+privado/
+supabase/.temp
+supabase/.branches
+pruebas/.perfil_chrome
+pruebas/capturas/*.png
+.DS_Store

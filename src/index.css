@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply min-h-screen antialiased;
+  }
+  h1, h2, h3 {
+    @apply font-serif;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-acento-400 ring-offset-2 ring-offset-transparent;
+  }
+}
+
+@layer components {
+  .tarjeta {
+    @apply rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-primario-950/60;
+  }
+  .btn {
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primario {
+    @apply btn bg-primario-800 text-white hover:bg-primario-700 dark:bg-primario-500 dark:hover:bg-primario-400;
+  }
+  .btn-secundario {
+    @apply btn border border-gray-300 bg-white text-tinta hover:bg-gray-50 dark:border-white/20 dark:bg-white/5 dark:text-gray-100 dark:hover:bg-white/10;
+  }
+  .btn-acento {
+    @apply btn bg-acento-500 text-primario-950 hover:bg-acento-400;
+  }
+  .btn-peligro {
+    @apply btn bg-red-700 text-white hover:bg-red-600;
+  }
+  .btn-texto {
+    @apply btn px-2 text-primario-700 hover:bg-primario-50 dark:text-primario-200 dark:hover:bg-white/10;
+  }
+  .campo {
+    @apply block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-tinta placeholder:text-gray-400 focus:border-primario-500 focus:outline-none focus:ring-2 focus:ring-primario-200 dark:border-white/20 dark:bg-white/5 dark:text-gray-100 dark:focus:ring-primario-700;
+  }
+  .etiqueta {
+    @apply mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300;
+  }
+  .enlace {
+    @apply font-medium text-primario-700 underline-offset-2 hover:underline dark:text-primario-200;
+  }
+}
+
+/* Contenido Markdown de lecciones */
+.prosa {
+  @apply leading-relaxed text-[1.02rem];
+}
+.prosa h2 {
+  @apply mb-2 mt-6 text-xl font-semibold text-primario-900 dark:text-primario-100;
+}
+.prosa h3 {
+  @apply mb-2 mt-4 text-lg font-semibold text-primario-900 dark:text-primario-100;
+}
+.prosa p {
+  @apply my-3;
+}
+.prosa ul {
+  @apply my-3 list-disc pl-6;
+}
+.prosa ol {
+  @apply my-3 list-decimal pl-6;
+}
+.prosa li {
+  @apply my-1;
+}
+.prosa blockquote {
+  @apply my-4 rounded-r-lg border-l-4 border-acento-400 bg-acento-100/60 px-4 py-2 dark:bg-acento-700/20;
+}
+.prosa table {
+  @apply my-4 block w-full overflow-x-auto text-sm;
+}
+.prosa th,
+.prosa td {
+  @apply border border-gray-300 px-2 py-1 dark:border-white/20;
+}
+.prosa th {
+  @apply bg-gray-100 dark:bg-white/10;
+}
+.prosa img {
+  @apply my-4 max-w-full rounded-lg;
+}
+.prosa code {
+  @apply rounded bg-gray-100 px-1 text-sm dark:bg-white/10;
+}
+.prosa a {
+  @apply enlace;
+}
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+}
+.katex {
+  font-size: 1.08em;
+}

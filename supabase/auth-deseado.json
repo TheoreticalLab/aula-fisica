@@ -1,0 +1,14 @@
+{
+  "_comentario": "Configuración de Supabase Auth que mantiene el flujo de trabajo (npm run plan / aplicar). Claves de la API de gestión de Supabase.",
+  "disable_signup": true,
+  "external_email_enabled": true,
+  "external_phone_enabled": false,
+  "mailer_autoconfirm": true,
+  "password_min_length": 10,
+  "_rate_limits": "Los inicios de sesión pasan por la Edge Function «acceder» (IP de Supabase): se suben los límites por IP para que un grupo entero pueda entrar a la vez. Los bloqueos por ID (5 fallos) y por IP real del estudiante (30) los aplica el aula.",
+  "rate_limit_otp": 300,
+  "rate_limit_verify": 300,
+  "security_update_password_require_reauthentication": false,
+  "site_url": "https://orbefrancisco.github.io/aula-fisica-basica/",
+  "uri_allow_list": "https://orbefrancisco.github.io/aula-fisica-basica/**,http://localhost:5173/**,http://127.0.0.1:5173/**"
+}

@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.node.tsbuildinfo",
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@calif/*": ["supabase/functions/_shared/calificacion/*"]
+    }
+  },
+  "include": [
+    "vite.config.ts",
+    "vitest.config.ts",
+    "scripts",
+    "tests",
+    "contenido",
+    "privado",
+    "supabase/functions/calificar/handler.ts",
+    "supabase/functions/acceder/handler.ts",
+    "supabase/functions/admin-cuentas/handler.ts",
+    "supabase/functions/activar/handler.ts"
+  ]
+}
