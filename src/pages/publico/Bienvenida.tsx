@@ -1,21 +1,12 @@
 import { Link } from 'react-router-dom';
 import { SIMULATIONS } from '@/sims/catalogo';
 
-const BLOQUES = [
-  { n: 'I', t: 'Fundamentos', d: 'Magnitudes, unidades, notación científica, mediciones, vectores y gráficas.', ok: true },
-  { n: 'II', t: 'Cinemática', d: 'Posición, velocidad, aceleración, caída libre, proyectiles y movimiento circular.', ok: true },
-  { n: 'III', t: 'Dinámica', d: 'Leyes de Newton, diagramas de cuerpo libre, fricción, tensión y planos inclinados.', ok: true },
-  { n: 'IV', t: 'Energía y cantidad de movimiento', d: 'Trabajo, energía, potencia, impulso y colisiones.', ok: false },
-  { n: 'V', t: 'Oscilaciones y ondas', d: 'Resortes, péndulos, ondas mecánicas y sonido.', ok: false },
-  { n: 'VI', t: 'Temperatura y termodinámica', d: 'Calor, gases ideales y leyes de la termodinámica.', ok: false },
-];
-
 export default function Bienvenida() {
   return (
     <div className="space-y-10">
       <section className="-mx-4 -mt-5 bg-gradient-to-br from-primario-900 via-primario-800 to-primario-700 px-6 py-12 text-white sm:rounded-b-3xl">
-        <p className="mb-2 text-sm uppercase tracking-widest text-acento-300">Curso introductorio universitario</p>
-        <h1 className="max-w-2xl font-serif text-3xl font-semibold leading-tight sm:text-4xl">Aula Virtual de Física Básica</h1>
+        <p className="mb-2 text-sm uppercase tracking-widest text-acento-300">Física universitaria</p>
+        <h1 className="max-w-2xl font-serif text-3xl font-semibold leading-tight sm:text-4xl">Aula Virtual de Física</h1>
         <p className="mt-4 max-w-2xl text-primario-100">
           Teoría explicada con ejemplos cotidianos, ecuaciones interpretadas paso a paso, ejercicios con corrección inmediata y
           experimentos virtuales con gráficas en tiempo real. Solo se necesita álgebra, trigonometría elemental y ganas de razonar.
@@ -40,20 +31,6 @@ export default function Bienvenida() {
               <p className="font-serif text-3xl text-acento-500">{i + 1}</p>
               <h3 className="font-semibold">{t}</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">{d}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h2 className="mb-4 text-2xl font-semibold text-primario-900 dark:text-white">Temario</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {BLOQUES.map((b) => (
-            <div key={b.n} className={`tarjeta ${b.ok ? '' : 'opacity-70'}`}>
-              <p className="text-xs font-semibold uppercase tracking-wide text-acento-600">Bloque {b.n}</p>
-              <h3 className="font-serif text-lg font-semibold">{b.t}</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{b.d}</p>
-              {!b.ok && <p className="mt-2 text-xs font-medium text-gray-500">En preparación</p>}
             </div>
           ))}
         </div>

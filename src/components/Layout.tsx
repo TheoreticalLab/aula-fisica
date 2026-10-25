@@ -14,7 +14,7 @@ function Logo() {
         <path d="M10 52 H54" stroke="#afc4e8" strokeWidth="3" strokeLinecap="round" />
       </svg>
       <span className="leading-tight">
-        <span className="block font-serif text-base font-semibold text-white sm:text-lg">Aula Virtual de Física Básica</span>
+        <span className="block font-serif text-base font-semibold text-white sm:text-lg">Aula Virtual de Física</span>
         <span className="hidden text-xs text-primario-200 sm:block">Comprender · Plantear · Resolver · Experimentar</span>
       </span>
     </Link>
@@ -101,7 +101,7 @@ export function Layout() {
         )}
       </main>
       <footer className="hidden border-t border-gray-200 py-4 text-center text-xs text-gray-500 dark:border-white/10 md:block">
-        Aula Virtual de Física Básica · <Link to="/acerca" className="enlace">Estado del desarrollo</Link>
+        Aula Virtual de Física · <Link to="/acerca" className="enlace">Estado del desarrollo</Link>
       </footer>
       {session && <BottomNav docente={docente && isTeacher} />}
     </div>

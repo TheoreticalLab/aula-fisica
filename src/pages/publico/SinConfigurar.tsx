@@ -1,7 +1,7 @@
 export default function SinConfigurar() {
   return (
     <div className="mx-auto max-w-2xl p-6">
-      <h1 className="mb-3 font-serif text-2xl font-semibold text-primario-900 dark:text-white">Aula Virtual de Física Básica</h1>
+      <h1 className="mb-3 font-serif text-2xl font-semibold text-primario-900 dark:text-white">Aula Virtual de Física</h1>
       <div className="tarjeta">
         <h2 className="mb-2 text-lg font-semibold">Falta conectar la base de datos</h2>
         <p className="mb-3 text-sm">
