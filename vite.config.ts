@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 
-// BASE_PATH: ruta de publicación en GitHub Pages, p. ej. «/aula-fisica-basica/». En local, «/».
+// BASE_PATH: ruta de publicación en GitHub Pages, p. ej. «/aula-fisica/». En local, «/».
 export default defineConfig({
   base: process.env.BASE_PATH ?? '/',
   plugins: [react()],

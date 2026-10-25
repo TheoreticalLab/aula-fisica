@@ -44,7 +44,7 @@ Si usa la CLI, `npx supabase link --project-ref <ref>` seguido de `npx supabase 
 
 En Authentication → URL Configuration:
 
-- Ponga en **Site URL** la dirección pública de la aplicación, por ejemplo `https://usuario.github.io/aula-fisica-basica/`.
+- Ponga en **Site URL** la dirección pública de la aplicación, por ejemplo `https://usuario.github.io/aula-fisica/`.
 - Añada esa misma dirección y `http://localhost:5173/` a **Redirect URLs**.
 
 ## 4. Desplegar la Edge Function de calificación

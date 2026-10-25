@@ -9,6 +9,6 @@
   "rate_limit_otp": 300,
   "rate_limit_verify": 300,
   "security_update_password_require_reauthentication": false,
-  "site_url": "https://orbefrancisco.github.io/aula-fisica-basica/",
-  "uri_allow_list": "https://orbefrancisco.github.io/aula-fisica-basica/**,http://localhost:5173/**,http://127.0.0.1:5173/**"
+  "site_url": "https://theoreticallab.github.io/aula-fisica/",
+  "uri_allow_list": "https://theoreticallab.github.io/aula-fisica/**,http://localhost:5173/**,http://127.0.0.1:5173/**"
 }

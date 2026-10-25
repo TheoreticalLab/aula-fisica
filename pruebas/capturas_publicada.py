@@ -12,7 +12,7 @@ import sys
 
 # Con «local» como argumento captura el servidor de desarrollo en lugar de la versión publicada.
 LOCAL = len(sys.argv) > 1 and sys.argv[1] == 'local'
-BASE = 'http://127.0.0.1:5173/' if LOCAL else 'https://orbefrancisco.github.io/aula-fisica-basica/'
+BASE = 'http://127.0.0.1:5173/' if LOCAL else 'https://theoreticallab.github.io/aula-fisica/'
 PREFIJO = 'local' if LOCAL else 'publicada'
 CASOS = [(f'{PREFIJO}-inicio', ''), (f'{PREFIJO}-activar', '#/activar'), (f'{PREFIJO}-ingresar', '#/ingresar')]
 
