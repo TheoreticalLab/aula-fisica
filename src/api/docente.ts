@@ -4,6 +4,7 @@ import type {
   Activity,
   ActivityItem,
   ActivityStats,
+  Aviso,
   ClassConceptStat,
   ClassRow,
   Concept,
@@ -185,6 +186,15 @@ export const responseEvents = (responseId: string) =>
   q<{ id: number; kind: string; answer: unknown; result: unknown; created_at: string }[]>(
     supabase.from('response_events').select('id, kind, answer, result, created_at').eq('response_id', responseId).order('created_at'),
   );
+
+// --- avisos --------------------------------------------------------------------------------------------------
+export const listAnnouncements = (classId: string) =>
+  q<Aviso[]>(supabase.from('announcements').select('*').eq('class_id', classId).order('pinned', { ascending: false }).order('created_at', { ascending: false }));
+export const createAnnouncement = (a: { class_id: string; title: string; body: string; pinned: boolean; visible_until: string | null }) =>
+  q<Aviso>(supabase.from('announcements').insert(a).select().single());
+export const updateAnnouncement = (id: string, patch: Partial<Pick<Aviso, 'title' | 'body' | 'pinned' | 'visible_until'>>) =>
+  q<Aviso>(supabase.from('announcements').update(patch).eq('id', id).select().single());
+export const deleteAnnouncement = (id: string) => q(supabase.from('announcements').delete().eq('id', id));
 
 // --- secciones -------------------------------------------------------------------------------------------
 export const teacherOverview = () => rpc<SeccionResumen[]>('teacher_overview');

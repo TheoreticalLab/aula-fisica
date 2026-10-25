@@ -43,6 +43,8 @@ export function Layout() {
   const [menu, setMenu] = useState(false);
   const loc = useLocation();
   const docente = loc.pathname.startsWith('/docente');
+  // la portada pública ocupa todo el ancho (sus bandas de color llegan al borde); el resto va en una columna centrada
+  const portada = !session && loc.pathname === '/';
   if (loading) return <div className="p-8"><Spinner /></div>;
   return (
     <div className="flex min-h-screen flex-col">
@@ -89,7 +91,7 @@ export function Layout() {
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-5 md:pb-10">
+      <main className={portada ? 'w-full flex-1' : 'mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-5 md:pb-10'}>
         {session && profile && !profile.active ? (
           <div className="mx-auto max-w-md tarjeta text-center">
             <h1 className="mb-2 font-serif text-xl font-semibold">Cuenta no habilitada</h1>

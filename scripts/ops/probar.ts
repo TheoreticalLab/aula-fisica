@@ -51,6 +51,13 @@ export function versionesBase(m: Manifiesto | null): string[] {
 async function restaurar(db: pg.Client, dir: string, m: Manifiesto) {
   await db.query(`set session_replication_role = replica`); // sin disparadores ni comprobación de FK durante la carga
   const orden = Object.keys(m.tablas).sort((a, b) => Number(b.startsWith('auth.')) - Number(a.startsWith('auth.')));
+  // Las migraciones de datos (p. ej. las asignaturas de la 8) ya insertaron filas con otros id: se vacía la copia LOCAL
+  // para que quede idéntica a producción. Solo corre sobre aula_prueba (lo comprueban asegurarLocal y nombreBase).
+  const presentes: string[] = [];
+  for (const tabla of orden) {
+    if ((await db.query(`select to_regclass($1) as t`, [tabla])).rows[0].t) presentes.push(tabla.split('.').map((p) => `"${p}"`).join('.'));
+  }
+  if (presentes.length) await db.query(`truncate table ${presentes.join(', ')} cascade`);
   for (const tabla of orden) {
     const info = m.tablas[tabla];
     const filas = JSON.parse(readFileSync(join(dir, info.archivo), 'utf8')) as Record<string, unknown>[];

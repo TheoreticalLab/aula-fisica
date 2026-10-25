@@ -2,6 +2,7 @@
 import { calificar, errorMessage, rpc, supabase } from '@/lib/supabase';
 import type {
   AttemptView,
+  Aviso,
   CheckResponse,
   Concept,
   ConceptMastery,
@@ -51,6 +52,7 @@ export const myClasses = () => rpc<MyClass[]>('my_classes');
 export const myActivities = () => rpc<MyActivity[]>('my_activities');
 export const myGrades = () => rpc<MyGrade[]>('my_grades');
 export const myPendingPractice = () => rpc<PendingPractice[]>('my_pending_practice');
+export const myAnnouncements = () => rpc<Aviso[]>('my_announcements');
 export const conceptMastery = (courseId: string, userId?: string) =>
   rpc<ConceptMastery[]>('concept_mastery', { p_course: courseId, p_user: userId ?? null });
 export const lessonProgress = (courseId: string, userId?: string) =>

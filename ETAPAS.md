@@ -10,6 +10,7 @@ Leyenda: ✅ hecho y probado · 🟡 hecho, verificado solo parcialmente (ver no
 | Usuarios: registro, ingreso, recuperación de contraseña, roles estudiante, profesor y administrador | 🟡 | Requiere un proyecto Supabase real; no se pudo probar contra uno durante el desarrollo |
 | Panel del profesor: clases, grupos, códigos, contenido, ejercicios, actividades, revisión, calificaciones, CSV | 🟡 | Ídem |
 | Panel del estudiante: temario, lecciones, prácticas, actividades, calificaciones, progreso | 🟡 | Ídem |
+| Portada general «Aula Virtual de Física» (tres asignaturas) y panel de inicio del estudiante (mis cursos, continuar, próximas actividades, avisos, progreso) | ✅ | Avisos por sección: migración `20261025000009_avisos.sql` + `supabase/pruebas/avisos.sql`; «continuar» recuerda la última lección en el dispositivo; vista previa con datos de ejemplo en `pruebas/vista-previa/panel.html` |
 | Bloques I–III con teoría, fórmulas, ejemplos, simulación y práctica (26 lecciones, 208 ejercicios) | ✅ | Validados por `tests/contenido.test.ts`: estructura, LaTeX y claves autoconsistentes |
 | Corrección automática (unidades, cifras significativas, tolerancia, equivalencias, errores típicos) | ✅ | `tests/calificacion.test.ts` y `tests/handler.test.ts` |
 | Persistencia de resultados e intentos, borradores, registro de envíos | 🟡 | SQL revisado; ejecute `supabase/pruebas/rls.sql` en su proyecto |

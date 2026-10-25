@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vista previa del panel del estudiante (solo desarrollo)</title>
+    <script>
+      if (new URLSearchParams(location.search).get('tema') === 'oscuro') document.documentElement.classList.add('dark');
+    </script>
+  </head>
+  <body class="bg-papel text-tinta dark:bg-noche dark:text-gray-100">
+    <div id="root"></div>
+    <script type="module" src="./panel.tsx"></script>
+  </body>
+</html>

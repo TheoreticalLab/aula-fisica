@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/auth/AuthContext';
+import { guardarUltimaLeccion } from '@/lib/ultimaLeccion';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { getExercise, getLesson, getLessonList, getUnits, restartLessonPractice, startLessonPractice, getAttempt } from '@/api/estudiante';
 import type { AttemptItem, AttemptView, Formula, Lesson, WorkedExample } from '@/api/tipos';
@@ -146,6 +148,17 @@ export default function Leccion() {
     const [lesson, lessons, units] = await Promise.all([getLesson(lessonId), getLessonList(courseId), getUnits(courseId)]);
     return { lesson, lessons, units };
   }, [lessonId, courseId]);
+  const { profile } = useAuth();
+  useEffect(() => {
+    if (!data) return;
+    guardarUltimaLeccion(profile?.id, {
+      courseId,
+      lessonId,
+      titulo: data.lesson.title,
+      bloque: data.units.find((u) => u.id === data.lesson.unit_id)?.title,
+      seccion: sec,
+    });
+  }, [data, sec, profile?.id, courseId, lessonId]);
   if (loading) return <Spinner />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   const { lesson, lessons, units } = data!;

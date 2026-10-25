@@ -40,6 +40,20 @@ export interface IntentoSospechoso {
   bloqueos: number;
 }
 
+/** Aviso de una sección (tabla announcements / my_announcements). */
+export interface Aviso {
+  id: string;
+  class_id: string;
+  class_name?: string;
+  course_title?: string;
+  title: string;
+  body: string;
+  pinned: boolean;
+  created_at: string;
+  visible_until?: string | null;
+  author?: string | null;
+}
+
 /** Resumen de una sección para el panel docente (teacher_overview). */
 export interface SeccionResumen {
   class_id: string;

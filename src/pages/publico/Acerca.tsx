@@ -9,7 +9,10 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
       'Bloques I (Fundamentos), II (Cinemática) y III (Dinámica): 26 lecciones con teoría, fórmulas, ejemplos resueltos, simulación cuando corresponde y práctica.',
       'Ocho ejercicios por lección: conjunto de práctica (3 básicos, 1 intermedio, 1 desafiante), 2 de refuerzo y 1 de desarrollo para el banco.',
     ],
-    pendiente: ['Bloques IV (Energía y cantidad de movimiento), V (Oscilaciones y ondas) y VI (Termodinámica): anunciados en el temario, sin lecciones todavía.'],
+    pendiente: [
+      'Bloques IV (Energía y cantidad de movimiento), V (Oscilaciones y ondas) y VI (Termodinámica): anunciados en el temario, sin lecciones todavía.',
+      'Física General I y Física General III: asignaturas y secciones creadas; lecciones en preparación.',
+    ],
   },
   {
     area: 'Ejercicios y calificación',
@@ -33,6 +36,7 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
     hecho: [
       'Dominio por concepto calculado a partir de respuestas verificables (acierto al primer intento, uso de pistas, evaluaciones), no de páginas visitadas.',
       'Estadísticas por actividad y por concepto, libro de calificaciones y exportación a CSV.',
+      'Panel de inicio del estudiante: mis cursos, continuar donde lo dejó, próximas actividades, avisos de la sección y del sistema, progreso y calificaciones recientes.',
     ],
     pendiente: ['Personalización del aprendizaje y análisis pedagógico avanzado (etapa 3).'],
   },

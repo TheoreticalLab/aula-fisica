@@ -5,7 +5,11 @@ import {
   classConceptStats,
   classTeachers,
   createActivity,
+  createAnnouncement,
   createGroup,
+  deleteAnnouncement,
+  listAnnouncements,
+  updateAnnouncement,
   deleteGroup,
   enrollByLogin,
   getClass,
@@ -26,7 +30,7 @@ import type { ClassRow, Mode } from '@/api/tipos';
 import { downloadText, fecha, porcentaje, puntaje, toCsv, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, Empty, ErrorBox, Field, Notice, PageTitle, Spinner, Tabs } from '@/components/ui';
 
-type Tab = 'estudiantes' | 'actividades' | 'calificaciones' | 'revision' | 'estadisticas';
+type Tab = 'estudiantes' | 'avisos' | 'actividades' | 'calificaciones' | 'revision' | 'estadisticas';
 
 export default function Clase() {
   const { classId = '' } = useParams();
@@ -57,6 +61,7 @@ export default function Clase() {
         onChange={(t) => setParams({ t }, { replace: true })}
         tabs={[
           { id: 'estudiantes', label: 'Estudiantes y grupos' },
+          { id: 'avisos', label: 'Avisos' },
           { id: 'actividades', label: 'Actividades' },
           { id: 'calificaciones', label: 'Calificaciones' },
           { id: 'revision', label: 'Revisión manual' },
@@ -64,6 +69,7 @@ export default function Clase() {
         ]}
       />
       {tab === 'estudiantes' && <TabEstudiantes c={c} onChange={(nc) => cls.setData({ c: nc, course, secciones })} />}
+      {tab === 'avisos' && <TabAvisos c={c} />}
       {tab === 'actividades' && <TabActividades c={c} />}
       {tab === 'calificaciones' && <TabCalificaciones c={c} />}
       {tab === 'revision' && <TabRevision c={c} />}
@@ -237,6 +243,62 @@ function MatricularPorId({ classId, groups, onDone }: { classId: string; groups:
         </div>
       )}
     </Card>
+  );
+}
+
+/** Avisos de la sección: los ven solo sus estudiantes, en su panel de inicio. */
+function TabAvisos({ c }: { c: ClassRow }) {
+  const lista = useAsync(() => listAnnouncements(c.id), [c.id]);
+  const action = useAction();
+  const [f, setF] = useState({ title: '', body: '', pinned: false, hasta: '' });
+  async function publicar(e: FormEvent) {
+    e.preventDefault();
+    const r = await action.run(() =>
+      createAnnouncement({ class_id: c.id, title: f.title.trim(), body: f.body.trim(), pinned: f.pinned, visible_until: f.hasta ? new Date(f.hasta).toISOString() : null }),
+    );
+    if (r) {
+      setF({ title: '', body: '', pinned: false, hasta: '' });
+      await lista.reload();
+    }
+  }
+  return (
+    <div className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">
+      <Card title="Nuevo aviso">
+        <form onSubmit={publicar}>
+          <Field label="Título">{(id) => <input id={id} className="campo" required maxLength={140} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="Examen parcial el lunes 3" />}</Field>
+          <Field label="Mensaje (opcional)">{(id) => <textarea id={id} className="campo" rows={4} maxLength={4000} value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} placeholder="Entra hasta la lección de MRUA. Traigan calculadora." />}</Field>
+          <Field label="Visible hasta (opcional)" hint="Después de esa fecha deja de mostrarse.">{(id) => <input id={id} type="datetime-local" className="campo" value={f.hasta} onChange={(e) => setF({ ...f, hasta: e.target.value })} />}</Field>
+          <label className="mb-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={f.pinned} onChange={(e) => setF({ ...f, pinned: e.target.checked })} /> Fijar arriba</label>
+          <ErrorBox error={action.error} />
+          <button className="btn-primario" disabled={action.busy || !f.title.trim()}>Publicar aviso</button>
+          <p className="mt-2 text-xs text-gray-500">Lo verán solo los estudiantes de {c.name}, en su página de inicio.</p>
+        </form>
+      </Card>
+      <Card title="Avisos publicados">
+        {lista.loading ? <Spinner /> : lista.data?.length ? (
+          <ul className="space-y-3">
+            {lista.data.map((a) => (
+              <li key={a.id} className="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-semibold">{a.pinned && '📌 '}{a.title}</p>
+                  <span className="shrink-0 text-xs text-gray-500">{fecha(a.created_at)}</span>
+                </div>
+                {a.body && <p className="mt-1 whitespace-pre-line text-sm text-gray-700 dark:text-gray-300">{a.body}</p>}
+                {a.visible_until && <p className="mt-1 text-xs text-gray-500">Visible hasta {fecha(a.visible_until)}</p>}
+                <div className="mt-2 flex gap-2">
+                  <button className="btn-texto text-xs" onClick={async () => { await action.run(() => updateAnnouncement(a.id, { pinned: !a.pinned })); await lista.reload(); }}>
+                    {a.pinned ? 'Desfijar' : 'Fijar'}
+                  </button>
+                  <button className="btn-texto text-xs text-red-700" onClick={async () => {
+                    if (window.confirm('¿Borrar este aviso? Los estudiantes dejarán de verlo.')) { await action.run(() => deleteAnnouncement(a.id)); await lista.reload(); }
+                  }}>Borrar</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : <Empty>Todavía no ha publicado avisos en esta sección.</Empty>}
+      </Card>
+    </div>
   );
 }
 

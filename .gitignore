@@ -8,6 +8,6 @@ dist
 privado/
 supabase/.temp
 supabase/.branches
-pruebas/.perfil_chrome
+pruebas/.perfil_chrome*
 pruebas/capturas/*.png
 .DS_Store
