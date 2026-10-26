@@ -4,10 +4,11 @@
 -- =============================================================================
 begin;
 
--- las cuatro secciones existen, cada una con su clave distinta
+-- las cuatro secciones existen (sin contar las archivadas: al trasladar una sección a otra asignatura queda la
+-- antigua archivada con el mismo nombre), cada una con su clave distinta
 do $$ begin
   if (select count(distinct join_code) from public.classes
-      where name in ('Física Básica', 'Física General 1-A', 'Física General 1', 'Física General 3')) <> 4 then
+      where not archived and name in ('Física Básica', 'Física General 1-A', 'Física General 1', 'Física General 3')) <> 4 then
     raise exception 'FALLO: no están las cuatro secciones con claves distintas';
   end if;
   if (select count(*) from public.courses where code in ('FIS-GEN-1', 'FIS-GEN-3')) <> 2 then raise exception 'FALLO: faltan las asignaturas de Física General'; end if;
