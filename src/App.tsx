@@ -7,7 +7,7 @@ import { supabaseConfigured } from '@/lib/supabase';
 import SinConfigurar from '@/pages/publico/SinConfigurar';
 import Bienvenida from '@/pages/publico/Bienvenida';
 import { Activar, CambiarClave, Ingresar, SinRegistro } from '@/pages/publico/Acceso';
-import Acerca from '@/pages/publico/Acerca';
+const Acerca = lazy(() => import('@/pages/publico/Acerca'));
 
 // Estudiante
 const Inicio = lazy(() => import('@/pages/estudiante/Inicio'));
@@ -71,7 +71,8 @@ export default function App() {
               <Route path="activar" element={<Activar />} />
               <Route path="registro" element={<SinRegistro />} />
               <Route path="recuperar" element={<SinRegistro />} />
-              <Route path="acerca" element={<Acerca />} />
+              {/* el estado del desarrollo menciona asignaturas: solo para el profesorado */}
+              <Route path="acerca" element={teacher(<Acerca />)} />
 
               <Route path="unirse" element={auth(<Unirse />)} />
               <Route path="temario" element={auth(<ElegirCurso />)} />

@@ -11,7 +11,7 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
     ],
     pendiente: [
       'Bloques IV (Energía y cantidad de movimiento), V (Oscilaciones y ondas) y VI (Termodinámica): anunciados en el temario, sin lecciones todavía.',
-      'Física General I y Física General III: asignaturas y secciones creadas; lecciones en preparación.',
+      'Otras asignaturas: creadas desde el panel; sus lecciones están en preparación.',
     ],
   },
   {

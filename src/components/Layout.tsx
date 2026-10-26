@@ -43,7 +43,7 @@ export function Layout() {
   const [menu, setMenu] = useState(false);
   const loc = useLocation();
   const docente = loc.pathname.startsWith('/docente');
-  // la portada pública ocupa todo el ancho (sus bandas de color llegan al borde); el resto va en una columna centrada
+  // en la portada el formulario de ingreso ya está en la página: no se repite el botón «Ingresar»
   const portada = !session && loc.pathname === '/';
   if (loading) return <div className="p-8"><Spinner /></div>;
   return (
@@ -80,18 +80,18 @@ export function Layout() {
                     {isTeacher && <Link role="menuitem" to={docente ? '/' : '/docente'} className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10 md:hidden">{docente ? 'Vista de estudiante' : 'Panel docente'}</Link>}
                     {isAdmin && <Link role="menuitem" to="/docente/cuentas" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10 md:hidden">Cuentas</Link>}
                     <Link role="menuitem" to="/cambiar-clave" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Cambiar contraseña</Link>
-                    <Link role="menuitem" to="/acerca" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Acerca del aula</Link>
+                    {isTeacher && <Link role="menuitem" to="/acerca" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Estado del desarrollo</Link>}
                     <button role="menuitem" onClick={() => void signOut()} className="block w-full px-3 py-2 text-left text-red-700 hover:bg-gray-100 dark:text-red-300 dark:hover:bg-white/10">Cerrar sesión</button>
                   </div>
                 )}
               </div>
-            ) : (
+            ) : portada ? null : (
               <Link to="/ingresar" className="btn-acento ml-1 min-h-[40px]">Ingresar</Link>
             )}
           </div>
         </div>
       </header>
-      <main className={portada ? 'w-full flex-1' : 'mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-5 md:pb-10'}>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-5 md:pb-10">
         {session && profile && !profile.active ? (
           <div className="mx-auto max-w-md tarjeta text-center">
             <h1 className="mb-2 font-serif text-xl font-semibold">Cuenta no habilitada</h1>
@@ -103,7 +103,7 @@ export function Layout() {
         )}
       </main>
       <footer className="hidden border-t border-gray-200 py-4 text-center text-xs text-gray-500 dark:border-white/10 md:block">
-        Aula Virtual de Física · <Link to="/acerca" className="enlace">Estado del desarrollo</Link>
+        Aula Virtual de Física{isTeacher && <> · <Link to="/acerca" className="enlace">Estado del desarrollo</Link></>}
       </footer>
       {session && <BottomNav docente={docente && isTeacher} />}
     </div>

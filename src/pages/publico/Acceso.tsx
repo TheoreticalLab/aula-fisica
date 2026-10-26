@@ -5,10 +5,10 @@ import { useAuth } from '@/auth/AuthContext';
 import { ErrorBox, Field, Notice } from '@/components/ui';
 import { problemasContrasena } from '../../../supabase/functions/_shared/cuentas.ts';
 
-function Marco({ title, children }: { title: string; children: ReactNode }) {
+function Marco({ title, children }: { title: string | null; children: ReactNode }) {
   return (
     <div className="mx-auto max-w-md">
-      <h1 className="mb-4 text-center font-serif text-2xl font-semibold text-primario-900 dark:text-white">{title}</h1>
+      {title && <h1 className="mb-4 text-center font-serif text-2xl font-semibold text-primario-900 dark:text-white">{title}</h1>}
       <div className="tarjeta">{children}</div>
     </div>
   );
@@ -21,7 +21,7 @@ interface SesionAcceso {
 }
 
 /** Inicio de sesión con ID y contraseña. La verificación la hace la Edge Function «acceder» en el servidor. */
-export function Ingresar() {
+export function Ingresar({ titulo = 'Ingresar al aula' }: { titulo?: string | null }) {
   const { session, profile } = useAuth();
   const nav = useNavigate();
   const loc = useLocation() as { state?: { from?: string } };
@@ -47,7 +47,7 @@ export function Ingresar() {
     }
   }
   return (
-    <Marco title="Ingresar al aula">
+    <Marco title={titulo}>
       <form onSubmit={submit}>
         <Field label="ID de usuario" hint="El que le entregó su profesor (por ejemplo, su matrícula).">
           {(fid) => (
