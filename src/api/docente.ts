@@ -16,6 +16,7 @@ import type {
   GroupRow,
   IntentoSospechoso,
   Lesson,
+  MyActivity,
   Profile,
   ReviewItem,
   Role,
@@ -145,6 +146,59 @@ export const createActivity = (a: Partial<Activity> & { class_id: string; title:
 export const updateActivity = (id: string, patch: Partial<Activity>) =>
   q<Activity>(supabase.from('activities').update(patch).eq('id', id).select().single());
 export const deleteActivity = (id: string) => q(supabase.from('activities').delete().eq('id', id));
+/**
+ * Datos del panel de inicio tal como los vería un estudiante RECIÉN inscrito en la sección (sin grupo, sin progreso):
+ * actividades publicadas, avisos vigentes y el temario visible. Se construye con lo que el profesor ya puede leer.
+ */
+export async function datosPanelSeccion(classId: string) {
+  const cls = await q<ClassRow>(supabase.from('classes').select('*').eq('id', classId).single());
+  const [curso, profes, acts, avisos, grupos] = await Promise.all([
+    q<{ title: string }>(supabase.from('courses').select('title').eq('id', cls.course_id).single()),
+    supabase.from('class_teachers').select('profiles(full_name)').eq('class_id', classId),
+    q<Activity[]>(supabase.from('activities').select('*').eq('class_id', classId).eq('published', true).is('group_id', null)),
+    supabase.from('announcements').select('*, autor:profiles!announcements_created_by_fkey(full_name)').eq('class_id', classId),
+    q<{ id: string }[]>(supabase.from('class_groups').select('id').eq('class_id', classId)),
+  ]);
+  const nombresProfes = ((profes.data ?? []) as { profiles: { full_name: string } | { full_name: string }[] | null }[])
+    .flatMap((r) => (Array.isArray(r.profiles) ? r.profiles : r.profiles ? [r.profiles] : []))
+    .map((p) => p.full_name)
+    .filter(Boolean);
+  const ids = acts.map((a) => a.id);
+  const items = ids.length
+    ? await q<{ activity_id: string; points: number | null; exercises: { points: number } | { points: number }[] | null }[]>(
+        supabase.from('activity_items').select('activity_id, points, exercises(points)').in('activity_id', ids),
+      )
+    : [];
+  const ahora = Date.now();
+  const actividades: MyActivity[] = acts
+    .map((a) => {
+      const suyos = items.filter((i) => i.activity_id === a.id);
+      const max = suyos.reduce((s, i) => {
+        const e = Array.isArray(i.exercises) ? i.exercises[0] : i.exercises;
+        return s + Number(i.points ?? e?.points ?? 0);
+      }, 0);
+      return {
+        id: a.id, title: a.title, mode: a.mode, opens_at: a.opens_at, closes_at: a.closes_at, class_id: cls.id, class_name: cls.name,
+        course_id: cls.course_id, lesson_id: a.lesson_id, max_attempts: a.max_attempts, grades_published: a.grades_published,
+        items: suyos.length, attempts_used: 0, in_progress: null, submitted: false, last_attempt_id: null, best_score: null, max_score: max,
+        reading_min_seconds: a.reading_min_seconds ?? null, reading_done: false,
+      };
+    })
+    .sort((x, y) => (x.closes_at ?? '9999').localeCompare(y.closes_at ?? '9999'));
+  // si la migración de avisos no estuviera aplicada, simplemente no hay avisos
+  const filas = (avisos.data ?? []) as (Aviso & { autor?: { full_name: string } | null })[];
+  const avisosVigentes: Aviso[] = filas
+    .filter((a) => (!a.visible_until || new Date(a.visible_until).getTime() > ahora) && new Date(a.created_at).getTime() > ahora - 120 * 86400_000)
+    .sort((x, y) => Number(y.pinned) - Number(x.pinned) || y.created_at.localeCompare(x.created_at))
+    .map((a) => ({ ...a, class_name: cls.name, course_title: curso.title, author: a.autor?.full_name ?? null }));
+  return {
+    clase: { class_id: cls.id, name: cls.name, term: cls.term, archived: cls.archived, course_id: cls.course_id, course_title: curso.title, group_name: null, teachers: nombresProfes },
+    actividades,
+    avisos: avisosVigentes,
+    tieneGrupos: grupos.length > 0,
+  };
+}
+
 /** Todo lo necesario para la vista previa de una actividad «como estudiante» (incluidas las claves, que solo lee el profesorado). */
 export async function vistaPreviaActividad(activityId: string) {
   const act = await q<Activity>(supabase.from('activities').select('*').eq('id', activityId).single());

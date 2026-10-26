@@ -77,7 +77,7 @@ function saludo(): string {
 
 const ICONO_CONTINUAR = { leccion: '📖', practica: '✏️', actividad: '📝' } as const;
 
-export function PanelEstudiante({ d }: { d: DatosPanel }) {
+export function PanelEstudiante({ d, rutaActividad = (id) => `/actividad/${id}` }: { d: DatosPanel; rutaActividad?: (id: string) => string }) {
   const ahora = Date.now();
   const proximas = d.actividades
     .filter((a) => !a.closes_at || new Date(a.closes_at).getTime() > ahora)
@@ -208,7 +208,7 @@ export function PanelEstudiante({ d }: { d: DatosPanel }) {
                   const pronto = a.closes_at && new Date(a.closes_at).getTime() - ahora < 48 * 3600_000;
                   return (
                     <li key={a.id}>
-                      <Link to={a.in_progress ? `/intento/${a.in_progress}` : `/actividad/${a.id}`} className="block p-4 hover:bg-gray-50 dark:hover:bg-white/5">
+                      <Link to={a.in_progress ? `/intento/${a.in_progress}` : rutaActividad(a.id)} className="block p-4 hover:bg-gray-50 dark:hover:bg-white/5">
                         <div className="flex items-start justify-between gap-2">
                           <p className="font-medium text-primario-950 dark:text-white">{a.title}</p>
                           <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${a.mode === 'exam' ? 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200' : 'bg-primario-100 text-primario-800 dark:bg-primario-800/50 dark:text-primario-100'}`}>

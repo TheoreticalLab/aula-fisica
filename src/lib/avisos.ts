@@ -3,7 +3,12 @@ import type { MyActivity, MyGrade } from '@/api/tipos';
 import type { AvisoPanel } from '@/pages/estudiante/PanelEstudiante';
 import { relativo } from './util';
 
-export function avisosAutomaticos(actividades: MyActivity[], notas: MyGrade[], ahora = Date.now()): AvisoPanel[] {
+export function avisosAutomaticos(
+  actividades: MyActivity[],
+  notas: MyGrade[],
+  ahora = Date.now(),
+  rutaActividad: (id: string) => string = (id) => `/actividad/${id}`,
+): AvisoPanel[] {
   const out: AvisoPanel[] = [];
   for (const a of actividades) {
     if (!a.closes_at || a.submitted) continue;
@@ -17,7 +22,7 @@ export function avisosAutomaticos(actividades: MyActivity[], notas: MyGrade[], a
         fecha: new Date(ahora).toISOString(),
         fijado: false,
         automatico: true,
-        enlace: a.in_progress ? `/intento/${a.in_progress}` : `/actividad/${a.id}`,
+        enlace: a.in_progress ? `/intento/${a.in_progress}` : rutaActividad(a.id),
       });
     }
   }

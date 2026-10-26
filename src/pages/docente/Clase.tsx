@@ -48,14 +48,17 @@ export default function Clase() {
   return (
     <div>
       <PageTitle title={c.name} subtitle={<>{c.term} · {course.title} {c.archived && <Badge tone="amber">Archivada</Badge>}</>} back={{ to: '/docente', label: 'Panel docente' }}
-        actions={secciones.length > 1 && (
-          <select className="campo w-auto" value={classId} aria-label="Cambiar de sección"
-            onChange={(e) => nav(`/docente/clases/${e.target.value}${tab !== 'estudiantes' ? `?t=${tab}` : ''}`)}>
-            {secciones.filter((s) => !s.archived || s.class_id === classId).map((s) => (
-              <option key={s.class_id} value={s.class_id}>{s.course_title} · {s.name}</option>
-            ))}
-          </select>
-        )} />
+        actions={<>
+          <Link to={`/docente/clases/${classId}/vista-estudiante`} className="btn-secundario">👁 Ver como estudiante</Link>
+          {secciones.length > 1 && (
+            <select className="campo w-auto" value={classId} aria-label="Cambiar de sección"
+              onChange={(e) => nav(`/docente/clases/${e.target.value}${tab !== 'estudiantes' ? `?t=${tab}` : ''}`)}>
+              {secciones.filter((s) => !s.archived || s.class_id === classId).map((s) => (
+                <option key={s.class_id} value={s.class_id}>{s.course_title} · {s.name}</option>
+              ))}
+            </select>
+          )}
+        </>} />
       <Tabs<Tab>
         value={tab}
         onChange={(t) => setParams({ t }, { replace: true })}

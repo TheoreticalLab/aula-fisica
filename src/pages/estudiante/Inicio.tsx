@@ -1,6 +1,8 @@
 /**
- * Inicio del estudiante: reúne los datos (cursos, avisos, actividades, progreso) y los entrega a PanelEstudiante.
+ * Inicio del estudiante: carga los datos (cursos, avisos, actividades, progreso) y los entrega a PanelEstudiante.
+ * La construcción del panel está en src/lib/panel.ts (la comparte la vista previa del profesor).
  */
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
 import {
   conceptMastery,
@@ -13,11 +15,12 @@ import {
   myGrades,
   myPendingPractice,
 } from '@/api/estudiante';
-import { avisosAutomaticos, origenAviso } from '@/lib/avisos';
-import { leerUltimaLeccion, NOMBRE_SECCION } from '@/lib/ultimaLeccion';
-import { fecha, relativo, useAsync } from '@/lib/util';
-import { ErrorBox, Spinner } from '@/components/ui';
-import { PanelEstudiante, type AvisoPanel, type ContinuarItem, type CursoPanel, type DatosPanel } from './PanelEstudiante';
+import { teacherOverview } from '@/api/docente';
+import { construirDatosPanel, type DatosCurso } from '@/lib/panel';
+import { leerUltimaLeccion } from '@/lib/ultimaLeccion';
+import { useAsync } from '@/lib/util';
+import { Card, ErrorBox, Spinner } from '@/components/ui';
+import { PanelEstudiante, type DatosPanel } from './PanelEstudiante';
 
 export default function Inicio() {
   const { profile, isTeacher } = useAuth();
@@ -29,9 +32,8 @@ export default function Inicio() {
       myGrades(),
       myAnnouncements().catch(() => []), // si la migración de avisos aún no está aplicada
     ]);
-    const activas = clases.filter((c) => !c.archived);
-    const cursosIds = [...new Set(activas.map((c) => c.course_id))];
-    const porCurso = new Map(
+    const cursosIds = [...new Set(clases.filter((c) => !c.archived).map((c) => c.course_id))];
+    const porCurso = new Map<string, DatosCurso>(
       await Promise.all(
         cursosIds.map(async (id) => {
           const [units, lecciones, progreso, dominio] = await Promise.all([getUnits(id), getLessonList(id), lessonProgress(id), conceptMastery(id)]);
@@ -39,75 +41,49 @@ export default function Inicio() {
         }),
       ),
     );
-
-    const cursos: CursoPanel[] = activas.map((c) => {
-      const info = porCurso.get(c.course_id)!;
-      const orden = info.units.flatMap((u) => info.lecciones.filter((l) => l.unit_id === u.id && !l.hidden));
-      const prog = new Map(info.progreso.map((p) => [p.lesson_id, p]));
-      const conDominio = info.progreso.filter((p) => p.mastery !== null && p.evidence >= 2);
-      const siguiente = orden.find((l) => {
-        const p = prog.get(l.id);
-        return !p || p.practice_solved < p.practice_total;
-      });
-      return {
-        classId: c.class_id,
-        courseId: c.course_id,
-        curso: c.course_title,
-        seccion: c.name,
-        profesores: c.teachers.filter(Boolean),
-        lecciones: orden.length,
-        practicaResuelta: info.progreso.reduce((s, p) => s + p.practice_solved, 0),
-        practicaTotal: info.progreso.reduce((s, p) => s + p.practice_total, 0),
-        dominio: conDominio.length ? conDominio.reduce((s, p) => s + Number(p.mastery), 0) / conDominio.length : null,
-        dominados: info.dominio.filter((m) => m.level === 'dominado').length,
-        dificultad: info.dominio.filter((m) => m.level === 'dificultad').length,
-        siguiente: siguiente ? { lessonId: siguiente.id, titulo: siguiente.title } : null,
-      };
-    });
-
-    // continuar donde lo dejó: actividades en curso, última lección abierta y prácticas a medias
-    const continuar: ContinuarItem[] = [];
-    const ahora = Date.now();
-    for (const a of actividades) {
-      if (a.in_progress && (!a.closes_at || new Date(a.closes_at).getTime() > ahora)) {
-        continuar.push({ tipo: 'actividad', titulo: a.title, detalle: `Intento sin entregar${a.closes_at ? ` · cierra ${relativo(a.closes_at)}` : ''}`, enlace: `/intento/${a.in_progress}` });
-      }
-    }
-    const ultima = leerUltimaLeccion(profile?.id);
-    if (ultima && cursosIds.includes(ultima.courseId)) {
-      continuar.push({
-        tipo: 'leccion',
-        titulo: ultima.titulo,
-        detalle: `${NOMBRE_SECCION[ultima.seccion] ?? 'Lección'}${ultima.bloque ? ` · ${ultima.bloque}` : ''} · ${fecha(ultima.fecha)}`,
-        enlace: `/curso/${ultima.courseId}/leccion/${ultima.lessonId}?s=${ultima.seccion}`,
-      });
-    }
-    for (const p of pendientes.filter((x) => x.solved < x.total && x.lesson_id !== ultima?.lessonId).slice(0, 2)) {
-      continuar.push({ tipo: 'practica', titulo: p.lesson_title, detalle: `Práctica: ${p.solved} de ${p.total} ejercicios cerrados`, enlace: `/curso/${p.course_id}/leccion/${p.lesson_id}?s=practica` });
-    }
-
-    const avisosProfesor: AvisoPanel[] = avisos.map((a) => ({
-      id: a.id,
-      titulo: a.title,
-      cuerpo: a.body,
-      origen: origenAviso(a.course_title, a.class_name, a.author),
-      fecha: a.created_at,
-      fijado: a.pinned,
-      automatico: false,
-    }));
-
-    return {
+    return construirDatosPanel({
       nombre: profile?.full_name?.split(' ')[0] ?? '',
       esProfesor: isTeacher,
-      cursos,
-      continuar: continuar.slice(0, 3),
+      clases,
       actividades,
-      avisos: [...avisosProfesor.filter((a) => a.fijado), ...avisosAutomaticos(actividades, notas), ...avisosProfesor.filter((a) => !a.fijado)].slice(0, 6),
+      pendientes,
       notas,
-    };
+      avisos,
+      porCurso,
+      ultima: leerUltimaLeccion(profile?.id),
+    });
   }, [profile?.id]);
 
   if (loading) return <Spinner />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
+  // Un profesor no inscrito como estudiante vería un panel vacío: se le ofrece el de sus secciones.
+  if (isTeacher && data!.cursos.length === 0) return <ElegirSeccionVistaPrevia />;
   return <PanelEstudiante d={data!} />;
+}
+
+function ElegirSeccionVistaPrevia() {
+  const st = useAsync(() => teacherOverview(), []);
+  return (
+    <div className="mx-auto max-w-2xl">
+      <h1 className="mb-2 font-serif text-2xl font-semibold">Vista de estudiante</h1>
+      <p className="mb-4 text-sm text-gray-600 dark:text-gray-300">
+        Usted no está inscrito como estudiante, así que su propio panel estaría vacío. Elija una sección para ver el inicio exactamente como lo ve un estudiante de ella.
+      </p>
+      <Card>
+        {st.loading ? <Spinner /> : st.error ? <ErrorBox error={st.error} onRetry={st.reload} /> : (
+          <ul className="divide-y divide-gray-100 dark:divide-white/10">
+            {(st.data ?? []).filter((s) => !s.archived).map((s) => (
+              <li key={s.class_id} className="flex items-center justify-between gap-3 py-3">
+                <span>
+                  <span className="font-medium">{s.name}</span>
+                  <span className="block text-xs text-gray-500">{s.course_title} · {s.students} estudiantes</span>
+                </span>
+                <Link className="btn-secundario text-sm" to={`/docente/clases/${s.class_id}/vista-estudiante`}>👁 Ver como estudiante</Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </div>
+  );
 }

@@ -28,6 +28,7 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
     hecho: [
       'Modo práctica (varios intentos, pistas, retroalimentación inmediata) y modo evaluación (sin pistas, se califica al entregar).',
       'Fechas de apertura y cierre, número de intentos, política de visualización de respuestas, publicación de calificaciones y revisión manual.',
+      'Vista previa del panel de inicio del estudiante por sección («Ver como estudiante»), con el mismo componente y los datos que vería un estudiante recién inscrito.',
       'Vista previa «como estudiante» de cada práctica o evaluación: los mismos componentes que ve el estudiante, calificados con el mismo motor, sin guardar nada.',
       'Lectura cronometrada antes de los ejercicios: el servidor cuenta el tiempo real de lectura, se detiene si el estudiante sale de la plataforma y los ejercicios se habilitan al cumplir el mínimo.',
     ],
