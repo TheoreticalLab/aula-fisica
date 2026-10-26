@@ -11,6 +11,10 @@ const COMPONENTES: Record<string, LazyExoticComponent<ComponentType<SimProps>>> 
   proyectiles: lazy(() => import('./Proyectiles')),
   circular: lazy(() => import('./Circular')),
   fuerzas: lazy(() => import('./Fuerzas')),
+  'trabajo-energia': lazy(() => import('./TrabajoEnergia')),
+  'conservacion-energia': lazy(() => import('./ConservacionEnergia')),
+  'masa-resorte': lazy(() => import('./MasaResorte')),
+  colisiones: lazy(() => import('./Colisiones')),
 };
 
 export function simulatorAvailable(key: string): boolean {

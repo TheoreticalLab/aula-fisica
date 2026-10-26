@@ -40,12 +40,12 @@ export function checkMarkdown(where: string, md: string | undefined, problems: s
   }
 }
 
-function checkTex(where: string, tex: string, problems: string[]) {
+export function checkTex(where: string, tex: string, problems: string[]) {
   const err = katexErrors(tex);
   if (err) problems.push(`${where}: LaTeX inválido «${tex.slice(0, 60)}»: ${err}`);
 }
 
-function checkSimRef(where: string, key: string, params: Record<string, number> | undefined, problems: string[]) {
+export function checkSimRef(where: string, key: string, params: Record<string, number> | undefined, problems: string[]) {
   const sim = getSimulation(key);
   if (!sim) {
     problems.push(`${where}: simulador desconocido «${key}»`);
@@ -58,7 +58,7 @@ function checkSimRef(where: string, key: string, params: Record<string, number> 
   }
 }
 
-function checkExercise(where: string, e: ExerciseDef, problems: string[]) {
+export function checkExercise(where: string, e: ExerciseDef, problems: string[]) {
   checkMarkdown(`${where} enunciado`, e.prompt, problems);
   if (e.format === 'choice') {
     if (!e.options || e.options.length < 2) problems.push(`${where}: selección con menos de 2 opciones`);

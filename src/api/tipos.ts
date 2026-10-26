@@ -80,6 +80,22 @@ export interface Course {
   created_by: string | null;
   created_at: string;
   archived?: boolean;
+  /** Presentación (Markdown) y objetivos generales (migración 11). */
+  presentation?: string;
+  objectives?: string[];
+}
+
+/** Estado de publicación de una unidad (migración 11). Los estudiantes solo ven «publicado». */
+export type UnitStatus = 'borrador' | 'preparado' | 'publicado' | 'archivado';
+
+/** Estructura de estudio de un minicapítulo (lessons.study, migración 11). Vacía en Física Básica. */
+export interface LessonStudy {
+  objetivos?: string[];
+  errores?: { error: string; aclaracion: string }[];
+  preguntas?: { pregunta: string; respuesta: string }[];
+  autoevaluacion?: { pregunta: string; opciones: string[]; correcta: number; explicacion: string }[];
+  conexiones?: string;
+  integradora?: boolean;
 }
 
 export interface Unit {
@@ -92,6 +108,8 @@ export interface Unit {
   hidden: boolean;
   coming_soon: boolean;
   planned_topics: string[];
+  status?: UnitStatus;
+  customized?: boolean;
 }
 
 export interface FormulaVariable {
@@ -134,6 +152,8 @@ export interface Lesson {
   simulation: LessonSimulation | null;
   practice_config: Record<Difficulty, number>;
   updated_at: string;
+  study?: LessonStudy;
+  customized?: boolean;
 }
 
 export interface Concept {

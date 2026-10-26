@@ -9,8 +9,9 @@ import { Markdown, Tex } from '@/components/Markdown';
 import { Badge, Card, Empty, ErrorBox, PageTitle, ProgressBar, Spinner, Tabs } from '@/components/ui';
 import { Ejercicio } from '@/components/Ejercicio';
 import { Simulador } from '@/sims/Simulador';
+import { Autoevaluacion, Conexiones, ErroresFrecuentes, Objetivos, PreguntasConceptuales, tieneComprension } from '@/components/Estudio';
 
-type Seccion = 'teoria' | 'formulas' | 'ejemplos' | 'simulacion' | 'practica';
+type Seccion = 'teoria' | 'formulas' | 'ejemplos' | 'simulacion' | 'comprension' | 'practica';
 
 export function FormulaCard({ f }: { f: Formula }) {
   return (
@@ -162,6 +163,8 @@ export default function Leccion() {
   if (loading) return <Spinner />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   const { lesson, lessons, units } = data!;
+  const study = lesson.study ?? {};
+  const conComprension = tieneComprension(study);
   const unit = units.find((u) => u.id === lesson.unit_id);
   const ordered = units.flatMap((u) => lessons.filter((l) => l.unit_id === u.id && !l.hidden));
   const idx = ordered.findIndex((l) => l.id === lesson.id);
@@ -185,14 +188,23 @@ export default function Leccion() {
           { id: 'formulas', label: '2. Fórmulas' },
           { id: 'ejemplos', label: '3. Ejemplos' },
           { id: 'simulacion', label: '4. Simulación', disabled: !lesson.simulation },
-          { id: 'practica', label: '5. Práctica' },
+          ...(conComprension ? [{ id: 'comprension' as Seccion, label: '5. Comprensión' }] : []),
+          { id: 'practica', label: conComprension ? '6. Práctica' : '5. Práctica' },
         ]}
       />
       {sec === 'teoria' && (
         <article className="tarjeta">
+          <Objetivos items={study.objetivos ?? []} />
           <p className="mb-2 text-sm italic text-gray-600 dark:text-gray-400">{lesson.summary}</p>
           <Markdown>{lesson.theory}</Markdown>
+          <Conexiones texto={study.conexiones ?? ''} />
         </article>
+      )}
+      {sec === 'comprension' && (
+        <div className="space-y-4">
+          <PreguntasConceptuales items={study.preguntas ?? []} />
+          <Autoevaluacion items={study.autoevaluacion ?? []} />
+        </div>
       )}
       {sec === 'formulas' && (
         <div className="grid gap-4 md:grid-cols-2">
@@ -202,6 +214,7 @@ export default function Leccion() {
       {sec === 'ejemplos' && (
         <div className="space-y-4">
           {lesson.examples.length ? lesson.examples.map((e, i) => <EjemploResuelto key={i} ex={e} n={i + 1} />) : <Empty>Sin ejemplos.</Empty>}
+          <ErroresFrecuentes items={study.errores ?? []} />
         </div>
       )}
       {sec === 'simulacion' && lesson.simulation && (
@@ -221,7 +234,7 @@ export default function Leccion() {
       <nav className="mt-6 flex justify-between gap-2" aria-label="Lecciones">
         {prev ? <Link to={`/curso/${courseId}/leccion/${prev.id}`} className="btn-secundario">← {prev.title}</Link> : <span />}
         {sec !== 'practica' ? (
-          <button className="btn-primario" onClick={() => setSec(nextSection(sec, !!lesson.simulation))}>Siguiente sección →</button>
+          <button className="btn-primario" onClick={() => setSec(nextSection(sec, !!lesson.simulation, conComprension))}>Siguiente sección →</button>
         ) : next ? (
           <Link to={`/curso/${courseId}/leccion/${next.id}`} className="btn-primario">{next.title} →</Link>
         ) : (
@@ -232,7 +245,7 @@ export default function Leccion() {
   );
 }
 
-function nextSection(s: Seccion, hasSim: boolean): Seccion {
-  const order: Seccion[] = hasSim ? ['teoria', 'formulas', 'ejemplos', 'simulacion', 'practica'] : ['teoria', 'formulas', 'ejemplos', 'practica'];
+function nextSection(s: Seccion, hasSim: boolean, hasComprension = false): Seccion {
+  const order: Seccion[] = ['teoria', 'formulas', 'ejemplos', ...(hasSim ? ['simulacion' as const] : []), ...(hasComprension ? ['comprension' as const] : []), 'practica'];
   return order[Math.min(order.length - 1, order.indexOf(s) + 1)];
 }

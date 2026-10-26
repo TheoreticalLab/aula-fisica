@@ -39,6 +39,8 @@ async function main() {
   out.push('-- Semilla generada por scripts/generar-semilla.ts. CONTIENE CLAVES DE RESPUESTA: no la publique.');
   out.push(`-- Modo: ${UPDATE ? 'actualizar (sobrescribe)' : 'insertar solo lo que falta'}`);
   out.push('begin;');
+  // escrituras de la semilla: no cuentan como personalizaciones del profesor (migración 11)
+  out.push(`select set_config('aula.origen', 'biblioteca', true);`);
   out.push(
     `insert into public.courses (id, code, title, description) values (${C}, ${q(COURSE.code)}, ${q(COURSE.title)}, ${q(COURSE.description)}) ${conflict('(id)', ['code', 'title', 'description'])};`,
   );

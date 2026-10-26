@@ -27,7 +27,7 @@ export default function CursoEditor() {
   const [newUnit, setNewUnit] = useState('');
   const [staffEmail, setStaffEmail] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
-  const [info, setInfo] = useState<{ title: string; description: string } | null>(null);
+  const [info, setInfo] = useState<{ title: string; description: string; presentation?: string; objetivos?: string } | null>(null);
   if (st.loading) return <Spinner />;
   if (st.error) return <ErrorBox error={st.error} onRetry={st.reload} />;
   const { course, units, lessons, staff, canEdit } = st.data!;
@@ -75,16 +75,32 @@ export default function CursoEditor() {
       {canEdit && (
         <Card title="Datos del curso">
           {info ? (
-            <form onSubmit={async (e: FormEvent) => { e.preventDefault(); await run(() => updateCourse(courseId, info)); setInfo(null); }}>
+            <form onSubmit={async (e: FormEvent) => {
+              e.preventDefault();
+              const { objetivos, presentation, ...base } = info;
+              // presentación y objetivos solo existen tras la migración 11
+              const extra = presentation !== undefined ? { presentation, objectives: (objetivos ?? '').split('\n').map((s) => s.trim()).filter(Boolean) } : {};
+              await run(() => updateCourse(courseId, { ...base, ...extra }));
+              setInfo(null);
+            }}>
               <Field label="Título">{(id) => <input id={id} className="campo" value={info.title} onChange={(e) => setInfo({ ...info, title: e.target.value })} />}</Field>
-              <Field label="Descripción">{(id) => <textarea id={id} className="campo" rows={3} value={info.description} onChange={(e) => setInfo({ ...info, description: e.target.value })} />}</Field>
+              <Field label="Descripción breve">{(id) => <textarea id={id} className="campo" rows={2} value={info.description} onChange={(e) => setInfo({ ...info, description: e.target.value })} />}</Field>
+              {info.presentation !== undefined && (
+                <>
+                  <Field label="Presentación del curso (Markdown)">{(id) => <textarea id={id} className="campo font-mono text-sm" rows={8} value={info.presentation} onChange={(e) => setInfo({ ...info, presentation: e.target.value })} />}</Field>
+                  <Field label="Objetivos generales" hint="Uno por línea.">{(id) => <textarea id={id} className="campo" rows={5} value={info.objetivos} onChange={(e) => setInfo({ ...info, objetivos: e.target.value })} />}</Field>
+                </>
+              )}
               <button className="btn-primario">Guardar</button> <button type="button" className="btn-texto" onClick={() => setInfo(null)}>Cancelar</button>
             </form>
           ) : (
             <div className="flex items-start justify-between gap-3">
               <p className="text-sm">{course.description}</p>
               <div className="flex shrink-0 flex-col gap-1">
-                <button className="btn-secundario text-sm" onClick={() => setInfo({ title: course.title, description: course.description })}>Editar</button>
+                <button className="btn-secundario text-sm" onClick={() => setInfo({
+                  title: course.title, description: course.description,
+                  ...(course.presentation !== undefined ? { presentation: course.presentation, objetivos: (course.objectives ?? []).join('\n') } : {}),
+                })}>Editar</button>
                 <button className="btn-texto text-sm" onClick={() => {
                   const msg = course.archived
                     ? '¿Reactivar la asignatura?'
@@ -103,6 +119,26 @@ export default function CursoEditor() {
           <section key={u.id} className="tarjeta">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <h2 className="font-serif text-lg font-semibold">{u.title}</h2>
+              {u.status && (
+                canEdit ? (
+                  <label className="flex items-center gap-1 text-xs">
+                    <span className="sr-only">Estado de la unidad</span>
+                    <select className={`campo w-auto py-1 text-xs ${u.status === 'publicado' ? 'border-emerald-400' : ''}`} value={u.status}
+                      onChange={(e) => {
+                        const s = e.target.value as Unit['status'];
+                        const aviso = s === 'publicado' ? '¿Publicar la unidad? Sus estudiantes la verán con todos sus temas visibles.'
+                          : u.status === 'publicado' ? '¿Retirar la unidad de la vista de los estudiantes? Su trabajo y sus notas se conservan.' : null;
+                        if (!aviso || window.confirm(aviso)) void run(() => updateUnit(u.id, { status: s }));
+                      }}>
+                      <option value="borrador">Borrador</option>
+                      <option value="preparado">Preparado</option>
+                      <option value="publicado">Publicado</option>
+                      <option value="archivado">Archivado</option>
+                    </select>
+                  </label>
+                ) : <Badge tone={u.status === 'publicado' ? 'green' : 'amber'}>{u.status}</Badge>
+              )}
+              {u.customized && <Badge>Personalizada</Badge>}
               {u.hidden && <Badge tone="amber">Oculto</Badge>}
               {u.coming_soon && <Badge>En preparación</Badge>}
               {canEdit && (

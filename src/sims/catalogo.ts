@@ -136,6 +136,93 @@ export const SIMULATIONS: SimInfo[] = [
       { name: 'g', label: 'Gravedad', unit: 'm/s²', min: 1, max: 25, step: 0.1, default: 9.8 },
     ],
   },
+  {
+    key: 'trabajo-energia',
+    title: 'Trabajo y energía cinética',
+    block: 'Trabajo y energía',
+    description:
+      'Un bloque sobre una superficie horizontal recorre una distancia d bajo una fuerza constante que forma un ángulo φ con la horizontal, con fricción cinética. Muestra el trabajo de cada fuerza, el trabajo neto y el cambio de energía cinética.',
+    model: String.raw`$W_F = F d\cos\varphi$, $\;N = mg - F\sin\varphi$, $\;W_f = -\mu_k N d$, $\;W_{mg} = W_N = 0$; $\;W_{neto} = \Delta K = \tfrac12 m v^2 - \tfrac12 m v_0^2$.`,
+    simplifications: [
+      'El bloque es una partícula que se mueve en línea recta sobre la superficie horizontal.',
+      'La fuerza aplicada es constante en magnitud y dirección; si su componente vertical levantaría el bloque (N < 0), el modelo no se aplica.',
+      'Fricción cinética de Coulomb: μk constante. Si la energía cinética llegara a cero antes de recorrer d, el bloque se detiene ahí.',
+    ],
+    params: [
+      { name: 'm', label: 'Masa', unit: 'kg', min: 0.5, max: 20, step: 0.5, default: 2 },
+      { name: 'F', label: 'Fuerza aplicada', unit: 'N', min: 0, max: 100, step: 1, default: 20 },
+      { name: 'phi', label: 'Ángulo de la fuerza sobre la horizontal', unit: '°', min: -60, max: 60, step: 1, default: 0 },
+      { name: 'muK', label: 'Coeficiente cinético μk', unit: '', min: 0, max: 1, step: 0.01, default: 0.2 },
+      { name: 'd', label: 'Distancia recorrida', unit: 'm', min: 0.5, max: 20, step: 0.5, default: 5 },
+      { name: 'v0', label: 'Rapidez inicial', unit: 'm/s', min: 0, max: 10, step: 0.1, default: 0 },
+      { name: 'g', label: 'Gravedad', unit: 'm/s²', min: 1, max: 25, step: 0.1, default: 9.8 },
+    ],
+  },
+  {
+    key: 'conservacion-energia',
+    title: 'Conservación de la energía en una pista',
+    block: 'Energía',
+    description:
+      'Un bloque baja por una rampa recta, recorre un tramo horizontal y sube por otra rampa, una y otra vez. Barras de energía cinética, potencial, mecánica y térmica; con fricción, la energía mecánica disminuye y la térmica aumenta en la misma cantidad.',
+    model: String.raw`$E_{mec} = K + U = \tfrac12 m v^2 + m g y$. Con fricción: $\Delta E_{mec} = -\mu_k N\,\Delta s$, con $N = mg\cos\theta$ en las rampas y $N = mg$ en el tramo horizontal. $E_{total} = E_{mec} + E_{térmica}$ se conserva.`,
+    simplifications: [
+      'El bloque es una partícula; las esquinas de la pista no disipan energía (transición ideal).',
+      'Sin resistencia del aire. Fricción cinética de Coulomb con μk constante.',
+      'El cero de energía potencial está en el tramo horizontal.',
+    ],
+    params: [
+      { name: 'm', label: 'Masa', unit: 'kg', min: 0.5, max: 10, step: 0.5, default: 1 },
+      { name: 'h0', label: 'Altura inicial', unit: 'm', min: 0.5, max: 10, step: 0.1, default: 5 },
+      { name: 'v0', label: 'Rapidez inicial', unit: 'm/s', min: 0, max: 10, step: 0.1, default: 0 },
+      { name: 'theta1', label: 'Inclinación de la rampa izquierda', unit: '°', min: 10, max: 70, step: 1, default: 40 },
+      { name: 'theta2', label: 'Inclinación de la rampa derecha', unit: '°', min: 10, max: 70, step: 1, default: 30 },
+      { name: 'L', label: 'Longitud del tramo horizontal', unit: 'm', min: 0, max: 10, step: 0.5, default: 4 },
+      { name: 'muK', label: 'Coeficiente cinético μk', unit: '', min: 0, max: 0.5, step: 0.01, default: 0 },
+      { name: 'g', label: 'Gravedad', unit: 'm/s²', min: 1, max: 25, step: 0.1, default: 9.8 },
+    ],
+  },
+  {
+    key: 'masa-resorte',
+    title: 'Oscilador masa-resorte',
+    block: 'Movimiento armónico simple',
+    description:
+      'Un bloque unido a un resorte ideal, horizontal o colgado verticalmente. Se eligen la posición y la velocidad iniciales; el simulador muestra la amplitud y la fase que resultan, las gráficas x–t, v–t y a–t, y las energías cinética, potencial y total.',
+    model: String.raw`$\omega = \sqrt{k/m}$, $\;T = 2\pi/\omega$. Medida desde el equilibrio: $x(t) = A\cos(\omega t + \varphi)$ con $A = \sqrt{x_0^2 + (v_0/\omega)^2}$ y $\varphi$ tal que $A\cos\varphi = x_0$, $-A\omega\sin\varphi = v_0$. $E = \tfrac12 k A^2 = \tfrac12 m v^2 + \tfrac12 k x^2$. En vertical, el equilibrio está estirado $\Delta = mg/k$ y la frecuencia no cambia.`,
+    simplifications: [
+      'Resorte ideal: sin masa, lineal (ley de Hooke) para cualquier estiramiento del recorrido.',
+      'Sin fricción ni resistencia del aire: la energía mecánica total se conserva.',
+      'La coordenada x se mide desde la posición de equilibrio (en vertical, desde el equilibrio con el peso colgado), positiva hacia la derecha o hacia abajo.',
+      'La integración numérica usa el método de Verlet, que conserva la energía dentro de la tolerancia numérica; se compara con la solución exacta.',
+    ],
+    params: [
+      { name: 'm', label: 'Masa', unit: 'kg', min: 0.1, max: 5, step: 0.1, default: 1 },
+      { name: 'k', label: 'Constante elástica', unit: 'N/m', min: 5, max: 200, step: 1, default: 40 },
+      { name: 'x0', label: 'Posición inicial (desde el equilibrio)', unit: 'm', min: -0.5, max: 0.5, step: 0.01, default: 0.2 },
+      { name: 'v0', label: 'Velocidad inicial', unit: 'm/s', min: -3, max: 3, step: 0.05, default: 0 },
+      { name: 'vertical', label: 'Resorte vertical (0 = horizontal, 1 = vertical)', unit: '', min: 0, max: 1, step: 1, default: 0 },
+      { name: 'g', label: 'Gravedad (solo vertical)', unit: 'm/s²', min: 1, max: 25, step: 0.1, default: 9.8 },
+    ],
+  },
+  {
+    key: 'colisiones',
+    title: 'Colisiones en una dimensión',
+    block: 'Cantidad de movimiento',
+    description:
+      'Dos carros sobre un riel sin fricción chocan de frente. Se elige el coeficiente de restitución: 1 para un choque elástico, 0 para uno perfectamente inelástico. Muestra velocidades, cantidad de movimiento y energía cinética antes y después.',
+    model: String.raw`$p = m_1 v_1 + m_2 v_2$ se conserva. Con coeficiente de restitución $e = -\dfrac{v_2' - v_1'}{v_2 - v_1}$: $\;v_1' = \dfrac{p + m_2 e (v_2 - v_1)}{m_1 + m_2}$, $\;v_2' = \dfrac{p + m_1 e (v_1 - v_2)}{m_1 + m_2}$. La energía cinética solo se conserva si $e = 1$.`,
+    simplifications: [
+      'Riel horizontal sin fricción: durante el choque, las fuerzas externas horizontales son nulas.',
+      'Los carros son partículas; el choque es instantáneo comparado con el resto del movimiento.',
+      'Movimiento en una dimensión; el signo de la velocidad indica el sentido.',
+    ],
+    params: [
+      { name: 'm1', label: 'Masa del carro 1', unit: 'kg', min: 0.1, max: 10, step: 0.1, default: 1 },
+      { name: 'm2', label: 'Masa del carro 2', unit: 'kg', min: 0.1, max: 10, step: 0.1, default: 1 },
+      { name: 'v1', label: 'Velocidad inicial del carro 1', unit: 'm/s', min: -5, max: 5, step: 0.1, default: 2 },
+      { name: 'v2', label: 'Velocidad inicial del carro 2', unit: 'm/s', min: -5, max: 5, step: 0.1, default: 0 },
+      { name: 'e', label: 'Coeficiente de restitución', unit: '', min: 0, max: 1, step: 0.05, default: 1 },
+    ],
+  },
 ];
 
 export function getSimulation(key: string): SimInfo | undefined {
