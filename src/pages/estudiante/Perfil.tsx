@@ -5,6 +5,7 @@ import { myClasses, updateMyProfile } from '@/api/estudiante';
 import { useAction, useAsync } from '@/lib/util';
 import { Card, ErrorBox, Field, Notice, PageTitle } from '@/components/ui';
 import { AVISO_PRIVACIDAD } from '@/lib/tiempo';
+import { supabase } from '@/lib/supabase';
 
 export default function Perfil() {
   const { profile, refreshProfile } = useAuth();
@@ -13,6 +14,18 @@ export default function Perfil() {
   const [ok, setOk] = useState(false);
   const action = useAction();
   const classes = useAsync(myClasses, []);
+  const otras = useAction();
+  const [otrasOk, setOtrasOk] = useState(false);
+  async function cerrarOtras() {
+    setOtrasOk(false);
+    const r = await otras.run(async () => {
+      // revoca las sesiones de los demás dispositivos (sus tokens de renovación); esta sesión se conserva
+      const { error } = await supabase.auth.signOut({ scope: 'others' });
+      if (error) throw new Error(error.message);
+      return true;
+    });
+    if (r) setOtrasOk(true);
+  }
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!profile) return;
@@ -40,6 +53,17 @@ export default function Perfil() {
           <button className="btn-primario" disabled={action.busy}>Guardar</button>
         </form>
         {profile?.role === 'student' && <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">{AVISO_PRIVACIDAD}</p>}
+      </Card>
+      <Card title="Sesiones abiertas">
+        <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+          Si dejó la sesión abierta en otra computadora o teléfono, ciérrela desde aquí. Esta sesión sigue abierta; en los
+          demás dispositivos se cerrará en cuanto caduque su acceso temporal (como mucho, alrededor de una hora).
+        </p>
+        <ErrorBox error={otras.error} />
+        {otrasOk && <Notice tone="ok">Listo: se cerraron las sesiones en los demás dispositivos.</Notice>}
+        <button className="btn-secundario" disabled={otras.busy} onClick={() => void cerrarOtras()}>
+          {otras.busy ? 'Cerrando…' : 'Cerrar sesión en los demás dispositivos'}
+        </button>
       </Card>
       <Card title="Mis clases">
         {classes.data?.length ? (
