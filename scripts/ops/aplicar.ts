@@ -12,8 +12,10 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  anotarDatoAplicado,
   asegurarDir,
   conectar,
+  datosLocales,
   contarFilas,
   credenciales,
   ESTADO,
@@ -44,14 +46,14 @@ export async function comandoAplicar(args: string[]): Promise<number> {
   const plan = await calcularPlan(c);
   if (plan.bloqueos.length) fallar('El plan tiene bloqueos:\n  ' + plan.bloqueos.join('\n  '));
   if (plan.codigo !== codigo) fallar(`El plan actual (${plan.codigo}) no es el autorizado (${codigo}). Vuelva a ejecutar npm run plan y revíselo.`);
-  if (plan.migraciones.length) {
+  if (plan.migraciones.length || plan.datos.length) {
     const ult = JSON.parse(readFileSync(join(ESTADO, 'ultima-prueba.json'), 'utf8'));
-    if (!ult.ok || ult.huella !== huellaPruebas()) fallar('Las pruebas locales no corresponden a estas migraciones.');
+    if (!ult.ok || ult.huella !== huellaPruebas()) fallar('Las pruebas locales no corresponden a estas migraciones o datos.');
   }
-  registrar(`INICIO plan ${codigo}: registrar=${plan.registrar.length} migraciones=${plan.migraciones.join(',') || '-'} funciones=${plan.funciones.join(',') || '-'} auth=${plan.auth.map((a) => a.clave).join(',') || '-'}`);
+  registrar(`INICIO plan ${codigo}: registrar=${plan.registrar.length} migraciones=${plan.migraciones.join(',') || '-'} datos=${plan.datos.join(',') || '-'} funciones=${plan.funciones.join(',') || '-'} auth=${plan.auth.map((a) => a.clave).join(',') || '-'}`);
 
   // --- base de datos ---
-  if (plan.registrar.length || plan.migraciones.length) {
+  if (plan.registrar.length || plan.migraciones.length || plan.datos.length) {
     console.log('Creando y verificando respaldo previo…');
     const dir = await hacerRespaldo(true);
     registrar(`respaldo verificado: ${dir.slice(ROOT.length + 1)}`);
@@ -80,6 +82,21 @@ export async function comandoAplicar(args: string[]): Promise<number> {
         } catch (e) {
           await db.query('rollback').catch(() => undefined);
           registrar(`  ✖ FALLÓ ${archivo} (deshecha, producción sin cambios por esta migración): ${ocultar(String((e as Error).message), c)}`);
+          process.exit(1);
+        }
+      }
+      const datos = datosLocales();
+      for (const archivo of plan.datos) {
+        const d = datos.find((x) => x.archivo === archivo)!;
+        try {
+          await db.query('begin');
+          await db.query(d.sql);
+          await db.query('commit');
+          anotarDatoAplicado(d);
+          registrar(`  ✔ datos privados cargados: ${archivo}`);
+        } catch (e) {
+          await db.query('rollback').catch(() => undefined);
+          registrar(`  ✖ FALLÓ ${archivo} (deshecho, producción sin cambios por este archivo): ${ocultar(String((e as Error).message), c)}`);
           process.exit(1);
         }
       }

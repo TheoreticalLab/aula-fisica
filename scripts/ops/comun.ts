@@ -2,7 +2,7 @@
  * Utilidades comunes de los scripts de operación (estado, respaldo, prueba, plan, aplicar).
  * Nunca imprimen credenciales: todo lo que se muestra pasa por `ocultar()`.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
 import { ROOT } from '../cargar-contenido';
@@ -122,6 +122,41 @@ export function funcionesLocales(): string[] {
 
 export function asegurarDir(d: string) {
   mkdirSync(d, { recursive: true });
+}
+
+/**
+ * Datos privados: archivos SQL de privado/datos/ con contenido que no puede ir al repositorio público
+ * (p. ej. actividades con sus claves, generadas por scripts/generar-actividad.ts). Pasan por el mismo
+ * flujo que las migraciones: probar → plan → autorización → aplicar. Lo aplicado se anota en
+ * privado/estado/datos-aplicados.json (nombre → huella); un archivo ya aplicado no debe editarse.
+ */
+export const DATOS = join(PRIVADO, 'datos');
+const RUTA_DATOS_APLICADOS = join(ESTADO, 'datos-aplicados.json');
+
+export interface DatoPrivado {
+  archivo: string;
+  sql: string;
+  hash: string;
+}
+
+export function datosLocales(): DatoPrivado[] {
+  if (!existsSync(DATOS)) return [];
+  return readdirSync(DATOS)
+    .filter((f) => /^\d{14}_[\w-]+\.sql$/.test(f))
+    .sort()
+    .map((archivo) => {
+      const sql = readFileSync(join(DATOS, archivo), 'utf8');
+      return { archivo, sql, hash: sha256(sql) };
+    });
+}
+
+export function datosAplicados(): Record<string, string> {
+  return existsSync(RUTA_DATOS_APLICADOS) ? JSON.parse(readFileSync(RUTA_DATOS_APLICADOS, 'utf8')) : {};
+}
+
+export function anotarDatoAplicado(d: DatoPrivado) {
+  asegurarDir(ESTADO);
+  writeFileSync(RUTA_DATOS_APLICADOS, JSON.stringify({ ...datosAplicados(), [d.archivo]: d.hash }, null, 2));
 }
 
 /**

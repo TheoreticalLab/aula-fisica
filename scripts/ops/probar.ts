@@ -20,6 +20,8 @@ import {
   ESTADO,
   contarFilas,
   credenciales,
+  datosAplicados,
+  datosLocales,
   fallar,
   migracionesLocales,
   ocultar,
@@ -143,6 +145,32 @@ export async function probar(opts: { limpio?: boolean; silencioso?: boolean } = 
       } catch (e) {
         await db.query('rollback');
         log(`✖ migración ${m.archivo}: ${ocultar(String((e as Error).message))}`);
+        return { ok: false, lineas };
+      }
+    }
+    // datos privados pendientes (actividades con claves…): necesitan los datos reales (secciones, asignaturas)
+    const aplicados = datosAplicados();
+    const pendientes = datosLocales().filter((d) => !aplicados[d.archivo]);
+    if (pendientes.length && !resp) log(`⚠ ${pendientes.length} archivo(s) de datos privados sin probar: hace falta un respaldo de producción (npm run respaldo)`);
+    for (const d of resp ? pendientes : []) {
+      try {
+        await db.query('begin');
+        await db.query(d.sql);
+        await db.query('commit');
+        log(`✔ datos privados ${d.archivo}`);
+        // idempotencia: repetirlo no debe fallar ni duplicar
+        const filas = async () => Number((await db.query(`select (select count(*) from public.exercises) + (select count(*) from public.activities) + (select count(*) from public.activity_items) as n`)).rows[0].n);
+        const n1 = await filas();
+        await db.query('begin');
+        await db.query(d.sql);
+        await db.query('commit');
+        if ((await filas()) !== n1) {
+          ok = false;
+          log(`✖ datos privados ${d.archivo}: al repetirlo se duplicaron filas`);
+        }
+      } catch (e) {
+        await db.query('rollback').catch(() => undefined);
+        log(`✖ datos privados ${d.archivo}: ${ocultar(String((e as Error).message))}`);
         return { ok: false, lineas };
       }
     }

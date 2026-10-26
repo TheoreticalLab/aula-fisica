@@ -30,7 +30,7 @@ export function katexErrors(tex: string): string | null {
   }
 }
 
-function checkMarkdown(where: string, md: string | undefined, problems: string[]) {
+export function checkMarkdown(where: string, md: string | undefined, problems: string[]) {
   if (!md) return;
   const dollars = (md.replace(/\$\$/g, '').match(/\$/g) || []).length;
   if (dollars % 2 !== 0) problems.push(`${where}: número impar de signos $ (fórmula sin cerrar)`);

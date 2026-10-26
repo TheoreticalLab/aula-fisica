@@ -57,6 +57,13 @@ Arquitectura: `ARQUITECTURA.md`. Procedimiento operativo para personas: `FLUJO_D
   (Asignaturas y contenido → Crear). Si el administrador quiere que la cree Claude: migración de datos idempotente
   (`insert … on conflict do nothing`) con la asignatura, sus bloques y, si hay, lecciones; o contenido en `contenido/` +
   `npm run semilla` siguiendo `contenido/GUIA_REDACCION.md`. Después: verificar, probar, plan, autorización, aplicar.
+- **«Créame una práctica/examen con N ejercicios»**: los enunciados y las claves van en
+  `privado/actividades/<nombre>.ts` (modelo: `practica-1d.ts`; nunca en `contenido/` ni `src/`). Luego
+  `./node_modules/.bin/vite-node scripts/generar-actividad.ts privado/actividades/<nombre>.ts`: valida cada clave con el
+  motor de calificación (incluye errores típicos que caigan dentro de la tolerancia) y escribe `privado/datos/<marca>_<nombre>.sql`.
+  Después: `npm run respaldo`, `npm run probar`, `npm run plan` (sección «Datos privados»), autorización, aplicar.
+  La actividad se crea **oculta**; el profesor la abre en Panel docente → sección → Actividades («Visible para los estudiantes»).
+  Un archivo de datos ya aplicado no se edita: para cambios, otra actividad con otra `clave`.
 - **Nueva sección/clase, matrículas, cuentas**: se hacen desde el panel (Panel docente, Cuentas). No requieren código.
 - **Nuevo campo en una tabla**: migración con `add column if not exists … default …`; actualizar `src/api/tipos.ts`.
 - **Cambio de una función SQL existente**: copia su definición vigente (de la última migración que la redefine),

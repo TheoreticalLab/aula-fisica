@@ -8,6 +8,8 @@ import {
   asegurarDir,
   conectar,
   credenciales,
+  datosAplicados,
+  datosLocales,
   ESTADO,
   funcionesLocales,
   gestion,
@@ -29,6 +31,7 @@ export interface Plan {
   registrar: string[]; // migraciones ya presentes en producción (aplicadas a mano) que solo hay que anotar en el historial
   migraciones: string[]; // archivos a aplicar
   funciones: string[];
+  datos: string[]; // archivos de privado/datos/ pendientes (p. ej. actividades con claves)
   auth: { clave: string; actual: unknown; deseado: unknown }[];
   avisos: string[];
   bloqueos: string[];
@@ -38,11 +41,17 @@ export interface Plan {
 export function huellaPruebas(): string {
   const dirP = join(ROOT, 'supabase', 'pruebas');
   const pruebas = readdirSync(dirP).filter((f) => f.endsWith('.sql')).sort().map((f) => readFileSync(join(dirP, f), 'utf8'));
-  return sha256(migracionesLocales().map((m) => m.hash).join() + pruebas.join('\n'));
+  return sha256(migracionesLocales().map((m) => m.hash).join() + datosLocales().map((d) => d.hash).join() + pruebas.join('\n'));
 }
 
 export async function calcularPlan(c: Credenciales): Promise<Plan> {
-  const plan: Plan = { codigo: '', creado: new Date().toISOString(), registrar: [], migraciones: [], funciones: [], auth: [], avisos: [], bloqueos: [] };
+  const plan: Plan = { codigo: '', creado: new Date().toISOString(), registrar: [], migraciones: [], funciones: [], datos: [], auth: [], avisos: [], bloqueos: [] };
+  const aplicados = datosAplicados();
+  const datos = datosLocales();
+  for (const d of datos) {
+    if (!aplicados[d.archivo]) plan.datos.push(d.archivo);
+    else if (aplicados[d.archivo] !== d.hash) plan.bloqueos.push(`privado/datos/${d.archivo} cambió después de aplicarse: no lo edite; genere un archivo nuevo.`);
+  }
   const locales = migracionesLocales();
   if (c.SUPABASE_DB_URL) {
     const db = await conectar(c.SUPABASE_DB_URL, true);
@@ -85,15 +94,17 @@ export async function calcularPlan(c: Credenciales): Promise<Plan> {
   // pruebas locales al día
   const prueba = join(ESTADO, 'ultima-prueba.json');
   const ult = existsSync(prueba) ? JSON.parse(readFileSync(prueba, 'utf8')) : null;
-  if (plan.migraciones.length && (!ult || !ult.ok || ult.huella !== huellaPruebas())) {
-    plan.bloqueos.push('Las pruebas locales no están al día con estas migraciones: ejecute npm run probar.');
+  const tocaBase = plan.migraciones.length > 0 || plan.datos.length > 0;
+  if (tocaBase && (!ult || !ult.ok || ult.huella !== huellaPruebas())) {
+    plan.bloqueos.push('Las pruebas locales no están al día con estas migraciones o datos: ejecute npm run probar.');
   }
-  if (plan.migraciones.length) {
+  if (plan.datos.length && ult?.modo === 'limpio') plan.bloqueos.push('Los datos privados deben probarse sobre una copia de producción: ejecute npm run respaldo y npm run probar.');
+  if (tocaBase) {
     const r = ultimoRespaldo();
     if (!r) plan.avisos.push('No hay respaldo previo: «aplicar» creará y verificará uno antes de tocar nada.');
   }
 
-  plan.codigo = sha256(JSON.stringify([plan.registrar, plan.migraciones.map((f) => [f, locales.find((m) => m.archivo === f)?.hash]), plan.funciones.map((f) => [f, hashFuncion(f)]), plan.auth])).slice(0, 8);
+  plan.codigo = sha256(JSON.stringify([plan.registrar, plan.migraciones.map((f) => [f, locales.find((m) => m.archivo === f)?.hash]), plan.funciones.map((f) => [f, hashFuncion(f)]), plan.auth, plan.datos.map((f) => [f, datos.find((d) => d.archivo === f)?.hash])])).slice(0, 8);
   return plan;
 }
 
@@ -128,6 +139,8 @@ export async function comandoPlan(): Promise<number> {
     for (const f of plan.migraciones) console.log(`  • ${f} — ${resumenSql(locales.find((m) => m.archivo === f)!.sql)}`);
     console.log('Edge Functions que se desplegarían:');
     console.log(plan.funciones.length ? plan.funciones.map((f) => `  • ${f}`).join('\n') : '  (ninguna)');
+    console.log('Datos privados que se cargarían (privado/datos/, no van al repositorio):');
+    console.log(plan.datos.length ? plan.datos.map((f) => `  • ${f}`).join('\n') : '  (ninguno)');
     console.log('Cambios de configuración de Auth:');
     console.log(plan.auth.length ? plan.auth.map((d) => `  • ${d.clave}: ${JSON.stringify(d.actual)} → ${JSON.stringify(d.deseado)}`).join('\n') : '  (ninguno)');
     if (plan.avisos.length) console.log('\nAvisos:\n' + plan.avisos.map((a) => `  ⚠ ${a}`).join('\n'));
@@ -135,7 +148,7 @@ export async function comandoPlan(): Promise<number> {
       console.log('\nBLOQUEOS (hay que resolverlos antes de aplicar):\n' + plan.bloqueos.map((b) => `  ✖ ${b}`).join('\n'));
       return 1;
     }
-    const nada = !plan.registrar.length && !plan.migraciones.length && !plan.funciones.length && !plan.auth.length;
+    const nada = !plan.registrar.length && !plan.migraciones.length && !plan.funciones.length && !plan.auth.length && !plan.datos.length;
     console.log(nada ? '\n✔ Producción ya está al día.' : `\nCódigo del plan: ${plan.codigo}\nPara aplicarlo hace falta la autorización expresa del administrador:\n  npm run aplicar -- --plan ${plan.codigo}`);
     return 0;
   }
