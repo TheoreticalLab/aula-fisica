@@ -350,7 +350,10 @@ function TabActividades({ c }: { c: ClassRow }) {
             <tbody>
               {list.data.map((a) => (
                 <tr key={a.id} className="border-t border-gray-100 dark:border-white/10">
-                  <td className="py-2 pr-2"><Link className="enlace" to={`/docente/actividades/${a.id}`}>{a.title}</Link></td>
+                  <td className="py-2 pr-2">
+                    <Link className="enlace" to={`/docente/actividades/${a.id}`}>{a.title}</Link>
+                    <Link className="ml-2 text-xs text-gray-500 hover:underline" to={`/docente/actividades/${a.id}/vista-previa`} title="Ver como estudiante">👁 Vista previa</Link>
+                  </td>
                   <td className="py-2 pr-2"><Badge tone={a.mode === 'exam' ? 'purple' : 'blue'}>{a.mode === 'exam' ? 'Evaluación' : 'Práctica'}</Badge></td>
                   <td className="py-2 pr-2">{fecha(a.opens_at)}</td>
                   <td className="py-2 pr-2">{fecha(a.closes_at)}</td>

@@ -1,8 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { describeKey, interpretNumeric } from '@calif/calificar.ts';
-import type { AttemptItem, AttemptView, GradeResult, Solution, StudentAnswer } from '@/api/tipos';
+import type { AccionesEjercicio, AttemptItem, AttemptView, GradeResult, Solution, StudentAnswer } from '@/api/tipos';
 import { checkAnswer, getHint, reinforcementFor, revealSolution, saveResponse } from '@/api/estudiante';
+
+/** Los estudiantes usan siempre el servidor; la vista previa del profesor pasa una simulación local. */
+export const ACCIONES_SERVIDOR: AccionesEjercicio = {
+  comprobar: checkAnswer,
+  pista: getHint,
+  verSolucion: revealSolution,
+  guardar: saveResponse,
+  refuerzo: reinforcementFor,
+};
 import { CATEGORIA, DIFICULTAD, porcentaje } from '@/lib/util';
 import { Badge, ErrorBox, StatusBadge } from './ui';
 import { InlineMd, Markdown } from './Markdown';
@@ -160,10 +169,12 @@ interface Props {
   onChange: (item: AttemptItem) => void;
   /** Llamado cuando el servidor devuelve un estado nuevo y conviene recargar el intento completo. */
   onReload?: () => void;
+  /** Solo la vista previa del profesor lo cambia; por defecto, el servidor. */
+  acciones?: AccionesEjercicio;
 }
 
 /** Ejercicio dentro de un intento (práctica libre, actividad de práctica o evaluación). */
-export function Ejercicio({ index, item, view, onChange, onReload }: Props) {
+export function Ejercicio({ index, item, view, onChange, onReload, acciones = ACCIONES_SERVIDOR }: Props) {
   const { exercise: ex, response } = item;
   const practice = view.attempt.mode === 'practice';
   const [answer, setAnswer] = useState<StudentAnswer>(response?.answer ?? {});
@@ -183,7 +194,7 @@ export function Ejercicio({ index, item, view, onChange, onReload }: Props) {
     const t = setTimeout(async () => {
       setSaved('saving');
       try {
-        await saveResponse(view.attempt.id, ex.id, answer);
+        await acciones.guardar(view.attempt.id, ex.id, answer);
         setSaved('saved');
         if (!practice) onChange({ ...item, response: { ...(response ?? emptyResponse()), answer, status: 'draft' } });
       } catch (e) {
@@ -206,7 +217,7 @@ export function Ejercicio({ index, item, view, onChange, onReload }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const r = await checkAnswer(view.attempt.id, ex.id, answer);
+      const r = await acciones.comprobar(view.attempt.id, ex.id, answer);
       setResult(r.result);
       dirty.current = false;
       if (r.recorded && r.state) {
@@ -224,7 +235,7 @@ export function Ejercicio({ index, item, view, onChange, onReload }: Props) {
           },
         });
         if (r.state.status !== 'correct' && ex.format !== 'open') {
-          reinforcementFor(ex.id).then(setSimilares).catch(() => setSimilares([]));
+          acciones.refuerzo(ex.id).then(setSimilares).catch(() => setSimilares([]));
         }
       }
     } catch (e) {
@@ -239,7 +250,7 @@ export function Ejercicio({ index, item, view, onChange, onReload }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const h = await getHint(view.attempt.id, ex.id);
+      const h = await acciones.pista(view.attempt.id, ex.id);
       if (!h.hint) onChange({ ...item, hints_total: h.total });
       else {
         onChange({
@@ -260,14 +271,14 @@ export function Ejercicio({ index, item, view, onChange, onReload }: Props) {
     if (!window.confirm('Si ve la solución, este ejercicio quedará cerrado y no sumará como resuelto al primer intento. ¿Continuar?')) return;
     setBusy(true);
     try {
-      const sol = await revealSolution(view.attempt.id, ex.id);
+      const sol = await acciones.verSolucion(view.attempt.id, ex.id);
       onChange({
         ...item,
         locked: true,
         solution: sol,
         response: { ...(response ?? emptyResponse()), solution_revealed: true, status: status === 'correct' || status === 'partial' ? status : 'revealed' },
       });
-      reinforcementFor(ex.id).then(setSimilares).catch(() => setSimilares([]));
+      acciones.refuerzo(ex.id).then(setSimilares).catch(() => setSimilares([]));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

@@ -145,6 +145,22 @@ export const createActivity = (a: Partial<Activity> & { class_id: string; title:
 export const updateActivity = (id: string, patch: Partial<Activity>) =>
   q<Activity>(supabase.from('activities').update(patch).eq('id', id).select().single());
 export const deleteActivity = (id: string) => q(supabase.from('activities').delete().eq('id', id));
+/** Todo lo necesario para la vista previa de una actividad «como estudiante» (incluidas las claves, que solo lee el profesorado). */
+export async function vistaPreviaActividad(activityId: string) {
+  const act = await q<Activity>(supabase.from('activities').select('*').eq('id', activityId).single());
+  const [cls, items] = await Promise.all([
+    q<{ id: string; name: string; course_id: string }>(supabase.from('classes').select('id, name, course_id').eq('id', act.class_id).single()),
+    q<ActivityItem[]>(supabase.from('activity_items').select('*').eq('activity_id', activityId).order('position')),
+  ]);
+  const ids = items.map((i) => i.exercise_id);
+  const [exercises, keys] = ids.length
+    ? await Promise.all([
+        q<Exercise[]>(supabase.from('exercises').select('*').in('id', ids)),
+        q<ExerciseKeyRow[]>(supabase.from('exercise_keys').select('exercise_id, answer, hints, explanation').in('exercise_id', ids)),
+      ])
+    : [[], []];
+  return { act, cls, items, exercises, keys };
+}
 export const activityItems = (activityId: string) =>
   q<ActivityItem[]>(supabase.from('activity_items').select('*').eq('activity_id', activityId).order('position'));
 export async function setActivityItems(activityId: string, items: { exercise_id: string; points: number | null }[]) {

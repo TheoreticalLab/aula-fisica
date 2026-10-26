@@ -383,6 +383,18 @@ export interface AttemptView {
   items: AttemptItem[];
 }
 
+/**
+ * Lo que un ejercicio pide al servidor. Los estudiantes usan siempre el servidor;
+ * la vista previa del profesor pasa una simulación local que no guarda nada.
+ */
+export interface AccionesEjercicio {
+  comprobar: (attemptId: string, exerciseId: string, answer: StudentAnswer) => Promise<CheckResponse>;
+  pista: (attemptId: string, exerciseId: string) => Promise<{ hint: string | null; index: number; total: number }>;
+  verSolucion: (attemptId: string, exerciseId: string) => Promise<Solution>;
+  guardar: (attemptId: string, exerciseId: string, answer: StudentAnswer) => Promise<unknown>;
+  refuerzo: (exerciseId: string) => Promise<{ exercise_id: string; lesson_id: string }[]>;
+}
+
 export interface CheckResponse {
   result: GradeResult;
   recorded: boolean;

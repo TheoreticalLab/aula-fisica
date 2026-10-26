@@ -3,7 +3,7 @@
  * 10 s mientras el estudiante tiene la página delante y avisa al salir. Si cambia de pestaña, de aplicación
  * o de ventana, el tiempo se detiene, el texto se cubre y, al volver, se le indica lo ocurrido.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { myReading, readingBeat } from '@/api/estudiante';
 import type { ReadingState } from '@/api/tipos';
 import { formatoTiempo } from '@/lib/lectura';
@@ -16,7 +16,22 @@ function presente(): boolean {
   return document.visibilityState === 'visible' && document.hasFocus();
 }
 
-export function LecturaCronometrada({ actividadId, texto, onCompletada }: { actividadId: string; texto: string; onCompletada: () => void }) {
+/** De dónde sale el tiempo: el servidor (estudiantes) o una simulación local (vista previa del profesor). */
+export interface ServicioLectura {
+  estado: () => Promise<ReadingState | null>;
+  latido: (visible: boolean) => Promise<ReadingState>;
+}
+
+export function LecturaCronometrada({ actividadId, texto, onCompletada, servicio }: {
+  actividadId: string;
+  texto: string;
+  onCompletada: () => void;
+  servicio?: ServicioLectura;
+}) {
+  const srv = useMemo<ServicioLectura>(
+    () => servicio ?? { estado: () => myReading(actividadId), latido: (v) => readingBeat(actividadId, v) },
+    [servicio, actividadId],
+  );
   const [estado, setEstado] = useState<ReadingState | null>(null);
   const [extra, setExtra] = useState(0); // segundos locales desde el último latido (solo para mostrar)
   const [activo, setActivo] = useState(false);
@@ -46,11 +61,12 @@ export function LecturaCronometrada({ actividadId, texto, onCompletada }: { acti
   const latido = useCallback(
     (visible: boolean) => {
       if (completadaRef.current) return;
-      readingBeat(actividadId, visible)
+      srv
+        .latido(visible)
         .then(aplicar)
         .catch(() => setError('No se pudo registrar el tiempo de lectura. Revise su conexión; seguiremos intentándolo.'));
     },
-    [actividadId, aplicar],
+    [srv, aplicar],
   );
 
   const reanudar = useCallback(() => {
@@ -76,7 +92,8 @@ export function LecturaCronometrada({ actividadId, texto, onCompletada }: { acti
   // estado inicial (sin sumar tiempo)
   useEffect(() => {
     let vivo = true;
-    myReading(actividadId)
+    srv
+      .estado()
       .then((s) => {
         if (!vivo || !s) return;
         aplicar(s);
@@ -86,7 +103,7 @@ export function LecturaCronometrada({ actividadId, texto, onCompletada }: { acti
     return () => {
       vivo = false;
     };
-  }, [actividadId, aplicar, reanudar]);
+  }, [srv, aplicar, reanudar]);
 
   // salir y volver: pestaña, aplicación o ventana
   useEffect(() => {
@@ -106,10 +123,10 @@ export function LecturaCronometrada({ actividadId, texto, onCompletada }: { acti
       window.clearInterval(reloj);
       if (activoRef.current && !completadaRef.current) {
         activoRef.current = false;
-        void readingBeat(actividadId, false).catch(() => undefined); // salió de la página de la actividad
+        void srv.latido(false).catch(() => undefined); // salió de la página de la actividad
       }
     };
-  }, [actividadId, latido, pausar, reanudar]);
+  }, [srv, latido, pausar, reanudar]);
 
   if (!estado) return error ? <p className="text-sm text-red-700">{error}</p> : <Spinner />;
   const leidos = Math.min(estado.min_seconds, estado.seconds_read + (activo ? extra : 0));

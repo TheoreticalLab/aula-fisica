@@ -30,6 +30,7 @@ const LeccionEditor = lazy(() => import('@/pages/docente/LeccionEditor'));
 const Banco = lazy(() => import('@/pages/docente/Banco'));
 const EjercicioEditor = lazy(() => import('@/pages/docente/EjercicioEditor'));
 const ActividadEditor = lazy(() => import('@/pages/docente/ActividadEditor'));
+const VistaPrevia = lazy(() => import('@/pages/docente/VistaPrevia'));
 const RevisionIntento = lazy(() => import('@/pages/docente/RevisionIntento'));
 const EstudianteDetalle = lazy(() => import('@/pages/docente/EstudianteDetalle'));
 const Cuentas = lazy(() => import('@/pages/docente/Cuentas'));
@@ -91,6 +92,7 @@ export default function App() {
               <Route path="docente/ejercicios" element={teacher(<Banco />)} />
               <Route path="docente/ejercicios/:exerciseId" element={teacher(<EjercicioEditor />)} />
               <Route path="docente/actividades/:activityId" element={teacher(<ActividadEditor />)} />
+              <Route path="docente/actividades/:activityId/vista-previa" element={teacher(<VistaPrevia />)} />
               <Route path="docente/intentos/:attemptId" element={teacher(<RevisionIntento />)} />
               <Route path="docente/clases/:classId/estudiantes/:userId" element={teacher(<EstudianteDetalle />)} />
               <Route path="docente/cuentas" element={teacher(<Cuentas />)} />

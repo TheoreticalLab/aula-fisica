@@ -119,6 +119,10 @@ export default function ActividadEditor() {
     <div>
       <PageTitle title={act.title} subtitle={<>{cls.name} · <Badge tone={act.mode === 'exam' ? 'purple' : 'blue'}>{act.mode === 'exam' ? 'Evaluación' : 'Práctica'}</Badge> {act.published ? <Badge tone="green">Visible para estudiantes</Badge> : <Badge>Borrador</Badge>}</>}
         back={{ to: `/docente/clases/${cls.id}?t=actividades`, label: cls.name }} />
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Link to={`/docente/actividades/${activityId}/vista-previa`} className="btn-secundario">👁 Vista previa como estudiante</Link>
+        {dirty && <span className="text-xs text-amber-700 dark:text-amber-300">Guarde los cambios para verlos en la vista previa.</span>}
+      </div>
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[{ id: 'config', label: 'Configuración' }, { id: 'ejercicios', label: `Ejercicios (${st.data!.items.length})` }, { id: 'resultados', label: 'Resultados y estadísticas' }]} />
       <ErrorBox error={action.error} />
       {tab === 'config' && (
