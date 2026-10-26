@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
 import { SeguimientoTiempo } from '@/components/SeguimientoTiempo';
+import { ReceptorMensajes } from '@/components/ReceptorMensajes';
 import { AVISO_PRIVACIDAD } from '@/lib/tiempo';
 import { useTema } from '@/lib/tema';
 import { Spinner } from './ui';
@@ -109,6 +110,7 @@ export function Layout() {
         {session && !isTeacher && <p className="mt-1">{AVISO_PRIVACIDAD}</p>}
       </footer>
       <SeguimientoTiempo />
+      <ReceptorMensajes />
       {session && <BottomNav docente={docente && isTeacher} />}
     </div>
   );
