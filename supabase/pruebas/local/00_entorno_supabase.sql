@@ -51,6 +51,11 @@ create table if not exists auth.sessions (
   user_id uuid not null references auth.users (id) on delete cascade,
   created_at timestamptz default now()
 );
+-- columnas que Supabase tiene en auth.sessions (refreshed_at es timestamp sin zona, en UTC)
+alter table auth.sessions add column if not exists updated_at timestamptz default now();
+alter table auth.sessions add column if not exists refreshed_at timestamp;
+alter table auth.sessions add column if not exists user_agent text;
+alter table auth.sessions add column if not exists ip inet;
 
 -- Igual que en Supabase: el usuario sale del JWT de la petición
 create or replace function auth.uid() returns uuid language sql stable as $$

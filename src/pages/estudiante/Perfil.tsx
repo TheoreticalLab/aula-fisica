@@ -5,7 +5,19 @@ import { myClasses, updateMyProfile } from '@/api/estudiante';
 import { useAction, useAsync } from '@/lib/util';
 import { Card, ErrorBox, Field, Notice, PageTitle } from '@/components/ui';
 import { AVISO_PRIVACIDAD } from '@/lib/tiempo';
-import { supabase } from '@/lib/supabase';
+import { rpc, supabase } from '@/lib/supabase';
+import { describirNavegador } from '@/lib/sesiones';
+import { Spinner } from '@/components/ui';
+
+interface SesionAbierta {
+  id: string;
+  created_at: string;
+  last_active: string | null;
+  user_agent: string | null;
+  ip: string | null;
+  current: boolean;
+}
+const cuando = (iso: string | null) => (iso ? new Date(iso).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 
 export default function Perfil() {
   const { profile, refreshProfile } = useAuth();
@@ -25,6 +37,13 @@ export default function Perfil() {
       return true;
     });
     if (r) setOtrasOk(true);
+    await sesiones.reload();
+  }
+  const sesiones = useAsync(() => rpc<SesionAbierta[]>('my_sessions'), []);
+  const cerrar = useAction();
+  async function cerrarUna(id: string) {
+    await cerrar.run(() => rpc<boolean>('revoke_my_session', { p_session: id }));
+    await sesiones.reload();
   }
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -56,14 +75,39 @@ export default function Perfil() {
       </Card>
       <Card title="Sesiones abiertas">
         <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-          Si dejó la sesión abierta en otra computadora o teléfono, ciérrela desde aquí. Esta sesión sigue abierta; en los
-          demás dispositivos se cerrará en cuanto caduque su acceso temporal (como mucho, alrededor de una hora).
+          Dispositivos donde su cuenta tiene la sesión abierta. Si no reconoce uno o lo dejó abierto, ciérrelo: ese
+          dispositivo queda fuera en cuanto caduca su acceso temporal (como mucho, alrededor de una hora).
         </p>
-        <ErrorBox error={otras.error} />
+        {sesiones.loading && !sesiones.data ? <Spinner /> : (
+          <ul className="mb-3 divide-y divide-gray-100 dark:divide-white/10">
+            {(sesiones.data ?? []).map((s) => {
+              const d = describirNavegador(s.user_agent);
+              return (
+                <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                  <div>
+                    <p className="font-medium">
+                      {d.movil ? '📱' : '💻'} {d.navegador} en {d.sistema}
+                      {s.current && <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-800 dark:bg-green-900/40 dark:text-green-200">Esta sesión</span>}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      IP {s.ip ?? '—'} · iniciada {cuando(s.created_at)} · última actividad {cuando(s.last_active)}
+                    </p>
+                  </div>
+                  {!s.current && (
+                    <button className="btn-secundario !py-1 text-xs" disabled={cerrar.busy} onClick={() => void cerrarUna(s.id)}>Cerrar</button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <ErrorBox error={sesiones.error || cerrar.error || otras.error} />
         {otrasOk && <Notice tone="ok">Listo: se cerraron las sesiones en los demás dispositivos.</Notice>}
-        <button className="btn-secundario" disabled={otras.busy} onClick={() => void cerrarOtras()}>
-          {otras.busy ? 'Cerrando…' : 'Cerrar sesión en los demás dispositivos'}
-        </button>
+        {(sesiones.data ?? []).filter((s) => !s.current).length > 1 && (
+          <button className="btn-secundario" disabled={otras.busy} onClick={() => void cerrarOtras()}>
+            {otras.busy ? 'Cerrando…' : 'Cerrar todas las demás'}
+          </button>
+        )}
       </Card>
       <Card title="Mis clases">
         {classes.data?.length ? (

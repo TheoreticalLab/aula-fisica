@@ -2,6 +2,7 @@
  * Medidor de tiempo efectivo con un reloj simulado: cálculos exactos de los casos del enunciado.
  */
 import { describe, expect, it } from 'vitest';
+import { describirNavegador } from '../src/lib/sesiones';
 import { aCsv, contextoDeRuta, etiquetaSeccion, formatoDuracion, histograma, MedidorTiempo, mediana } from '../src/lib/tiempo';
 
 const S = 1000;
@@ -145,6 +146,16 @@ describe('contexto por ruta (medición automática de secciones nuevas)', () => 
   });
   it('una sección maliciosa se sanea', () => {
     expect(contextoDeRuta(`/curso/${c}/leccion/${l}`, '?s=<script>')?.section).toMatch(/^[a-z0-9][a-z0-9:_-]*$/);
+  });
+});
+
+describe('sesiones abiertas', () => {
+  it('describe el navegador y el sistema', () => {
+    expect(describirNavegador('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36')).toEqual({ navegador: 'Chrome', sistema: 'Windows', movil: false });
+    expect(describirNavegador('Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36').sistema).toBe('Android');
+    expect(describirNavegador('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit/605.1.15 Version/17.0 Mobile Safari/604.1').navegador).toBe('Safari');
+    expect(describirNavegador('Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0')).toEqual({ navegador: 'Firefox', sistema: 'Linux', movil: false });
+    expect(describirNavegador(null).navegador).toBe('Navegador desconocido');
   });
 });
 
