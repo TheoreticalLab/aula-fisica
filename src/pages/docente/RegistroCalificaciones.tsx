@@ -14,6 +14,8 @@ import { aCsv } from '@/lib/tiempo';
 interface Fila { user_id: string; full_name: string; student_code: string | null; parcial1: number | null; parcial2: number | null; parcial3: number | null; practica: number | null; final: number | null; extras: number; extras_pendientes: number; bruto: number; nota_final: number; pendientes: number; es_monitor: boolean }
 interface Ajustes { published: boolean; extra_max_per_student: number; extra_max_per_operation: number; extra_from: string | null; extra_to: string | null; extra_requires_approval: boolean }
 interface Extra { id: string; user_id: string; alumno: string; asignado_por: string; assigner_role: string; points: number; reason: string; status: string; created_at: string; review_note: string | null }
+interface Vinculo { activity_id: string; title: string; mode: string; closes_at: string | null; category: Categoria | null; points: number | null; peso_efectivo: number | null }
+interface Origen { user_id: string; category: Categoria; score: number | null; source: 'manual' | 'actividades' | null; pendientes: number }
 interface Hist { cuando: string; tipo: string; categoria: string | null; antes: number | null; despues: number | null; puntos: number | null; motivo: string | null; estado: string | null; autor: string }
 
 const n = (v: unknown) => (v === null || v === undefined ? null : Number(v));
@@ -55,6 +57,12 @@ export default function RegistroCalificaciones() {
   })) as Fila[], [classId]);
   const ajustes = useAsync(() => rpc<Ajustes>('official_grade_settings', { p_class: classId }), [classId]);
   const extras = useAsync(() => rpc<Extra[]>('class_extra_points', { p_class: classId }), [classId]);
+  const vinculos = useAsync(() => rpc<Vinculo[]>('class_activity_links', { p_class: classId }), [classId]);
+  const origenes = useAsync(async () => {
+    const m = new Map<string, Origen>();
+    for (const o of await rpc<Origen[]>('gradebook_sources', { p_class: classId })) m.set(`${o.user_id}:${o.category}`, o);
+    return m;
+  }, [classId, filas.data]);
   const [historial, setHistorial] = useState<{ nombre: string; filas: Hist[] } | null>(null);
   const [extraPara, setExtraPara] = useState<Fila | null>(null);
   const [extraForm, setExtraForm] = useState({ puntos: '1', motivo: '' });
@@ -72,6 +80,10 @@ export default function RegistroCalificaciones() {
       p_from: a.extra_from || null, p_to: a.extra_to || null, p_requires_approval: a.extra_requires_approval,
     }));
     if (r) ajustes.setData(r);
+  }
+  async function vincular(v: Vinculo, categoria: Categoria | null, puntos: number | null) {
+    const r = await accion.run(() => rpc('set_activity_grade_link', { p_activity: v.activity_id, p_category: categoria, p_points: puntos }));
+    if (r !== undefined) { void vinculos.reload(); void filas.reload(); }
   }
   async function monitor(f: Fila) {
     await accion.run(() => rpc('set_class_monitor', { p_class: classId, p_user: f.user_id, p_active: !f.es_monitor }));
@@ -142,9 +154,15 @@ export default function RegistroCalificaciones() {
                 <tr key={f.user_id} className="border-b border-gray-100 dark:border-white/5">
                   <td className="px-1 py-1">{f.full_name || '—'} {f.es_monitor && <span className="ml-1 rounded bg-amber-100 px-1 text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">monitor</span>}
                     <span className="block text-xs text-gray-500">{f.student_code}</span></td>
-                  {CATEGORIAS.map((c) => (
-                    <td key={c.id} className="px-1 py-1 text-right"><Celda valor={f[c.id]} max={c.max} onGuardar={(v) => guardarNota(f, c.id, v)} /></td>
-                  ))}
+                  {CATEGORIAS.map((c) => {
+                    const o = origenes.data?.get(`${f.user_id}:${c.id}`);
+                    return (
+                      <td key={c.id} className="px-1 py-1 text-right">
+                        <Celda key={`${f[c.id]}`} valor={f[c.id]} max={c.max} onGuardar={(v) => guardarNota(f, c.id, v)} />
+                        {o?.source === 'actividades' && <span className="block text-[10px] text-primario-700 dark:text-primario-300" title="Calculada con las actividades vinculadas. Escriba un valor para fijarla a mano.">auto{o.pendientes ? ` · ${o.pendientes} pend.` : ''}</span>}
+                      </td>
+                    );
+                  })}
                   <td className="px-1 py-1 text-right tabular-nums">{f.extras}{f.extras_pendientes > 0 && <span className="block text-xs text-amber-700">+{f.extras_pendientes} pend.</span>}</td>
                   <td className="px-1 py-1 text-right tabular-nums">{f.bruto}</td>
                   <td className="px-1 py-1 text-right font-semibold tabular-nums">{f.nota_final}{f.pendientes > 0 && <span className="block text-xs font-normal text-gray-500">{f.pendientes} pend.</span>}</td>
@@ -157,6 +175,54 @@ export default function RegistroCalificaciones() {
               ))}
             </tbody>
           </table>
+        </div>
+      </Card>
+
+      <Card title="Actividades del aula en el registro">
+        <p className="mb-2 text-xs text-gray-500">
+          Elija a qué apartado va cada actividad y cuánto vale dentro de él. «Por definir»: reparte a partes iguales los puntos del apartado
+          que no tienen asignados las actividades de valor fijo. Aporte = valor × (mejor intento ÷ máximo); sin entregar cuenta como pendiente
+          hasta que la actividad cierra, y entonces como 0. Una nota escrita a mano en el apartado tiene prioridad; bórrela para volver al cálculo.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-gray-200 text-left text-xs dark:border-white/10"><th className="py-1">Actividad</th><th className="py-1">Apartado</th><th className="py-1">Valor</th><th className="py-1 text-right">Vale</th></tr></thead>
+            <tbody>
+              {(vinculos.data ?? []).map((v) => {
+                const max = CATEGORIAS.find((c) => c.id === v.category)?.max ?? 0;
+                return (
+                  <tr key={v.activity_id} className="border-b border-gray-100 dark:border-white/5">
+                    <td className="py-1">{v.title} <span className="text-xs text-gray-500">({v.mode === 'exam' ? 'examen' : 'práctica'})</span></td>
+                    <td className="py-1">
+                      <select className="campo !py-0.5 text-xs" value={v.category ?? ''} onChange={(e) => void vincular(v, (e.target.value || null) as Categoria | null, null)}>
+                        <option value="">No cuenta</option>
+                        {CATEGORIAS.map((c) => <option key={c.id} value={c.id}>{c.label} ({c.max})</option>)}
+                      </select>
+                    </td>
+                    <td className="py-1">
+                      {v.category && (
+                        <span className="flex flex-wrap items-center gap-1 text-xs">
+                          <select className="campo !w-auto !py-0.5 text-xs" value={v.points === null ? 'auto' : Number(v.points) === max ? 'total' : 'fijo'}
+                            onChange={(e) => void vincular(v, v.category, e.target.value === 'auto' ? null : e.target.value === 'total' ? max : Math.min(max, Number(v.points ?? v.peso_efectivo ?? 1) || 1))}>
+                            <option value="fijo">Valor fijo</option>
+                            <option value="total">Apartado completo</option>
+                            <option value="auto">Por definir</option>
+                          </select>
+                          {v.points !== null && Number(v.points) !== max && (
+                            <input key={String(v.points)} className="w-16 rounded border border-gray-300 px-1 py-0.5 text-right dark:border-white/20 dark:bg-transparent" inputMode="decimal" defaultValue={Number(v.points)}
+                              onBlur={(e) => { const p = Number(e.target.value.replace(',', '.')); if (p !== Number(v.points)) void vincular(v, v.category, p); }} />
+                          )}
+                          {v.points !== null && Number(v.points) !== max && <span>de {max}</span>}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-1 text-right tabular-nums">{v.peso_efectivo !== null ? `${Number(v.peso_efectivo)} pts` : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {!(vinculos.data ?? []).length && <p className="text-sm text-gray-500">Esta sección todavía no tiene actividades.</p>}
         </div>
       </Card>
 
