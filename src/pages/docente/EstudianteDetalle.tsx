@@ -21,7 +21,8 @@ export default function EstudianteDetalle() {
   return (
     <div>
       <PageTitle title={student?.full_name ?? 'Estudiante'} subtitle={<>ID {student?.login_id ?? '—'} {student?.student_code && `· ${student.student_code}`} · {cls.name}</>}
-        back={{ to: `/docente/clases/${classId}`, label: cls.name }} />
+        back={{ to: `/docente/clases/${classId}`, label: cls.name }}
+        actions={<Link to={`/docente/comunicacion?u=${userId}`} className="btn-secundario">✉ Enviar mensaje</Link>} />
       <Card title="Actividades" className="mb-5">
         <ul className="divide-y divide-gray-100 text-sm dark:divide-white/10">
           {gb.activities.map((a) => {

@@ -4,6 +4,7 @@
  * Tiempo de utilización ≠ tiempo de aprendizaje: el panel lo recuerda y no califica a nadie por tiempo.
  */
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   actividadesDeClases,
@@ -336,6 +337,7 @@ export default function Analitica() {
               { id: 'media', titulo: 'Media/sesión', valor: (a) => (a.sessions ? a.effective_seconds / a.sessions : 0), mostrar: (a) => (a.sessions ? formatoDuracion(a.effective_seconds / a.sessions) : '—'), num: true },
               { id: 'dias', titulo: 'Días activos', valor: (a) => a.days_active, num: true },
               { id: 'ultima', titulo: 'Última visita', valor: (a) => a.last_visit ?? '', mostrar: (a) => fecha(a.last_visit) },
+              { id: 'mensaje', titulo: '', valor: () => '', mostrar: (a) => <Link to={`/docente/comunicacion?u=${a.user_id}`} className="btn-secundario !px-2 !py-0.5 text-xs" onClick={(ev) => ev.stopPropagation()}>✉ Mensaje</Link> },
             ]}
           />
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
