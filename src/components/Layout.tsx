@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { supabase } from '@/lib/supabase';
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
 import { SeguimientoTiempo } from '@/components/SeguimientoTiempo';
@@ -43,6 +44,12 @@ const topLink = ({ isActive }: { isActive: boolean }) =>
 
 export function Layout() {
   const { session, profile, isTeacher, isAdmin, signOut, loading } = useAuth();
+  // ¿Es monitor de alguna sección? (solo cambia el menú; el acceso real lo comprueba la base de datos)
+  const [esMonitor, setEsMonitor] = useState(false);
+  useEffect(() => {
+    if (!session || profile?.role !== 'student') return setEsMonitor(false);
+    void supabase.rpc('my_monitor_classes').then(({ data }) => setEsMonitor(Array.isArray(data) && data.length > 0));
+  }, [session, profile?.role]);
   const [menu, setMenu] = useState(false);
   const loc = useLocation();
   const docente = loc.pathname.startsWith('/docente');
@@ -79,6 +86,7 @@ export function Layout() {
                   <div role="menu" className="absolute right-0 mt-1 w-56 rounded-lg border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-white/10 dark:bg-primario-950" onClick={() => setMenu(false)}>
                     <p className="px-3 py-2 text-xs text-gray-500">ID: {profile?.login_id ?? '—'}<br />{profile?.role === 'admin' ? 'Administrador' : profile?.role === 'teacher' ? 'Profesor' : 'Estudiante'}</p>
                     <Link role="menuitem" to="/perfil" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Mi perfil</Link>
+                    {esMonitor && <Link role="menuitem" to="/secretaria" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Secretaría del curso</Link>}
                     <Link role="menuitem" to="/unirse" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Unirme a una clase</Link>
                     {isTeacher && <Link role="menuitem" to={docente ? '/' : '/docente'} className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10 md:hidden">{docente ? 'Vista de estudiante' : 'Panel docente'}</Link>}
                     {isAdmin && <Link role="menuitem" to="/docente/cuentas" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10 md:hidden">Cuentas</Link>}

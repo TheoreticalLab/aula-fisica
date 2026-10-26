@@ -50,6 +50,7 @@ export default function Clase() {
       <PageTitle title={c.name} subtitle={<>{c.term} · {course.title} {c.archived && <Badge tone="amber">Archivada</Badge>}</>} back={{ to: '/docente', label: 'Panel docente' }}
         actions={<>
           <Link to={`/docente/clases/${classId}/vista-estudiante`} className="btn-secundario">👁 Ver como estudiante</Link>
+          <Link to={`/docente/clases/${classId}/registro`} className="btn-secundario">📒 Registro de calificaciones</Link>
           {secciones.length > 1 && (
             <select className="campo w-auto" value={classId} aria-label="Cambiar de sección"
               onChange={(e) => nav(`/docente/clases/${e.target.value}${tab !== 'estudiantes' ? `?t=${tab}` : ''}`)}>

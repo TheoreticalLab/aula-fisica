@@ -192,6 +192,11 @@ export const TABLAS_PROTEGIDAS = [
   'analytics_audit',
   'live_messages',
   'live_message_recipients',
+  'grade_settings',
+  'grade_entries',
+  'grade_history',
+  'class_monitors',
+  'extra_points',
 ];
 
 export async function contarFilas(db: pg.Client, tablas: string[]): Promise<Record<string, number>> {

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { myGrades } from '@/api/estudiante';
 import { fecha, porcentaje, puntaje, useAsync } from '@/lib/util';
 import { Badge, Empty, ErrorBox, PageTitle, Spinner } from '@/components/ui';
+import { MisNotasOficiales } from '@/components/MisNotasOficiales';
 
 export default function Calificaciones() {
   const { data, loading, error, reload } = useAsync(myGrades, []);
@@ -11,8 +12,9 @@ export default function Calificaciones() {
   for (const g of data!) byClass.set(g.class_name, [...(byClass.get(g.class_name) ?? []), g]);
   return (
     <div>
-      <PageTitle title="Calificaciones" subtitle="Solo aparecen las actividades cuyas notas publicó el profesor. Se toma el mejor intento entregado." />
-      {!data!.length && <Empty>Todavía no hay calificaciones publicadas.</Empty>}
+      <PageTitle title="Calificaciones" subtitle="Solo aparecen las notas que publicó el profesor. En las actividades se toma el mejor intento entregado." />
+      <MisNotasOficiales />
+      {!data!.length && <Empty>Todavía no hay calificaciones de actividades publicadas.</Empty>}
       {[...byClass.entries()].map(([cls, rows]) => {
         const valid = rows!.filter((r) => r.best_score !== null && r.max_score > 0);
         const avg = valid.length ? valid.reduce((s, r) => s + Number(r.best_score) / Number(r.max_score), 0) / valid.length : null;
