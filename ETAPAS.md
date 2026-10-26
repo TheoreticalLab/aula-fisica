@@ -40,7 +40,7 @@ Leyenda: ✅ hecho y probado · 🟡 hecho, verificado solo parcialmente (ver no
 |---|---|
 | Personalización del aprendizaje (rutas según dominio) | ⬜ (ya existe la base: dominio por concepto y refuerzo automático) |
 | Generación parametrizada de problemas | ⬜ |
-| Herramientas de análisis pedagógico avanzadas | ⬜ |
+| Herramientas de análisis pedagógico avanzadas | 🟡 Analítica de tiempo de aprendizaje (migración 12, `docente/analitica`): tiempo efectivo por estudiante y subsección, solo para el profesor. Pendiente: relacionarlo con resultados e intentos |
 | Respuestas de tipo expresión algebraica | ⬜ |
 
 ## Cómo añadir un bloque nuevo
