@@ -13,9 +13,11 @@ insert into public.activities (id, class_id, title, mode, published, closes_at) 
   ('d1000000-0000-4000-8000-0000000000a1', 'd1000000-0000-4000-8000-000000000031', 'Lectura', 'practice', true, null),
   ('d1000000-0000-4000-8000-0000000000a2', 'd1000000-0000-4000-8000-000000000031', 'Práctica B', 'practice', true, null),
   ('d1000000-0000-4000-8000-0000000000a3', 'd1000000-0000-4000-8000-000000000031', 'Práctica C', 'practice', true, null),
-  ('d1000000-0000-4000-8000-0000000000a4', 'd1000000-0000-4000-8000-000000000031', 'Parcial en línea', 'exam', true, null),
   ('d1000000-0000-4000-8000-0000000000a5', 'd1000000-0000-4000-8000-000000000031', 'Práctica cerrada', 'practice', true, now() - interval '1 day'),
   ('d1000000-0000-4000-8000-0000000000a6', 'd1000000-0000-4000-8000-000000000031', 'Sin vincular', 'practice', true, null);
+-- un examen: sin retroalimentación inmediata ni pistas (regla de la tabla activities)
+insert into public.activities (id, class_id, title, mode, published, reveal_policy, hints_enabled) values
+  ('d1000000-0000-4000-8000-0000000000a4', 'd1000000-0000-4000-8000-000000000031', 'Parcial en línea', 'exam', true, 'after_submit', false);
 insert into public.attempts (user_id, course_id, activity_id, mode, status, score, max_score) values
   ('d1000000-0000-4000-8000-000000000011', 'd1000000-0000-4000-8000-000000000021', 'd1000000-0000-4000-8000-0000000000a1', 'practice', 'submitted', 80, 100),
   ('d1000000-0000-4000-8000-000000000011', 'd1000000-0000-4000-8000-000000000021', 'd1000000-0000-4000-8000-0000000000a1', 'practice', 'submitted', 60, 100),
