@@ -21,6 +21,42 @@ import type { Activity, Exercise, RevealPolicy } from '@/api/tipos';
 import { aInputFecha, CATEGORIA, deInputFecha, DIFICULTAD, downloadText, fecha, porcentaje, puntaje, toCsv, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, Empty, ErrorBox, Field, Notice, PageTitle, Spinner, Tabs } from '@/components/ui';
 import { EditorMarkdown } from '@/components/EditorMarkdown';
+import { analizarTexto, formatoTiempo, MAX_SEGUNDOS, MIN_SEGUNDOS, segundosSugeridos } from '@/lib/lectura';
+
+/** Lectura cronometrada previa a los ejercicios: texto y tiempo mínimo (con sugerencia según el texto). */
+function LecturaEditor({ draft, set }: { draft: Activity; set: (p: Partial<Activity>) => void }) {
+  const activa = !!draft.reading_min_seconds;
+  const texto = draft.reading_text ?? '';
+  const sugerido = texto.trim() ? segundosSugeridos(texto) : null;
+  const { palabras, formulasBloque } = analizarTexto(texto);
+  return (
+    <div className="my-3 rounded-lg border border-gray-200 p-3 dark:border-white/10">
+      <label className="flex items-center gap-2 text-sm font-medium">
+        <input type="checkbox" checked={activa} onChange={(e) => set({ reading_min_seconds: e.target.checked ? sugerido ?? 300 : null })} />
+        Lectura cronometrada antes de los ejercicios
+      </label>
+      {activa && (
+        <>
+          <p className="mt-1 text-xs text-gray-500">
+            El estudiante debe leer durante el tiempo mínimo antes de poder empezar los ejercicios. Si sale de la plataforma, el tiempo se detiene.
+          </p>
+          <EditorMarkdown label="Texto de la lectura" value={texto} onChange={(v) => set({ reading_text: v })} rows={12} />
+          <Field label="Tiempo mínimo de lectura (minutos)"
+            hint={sugerido ? `Sugerido: ${formatoTiempo(sugerido)} min (${palabras} palabras, ${formulasBloque} fórmulas destacadas, a 130 palabras por minuto).` : 'Escriba el texto para ver una sugerencia.'}>
+            {(id) => (
+              <div className="flex items-center gap-2">
+                <input id={id} type="number" min={0.5} max={120} step={0.5} className="campo w-28"
+                  value={(draft.reading_min_seconds ?? 0) / 60}
+                  onChange={(e) => set({ reading_min_seconds: Math.round(Number(e.target.value) * 60) || null })} />
+                {sugerido && <button type="button" className="btn-texto text-xs" onClick={() => set({ reading_min_seconds: sugerido })}>Usar el sugerido</button>}
+              </div>
+            )}
+          </Field>
+        </>
+      )}
+    </div>
+  );
+}
 
 type Tab = 'config' | 'ejercicios' | 'resultados';
 
@@ -66,10 +102,16 @@ export default function ActividadEditor() {
     if (d.mode === 'exam' && d.reveal_policy === 'immediate') return action.setError('En una evaluación no puede mostrarse la solución de inmediato.');
     if (d.opens_at && d.closes_at && new Date(d.closes_at) <= new Date(d.opens_at)) return action.setError('El cierre debe ser posterior a la apertura.');
     if (d.reveal_policy === 'after_close' && !d.closes_at) return action.setError('Para mostrar las respuestas después del cierre, indique una fecha de cierre.');
+    if (d.reading_min_seconds && !d.reading_text?.trim()) return action.setError('Escriba el texto de la lectura o desactive la lectura cronometrada.');
+    if (d.reading_min_seconds && (d.reading_min_seconds < MIN_SEGUNDOS || d.reading_min_seconds > MAX_SEGUNDOS)) return action.setError('El tiempo de lectura debe estar entre 30 segundos y 2 horas.');
     const { title, instructions, mode, opens_at, closes_at, max_attempts, max_tries_per_item, reveal_policy, hints_enabled, published, grades_published, group_id, lesson_id } = d;
+    // solo se envían las columnas de lectura si se usan, para no fallar antes de aplicar la migración 10
+    const lectura = d.reading_min_seconds || act.reading_min_seconds
+      ? { reading_text: d.reading_min_seconds ? d.reading_text : null, reading_min_seconds: d.reading_min_seconds || null }
+      : {};
     const r = await action.run(() => updateActivity(activityId, {
       title, instructions, mode, opens_at, closes_at, max_attempts, max_tries_per_item, reveal_policy,
-      hints_enabled: mode === 'exam' ? false : hints_enabled, published, grades_published, group_id, lesson_id,
+      hints_enabled: mode === 'exam' ? false : hints_enabled, published, grades_published, group_id, lesson_id, ...lectura,
     }));
     if (r) { setSaved(true); st.setData({ ...st.data!, act: r }); }
   }
@@ -138,6 +180,7 @@ export default function ActividadEditor() {
             <Notice>Sin retroalimentación inmediata, la práctica funciona como una tarea: el estudiante guarda y entrega, y se califica al entregar.</Notice>
           )}
           <EditorMarkdown label="Instrucciones para el estudiante" value={draft.instructions} onChange={(v) => set({ instructions: v })} rows={4} />
+          <LecturaEditor draft={draft} set={set} />
           <div className="flex flex-wrap gap-4 text-sm">
             <label className="flex items-center gap-2"><input type="checkbox" checked={draft.published} onChange={(e) => set({ published: e.target.checked })} /> Visible para los estudiantes</label>
             <label className="flex items-center gap-2"><input type="checkbox" checked={draft.grades_published} onChange={(e) => set({ grades_published: e.target.checked })} /> Calificaciones publicadas</label>

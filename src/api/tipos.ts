@@ -217,6 +217,17 @@ export interface Activity {
   published: boolean;
   grades_published: boolean;
   created_at: string;
+  /** Lectura cronometrada previa a los ejercicios (Markdown) y su tiempo mínimo en segundos. */
+  reading_text?: string | null;
+  reading_min_seconds?: number | null;
+}
+
+/** Estado de la lectura cronometrada de un estudiante (lo cuenta el servidor). */
+export interface ReadingState {
+  seconds_read: number;
+  min_seconds: number;
+  completed: boolean;
+  pauses: number;
 }
 
 export interface ActivityItem {
@@ -259,6 +270,9 @@ export interface MyActivity {
   last_attempt_id: string | null;
   best_score: number | null;
   max_score: number;
+  /** Solo en actividades con lectura cronometrada (migración 10). */
+  reading_min_seconds?: number | null;
+  reading_done?: boolean;
 }
 
 export interface MyGrade {

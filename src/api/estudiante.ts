@@ -14,6 +14,7 @@ import type {
   MyClass,
   MyGrade,
   PendingPractice,
+  ReadingState,
   Solution,
   StudentAnswer,
   Unit,
@@ -62,6 +63,10 @@ export const lessonProgress = (courseId: string, userId?: string) =>
 export const startLessonPractice = (lessonId: string) => rpc<string>('start_lesson_practice', { p_lesson: lessonId });
 export const restartLessonPractice = (lessonId: string) => rpc<string>('restart_lesson_practice', { p_lesson: lessonId });
 export const startActivityAttempt = (activityId: string) => rpc<string>('start_activity_attempt', { p_activity: activityId });
+/** Lectura cronometrada: estado actual (no suma tiempo) y latido (suma el tiempo real desde el anterior). */
+export const myReading = (activityId: string) => rpc<ReadingState | null>('my_reading', { p_activity: activityId });
+export const readingBeat = (activityId: string, visible: boolean) =>
+  rpc<ReadingState>('reading_beat', { p_activity: activityId, p_visible: visible });
 export const getAttempt = (attemptId: string) => rpc<AttemptView>('get_attempt', { p_attempt: attemptId });
 export const saveResponse = (attemptId: string, exerciseId: string, answer: StudentAnswer) =>
   rpc<void>('save_response', { p_attempt: attemptId, p_exercise: exerciseId, p_answer: answer });

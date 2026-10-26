@@ -18,6 +18,11 @@ import type { Difficulty, ExerciseCategory, ExerciseDef, ExerciseKeyDef } from '
 import { grade, validateNumericKey } from '../supabase/functions/_shared/calificacion/calificar';
 import { loadContent, ROOT } from './cargar-contenido';
 import { checkMarkdown } from './validar-contenido';
+import { analizarTexto, MAX_SEGUNDOS, MIN_SEGUNDOS, segundosSugeridos } from '../src/lib/lectura';
+
+export function tiempoLectura(a: { lectura?: { texto: string; minSegundos?: number } }): number {
+  return a.lectura ? a.lectura.minSegundos ?? segundosSugeridos(a.lectura.texto) : 0;
+}
 
 export interface EjercicioActividad {
   id: string;
@@ -45,6 +50,8 @@ export interface ActividadDef {
   titulo: string;
   instrucciones: string;
   ajustes: { modo: 'practice' | 'exam'; intentosPorEjercicio: number; pistas: boolean; revelar: 'immediate' | 'after_submit' | 'after_close' | 'never'; publicada: boolean };
+  /** Lectura cronometrada antes de los ejercicios (requiere la migración 10). Sin minSegundos, se calcula del texto. */
+  lectura?: { texto: string; minSegundos?: number };
   ejercicios: EjercicioActividad[];
 }
 
@@ -71,6 +78,12 @@ export async function validarActividad(a: ActividadDef): Promise<string[]> {
   if (!/^[a-z0-9-]+$/.test(a.clave)) p.push(`clave de actividad inválida: ${a.clave}`);
   if (!a.ejercicios.length) p.push('la actividad no tiene ejercicios');
   checkMarkdown('instrucciones', a.instrucciones, p);
+  if (a.lectura) {
+    if (!a.lectura.texto.trim()) p.push('la lectura no tiene texto');
+    checkMarkdown('lectura', a.lectura.texto, p);
+    const seg = tiempoLectura(a);
+    if (seg < MIN_SEGUNDOS || seg > MAX_SEGUNDOS) p.push(`tiempo de lectura fuera de rango: ${seg} s`);
+  }
   if (a.ajustes.modo === 'exam' && (a.ajustes.revelar === 'immediate' || a.ajustes.pistas)) p.push('en evaluación no puede haber pistas ni retroalimentación inmediata');
   const ids = new Set<string>();
   for (const e of a.ejercicios) {
@@ -138,10 +151,11 @@ select e.id, ${j(e.clave.answer)}, ${j(e.clave.hints)}, ${q(e.clave.explanation)
 on conflict (exercise_id) do nothing;`);
   });
   const s = a.ajustes;
-  out.push(`\n-- la actividad (sin publicar: el profesor la abre desde su panel)`);
-  out.push(`insert into public.activities (id, class_id, title, instructions, mode, max_tries_per_item, reveal_policy, hints_enabled, published, created_by)
+  const lec = a.lectura ? { texto: a.lectura.texto, seg: tiempoLectura(a) } : null;
+  out.push(`\n-- la actividad (sin publicar: el profesor la abre desde su panel)${lec ? ` · lectura cronometrada de ${lec.seg} s` : ''}`);
+  out.push(`insert into public.activities (id, class_id, title, instructions, mode, max_tries_per_item, reveal_policy, hints_enabled, published, created_by${lec ? ', reading_text, reading_min_seconds' : ''})
 values ('${actId}', ${clase}, ${q(a.titulo)}, ${q(a.instrucciones)}, ${q(s.modo)}::public.activity_mode, ${s.intentosPorEjercicio},
-  ${q(s.revelar)}::public.reveal_policy, ${s.pistas}, ${s.publicada}, (select id from public.profiles where role = 'admin' order by created_at limit 1))
+  ${q(s.revelar)}::public.reveal_policy, ${s.pistas}, ${s.publicada}, (select id from public.profiles where role = 'admin' order by created_at limit 1)${lec ? `, ${q(lec.texto)}, ${lec.seg}` : ''})
 on conflict (id) do nothing;`);
   out.push(`insert into public.activity_items (activity_id, exercise_id, position)
 select '${actId}', e.id, x.pos from unnest(${arr(a.ejercicios.map((e) => e.id))}) with ordinality as x(slug, pos)
@@ -185,6 +199,11 @@ async function main() {
   writeFileSync(join(dir, archivo), sqlActividad(actividad), { mode: 0o600 });
   const nc = actividad.ejercicios.filter((e) => e.format === 'choice').length;
   console.log(`✔ ${actividad.ejercicios.length} ejercicios verificados con el motor de calificación (${nc} de selección, ${actividad.ejercicios.length - nc} numéricos).`);
+  if (actividad.lectura) {
+    const t = analizarTexto(actividad.lectura.texto);
+    const seg = tiempoLectura(actividad);
+    console.log(`✔ Lectura: ${t.palabras} palabras, ${t.formulasLinea} fórmulas en línea, ${t.formulasBloque} destacadas → mínimo ${Math.floor(seg / 60)} min ${seg % 60} s.`);
+  }
   console.log(`✔ privado/datos/${archivo} (desde ${basename(abs)})`);
   console.log('Siguiente: npm run probar → npm run plan → autorización → npm run aplicar -- --plan CÓDIGO');
 }

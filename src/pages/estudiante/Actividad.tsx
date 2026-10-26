@@ -1,4 +1,7 @@
+import { useCallback, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { LecturaCronometrada } from '@/components/LecturaCronometrada';
+import { formatoTiempo } from '@/lib/lectura';
 import { myActivities, startActivityAttempt } from '@/api/estudiante';
 import { supabase } from '@/lib/supabase';
 import type { Activity } from '@/api/tipos';
@@ -25,9 +28,13 @@ export default function Actividad() {
     return { act: act as Activity, mine: list.find((a) => a.id === activityId) };
   }, [activityId]);
   const action = useAction();
+  const [lecturaHecha, setLecturaHecha] = useState(false);
+  const alCompletarLectura = useCallback(() => setLecturaHecha(true), []);
   if (loading) return <Spinner />;
   if (error) return <ErrorBox error={error} />;
   const { act, mine } = data!;
+  const conLectura = !!act.reading_min_seconds && !!act.reading_text;
+  const bloqueada = conLectura && !lecturaHecha && !mine?.reading_done && !mine?.in_progress;
   const now = Date.now();
   const notOpen = act.opens_at && new Date(act.opens_at).getTime() > now;
   const closed = act.closes_at && new Date(act.closes_at).getTime() <= now;
@@ -44,6 +51,7 @@ export default function Actividad() {
         <div className="mb-3 flex flex-wrap gap-2">
           <Badge tone={act.mode === 'exam' ? 'purple' : 'blue'}>{act.mode === 'exam' ? 'Evaluación calificable' : 'Práctica de aprendizaje'}</Badge>
           {mine && <Badge>{mine.items} ejercicios · {mine.max_score} puntos</Badge>}
+          {conLectura && <Badge tone="amber">Lectura previa · mínimo {formatoTiempo(act.reading_min_seconds!)} min</Badge>}
         </div>
         {act.instructions && <Markdown>{act.instructions}</Markdown>}
         <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
@@ -65,11 +73,25 @@ export default function Actividad() {
             <p className="text-sm">La actividad está cerrada.</p>
           ) : left !== null && left <= 0 ? (
             <p className="text-sm">Ya usó todos los intentos.</p>
+          ) : bloqueada ? (
+            <p className="text-sm text-gray-600 dark:text-gray-300">🔒 Los ejercicios se habilitan cuando cumpla el tiempo mínimo de la lectura de abajo.</p>
           ) : (
-            <button className="btn-primario" onClick={start} disabled={action.busy}>{used ? 'Nuevo intento' : 'Comenzar'}</button>
+            <button className="btn-primario" onClick={start} disabled={action.busy}>
+              {conLectura ? (used ? 'Nuevo intento de los ejercicios' : 'Ir a los ejercicios') : used ? 'Nuevo intento' : 'Comenzar'}
+            </button>
           )}
         </div>
       </Card>
+      {conLectura && !mine?.in_progress && !notOpen && (
+        <div className="mt-5">
+          <LecturaCronometrada actividadId={activityId} texto={act.reading_text!} onCompletada={alCompletarLectura} />
+          {!bloqueada && !closed && !(left !== null && left <= 0) && (
+            <div className="mt-4 text-center">
+              <button className="btn-primario" onClick={start} disabled={action.busy}>Ir a los ejercicios →</button>
+            </div>
+          )}
+        </div>
+      )}
       {mine?.last_attempt_id && (
         <p className="mt-4 text-sm">
           <Link className="enlace" to={`/intento/${mine.last_attempt_id}`}>Revisar mi último intento entregado</Link>

@@ -30,7 +30,14 @@ export function credenciales(requeridas: (keyof Credenciales)[] = []): Credencia
     fallar(`Falta ${RUTA_CRED}. Copie scripts/ops/credenciales.ejemplo.env y complételo (vea FLUJO_DE_TRABAJO.md).`);
   }
   const env: Record<string, string> = {};
-  for (const linea of (existsSync(RUTA_CRED) ? readFileSync(RUTA_CRED, 'utf8') : '').split('\n')) {
+  let texto = '';
+  try {
+    texto = existsSync(RUTA_CRED) ? readFileSync(RUTA_CRED, 'utf8') : '';
+  } catch {
+    // Dentro del sandbox de Claude Code el archivo es ilegible a propósito: solo sirven las operaciones locales.
+    if (requeridas.length) fallar(`No se puede leer ${RUTA_CRED} (¿sandbox?). Esta operación la ejecuta el administrador en su terminal.`);
+  }
+  for (const linea of texto.split('\n')) {
     const l = linea.trim();
     if (!l || l.startsWith('#') || !l.includes('=')) continue;
     const i = l.indexOf('=');
@@ -180,6 +187,7 @@ export const TABLAS_PROTEGIDAS = [
   'concepts',
   'exercises',
   'exercise_keys',
+  'reading_progress',
 ];
 
 export async function contarFilas(db: pg.Client, tablas: string[]): Promise<Record<string, number>> {
