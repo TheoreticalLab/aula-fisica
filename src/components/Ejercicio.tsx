@@ -216,6 +216,8 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
   async function comprobar() {
     setBusy(true);
     setError(null);
+    // señal para el medidor de tiempo efectivo (no lleva el contenido de la respuesta)
+    window.dispatchEvent(new CustomEvent('aula:respuesta'));
     try {
       const r = await acciones.comprobar(view.attempt.id, ex.id, answer);
       setResult(r.result);

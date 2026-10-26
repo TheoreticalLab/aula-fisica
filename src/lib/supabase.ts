@@ -3,6 +3,10 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
+/** URL y clave pública (para peticiones `keepalive` al cerrar la página, que supabase-js no permite). */
+export const SUPABASE_URL = url ?? '';
+export const SUPABASE_ANON_KEY = anonKey ?? '';
+
 /** true si el frontend se compiló con la URL y la clave pública de Supabase. */
 export const supabaseConfigured = !!url && !!anonKey && !url.includes('xxxxxxxx');
 

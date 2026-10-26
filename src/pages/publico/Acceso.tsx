@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { invocar, rpc, supabase, errorMessage } from '@/lib/supabase';
 import { useAuth } from '@/auth/AuthContext';
 import { ErrorBox, Field, Notice } from '@/components/ui';
+import { AVISO_PRIVACIDAD } from '@/lib/tiempo';
 import { problemasContrasena } from '../../../supabase/functions/_shared/cuentas.ts';
 
 function Marco({ title, children }: { title: string | null; children: ReactNode }) {
@@ -189,6 +190,7 @@ export function Activar() {
         <button className="btn-primario w-full" disabled={busy}>{busy ? 'Activando…' : 'Activar mi cuenta'}</button>
       </form>
       <p className="mt-3 text-sm">¿Ya activó su cuenta? <Link to="/ingresar" className="enlace">Ingresar</Link></p>
+      <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{AVISO_PRIVACIDAD}</p>
     </Marco>
   );
 }

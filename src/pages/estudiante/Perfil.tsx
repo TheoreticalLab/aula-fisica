@@ -4,6 +4,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { myClasses, updateMyProfile } from '@/api/estudiante';
 import { useAction, useAsync } from '@/lib/util';
 import { Card, ErrorBox, Field, Notice, PageTitle } from '@/components/ui';
+import { AVISO_PRIVACIDAD } from '@/lib/tiempo';
 
 export default function Perfil() {
   const { profile, refreshProfile } = useAuth();
@@ -38,6 +39,7 @@ export default function Perfil() {
           {ok && <Notice tone="ok">Datos guardados.</Notice>}
           <button className="btn-primario" disabled={action.busy}>Guardar</button>
         </form>
+        {profile?.role === 'student' && <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">{AVISO_PRIVACIDAD}</p>}
       </Card>
       <Card title="Mis clases">
         {classes.data?.length ? (

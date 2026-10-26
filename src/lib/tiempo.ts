@@ -20,6 +20,10 @@
  * Visitas breves: hasta que la visita reúne `minVisitSeconds` de tiempo efectivo, lo informado es 0.
  */
 
+/** Aviso transparente sobre el registro de estadísticas de uso (pie de página, Perfil y activación de cuenta). */
+export const AVISO_PRIVACIDAD =
+  'Aviso de privacidad: el aula registra estadísticas de uso académico (tiempo dedicado a cada sección), visibles solo para el profesorado. No se usan cámara ni micrófono.';
+
 export interface ConfigTiempo {
   idleSeconds: number;
   tailSeconds: number;
