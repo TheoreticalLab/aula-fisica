@@ -35,6 +35,7 @@ const VistaPanel = lazy(() => import('@/pages/docente/VistaPanel'));
 const RevisionIntento = lazy(() => import('@/pages/docente/RevisionIntento'));
 const EstudianteDetalle = lazy(() => import('@/pages/docente/EstudianteDetalle'));
 const Cuentas = lazy(() => import('@/pages/docente/Cuentas'));
+const Analitica = lazy(() => import('@/pages/docente/Analitica'));
 
 function Home() {
   const { session, loading } = useAuth();
@@ -99,6 +100,7 @@ export default function App() {
               <Route path="docente/intentos/:attemptId" element={teacher(<RevisionIntento />)} />
               <Route path="docente/clases/:classId/estudiantes/:userId" element={teacher(<EstudianteDetalle />)} />
               <Route path="docente/cuentas" element={teacher(<Cuentas />)} />
+              <Route path="docente/analitica" element={teacher(<Analitica />)} />
               <Route path="docente/usuarios" element={<Navigate to="/docente/cuentas" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

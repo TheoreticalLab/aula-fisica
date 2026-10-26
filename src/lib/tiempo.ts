@@ -229,6 +229,44 @@ export function formatoDuracion(segundos: number): string {
   return min ? `${h} h ${min} min` : `${h} h`;
 }
 
+const SECCIONES: Record<string, string> = {
+  teoria: 'Teoría',
+  formulas: 'Fórmulas',
+  ejemplos: 'Ejemplos resueltos',
+  simulacion: 'Simulación',
+  comprension: 'Comprensión',
+  practica: 'Práctica (ejercicios)',
+  actividad: 'Actividad',
+  intento: 'Resolución de la actividad',
+  'inicio-curso': 'Inicio de la asignatura',
+  progreso: 'Progreso',
+};
+/** Nombre legible de una subsección (las nuevas aparecen con su clave). */
+export function etiquetaSeccion(s: string): string {
+  return SECCIONES[s] ?? s.replace(/[-_:]/g, ' ');
+}
+
+/** CSV con separador «;» (Excel en español) y comillas donde haga falta. */
+export function aCsv(filas: (string | number | null)[][]): string {
+  const celda = (v: string | number | null) => {
+    const t = v === null ? '' : String(v);
+    return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  return '﻿' + filas.map((f) => f.map(celda).join(';')).join('\r\n');
+}
+
+/** Histograma en minutos: tramos de igual ancho «bonito» (5, 10, 15, 30, 60… min). */
+export function histograma(segundos: number[], tramos = 8): { desde: number; hasta: number; n: number }[] {
+  if (!segundos.length) return [];
+  const max = Math.max(...segundos) / 60;
+  const anchos = [5, 10, 15, 30, 60, 120, 240, 480];
+  const ancho = anchos.find((a) => a * tramos >= max) ?? Math.ceil(max / tramos);
+  const n = Math.max(1, Math.ceil((max + 1e-9) / ancho));
+  const out = Array.from({ length: n }, (_, i) => ({ desde: i * ancho, hasta: (i + 1) * ancho, n: 0 }));
+  for (const s of segundos) out[Math.min(n - 1, Math.floor(s / 60 / ancho))].n++;
+  return out;
+}
+
 /** Mediana de una lista de números (0 si está vacía). */
 export function mediana(xs: number[]): number {
   if (!xs.length) return 0;

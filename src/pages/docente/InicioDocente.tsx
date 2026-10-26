@@ -38,6 +38,7 @@ export default function InicioDocente() {
           <Link to="/docente/cursos" className="btn-secundario">Asignaturas y contenido</Link>
           <Link to="/docente/ejercicios" className="btn-secundario">Banco de ejercicios</Link>
           <Link to="/" className="btn-secundario">👁 Vista de estudiante</Link>
+          <Link to="/docente/analitica" className="btn-secundario">⏱ Analítica de tiempo</Link>
           {isAdmin && <Link to="/docente/cuentas" className="btn-secundario">Cuentas</Link>}
         </>} />
       {!courses.length && <Notice tone="warn">No hay ninguna asignatura. Cargue la semilla del curso inicial o cree una en «Asignaturas y contenido».</Notice>}

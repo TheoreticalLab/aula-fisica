@@ -300,3 +300,107 @@ export const crearCuentas = (cuentas: CuentaNueva[]) => invocar<{ resultados: Re
 export const restablecerCuenta = (userId: string) =>
   invocar<{ login_id: string; full_name: string; password: string }>('admin-cuentas', { accion: 'restablecer', user_id: userId });
 export const suspenderCuenta = (userId: string, suspender: boolean) => invocar<{ ok: boolean }>('admin-cuentas', { accion: 'suspender', user_id: userId, suspender });
+
+// --- analítica del tiempo de aprendizaje (exclusiva del profesor: la autorización está en las funciones SQL) ----
+export interface FiltroTiempo {
+  course: string;
+  klass?: string | null;
+  group?: string | null;
+  user?: string | null;
+  unit?: string | null;
+  lesson?: string | null;
+  activity?: string | null;
+  section?: string | null;
+  from?: string | null;
+  to?: string | null;
+}
+export interface NodoTiempo {
+  nodo: string;
+  unit_id: string | null;
+  lesson_id: string | null;
+  activity_id: string | null;
+  section: string;
+  effective_seconds: number;
+  visible_seconds: number;
+  idle_seconds: number;
+  hidden_seconds: number;
+  visits: number;
+  effective_visits: number;
+  sessions: number;
+  students: number;
+  first_visit: string | null;
+  last_visit: string | null;
+}
+export interface EstudianteTiempo {
+  user_id: string;
+  full_name: string;
+  student_code: string | null;
+  class_id: string;
+  effective_seconds: number;
+  visible_seconds: number;
+  effective_visits: number;
+  sessions: number;
+  days_active: number;
+  first_visit: string | null;
+  last_visit: string | null;
+}
+export interface CalidadTiempo {
+  visits: number;
+  effective_visits: number;
+  brief_visits: number;
+  effective_seconds: number;
+  visible_seconds: number;
+  idle_seconds: number;
+  hidden_seconds: number;
+  weak_seconds: number;
+  clamped_seconds: number;
+  offline_visits: number;
+  first_visit: string | null;
+  last_visit: string | null;
+}
+const filtroBase = (f: FiltroTiempo) => ({
+  p_course: f.course,
+  p_class: f.klass ?? null,
+  p_group: f.group ?? null,
+  p_unit: f.unit ?? null,
+  p_lesson: f.lesson ?? null,
+  p_activity: f.activity ?? null,
+  p_from: f.from || null,
+  p_to: f.to || null,
+});
+// bigint llega como texto en algunos casos: se normaliza a número
+const aNumero = <T extends object>(rows: T[]): T[] =>
+  rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, typeof v === 'string' && /seconds|visits|sessions|students|days|dow|hour/.test(k) ? Number(v) : v])) as T);
+
+export const tiempoArbol = async (f: FiltroTiempo, level: 'unidad' | 'leccion' | 'seccion') =>
+  aNumero(await rpc<NodoTiempo[]>('analytics_tree', { ...filtroBase(f), p_user: f.user ?? null, p_level: level }));
+export const tiempoEstudiantes = async (f: FiltroTiempo) =>
+  aNumero(await rpc<EstudianteTiempo[]>('analytics_students', { ...filtroBase(f), p_section: f.section ?? null }));
+export const tiempoSerie = async (f: FiltroTiempo, granularity: 'day' | 'week' | 'month') =>
+  aNumero(
+    await rpc<{ bucket: string; effective_seconds: number; visible_seconds: number; students: number }[]>('analytics_timeline', {
+      ...filtroBase(f),
+      p_user: f.user ?? null,
+      p_section: f.section ?? null,
+      p_granularity: granularity,
+    }),
+  );
+export const tiempoCalor = async (f: FiltroTiempo) =>
+  aNumero(await rpc<{ dow: number; hour: number; effective_seconds: number }[]>('analytics_heatmap', { ...filtroBase(f), p_user: f.user ?? null, p_section: f.section ?? null }));
+export const tiempoCalidad = (f: FiltroTiempo) => rpc<CalidadTiempo>('analytics_quality', { ...filtroBase(f), p_user: f.user ?? null, p_section: f.section ?? null });
+export const tiempoAuditar = (action: 'exportar_csv' | 'consulta_estudiante', detail: Record<string, unknown>) =>
+  rpc<void>('analytics_log', { p_action: action, p_detail: detail });
+export const clasesDeCurso = (courseId: string) =>
+  q<ClassRow[]>(supabase.from('classes').select('*').eq('course_id', courseId).eq('archived', false).order('name'));
+export const gruposDeClase = (classId: string) => q<GroupRow[]>(supabase.from('class_groups').select('*').eq('class_id', classId).order('name'));
+export async function estructuraCurso(courseId: string) {
+  const [units, lessons] = await Promise.all([
+    q<Unit[]>(supabase.from('units').select('*').eq('course_id', courseId).order('position')),
+    q<Lesson[]>(supabase.from('lessons').select('id, unit_id, course_id, slug, position, title').eq('course_id', courseId).order('position')),
+  ]);
+  return { units, lessons };
+}
+export async function actividadesDeClases(classIds: string[]) {
+  if (!classIds.length) return [] as Pick<Activity, 'id' | 'title' | 'class_id'>[];
+  return q<Pick<Activity, 'id' | 'title' | 'class_id'>[]>(supabase.from('activities').select('id, title, class_id').in('class_id', classIds));
+}

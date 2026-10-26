@@ -2,7 +2,7 @@
  * Medidor de tiempo efectivo con un reloj simulado: cálculos exactos de los casos del enunciado.
  */
 import { describe, expect, it } from 'vitest';
-import { contextoDeRuta, MedidorTiempo, mediana, formatoDuracion } from '../src/lib/tiempo';
+import { aCsv, contextoDeRuta, etiquetaSeccion, formatoDuracion, histograma, MedidorTiempo, mediana } from '../src/lib/tiempo';
 
 const S = 1000;
 const MIN = 60 * S;
@@ -156,5 +156,13 @@ describe('utilidades del panel', () => {
     expect(formatoDuracion(9300)).toBe('2 h 35 min');
     expect(formatoDuracion(480)).toBe('8 min');
     expect(formatoDuracion(45)).toBe('45 s');
+  });
+  it('histograma, CSV y etiquetas', () => {
+    const h = histograma([0, 300, 600, 3600]);
+    expect(h.reduce((s, b) => s + b.n, 0)).toBe(4);
+    expect(h[0].desde).toBe(0);
+    expect(aCsv([['a;b', 1], ['x"y', null]])).toBe('﻿"a;b";1\r\n"x""y";');
+    expect(etiquetaSeccion('ejemplos')).toBe('Ejemplos resueltos');
+    expect(etiquetaSeccion('laboratorio:proyectiles')).toBe('laboratorio proyectiles');
   });
 });
