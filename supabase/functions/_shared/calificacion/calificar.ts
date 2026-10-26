@@ -178,14 +178,25 @@ export function gradeNumeric(key: NumericKey, raw: string): GradeResult {
 
   // --- unidad ausente -------------------------------------------------------
   if (s.unit.empty && !k.unit.empty) {
-    // se compara con el número de la clave en su propia unidad
-    const matches = close(s.value, k.value, relTol, 0) || alternativesSI.some((a) => close(s.value, a.q.value, relTol, 0));
+    // el número se interpreta en la unidad de la clave (o de la alternativa) y se compara con la MISMA tolerancia,
+    // incluida la absoluta (p. ej. ángulos: «-53.13» frente a «-53.1 °» con absTol de 1°)
+    const enUnidad = (u: ParsedUnit) => (u.empty ? s.value : toSI(s.value, u, interval));
+    const sSI = enUnidad(k.unit);
+    const matches = close(sSI, kSI, relTol, absTol) || alternativesSI.some((a) => close(enUnidad(a.q.unit.empty ? k.unit : a.q.unit), a.si, relTol, absTol));
+    const pideUnidad = unitRequired ? 'Además, incluya la unidad en su respuesta.' : '';
     if (!matches) {
+      for (const ce of key.commonErrors ?? []) {
+        const q = keyQuantity(ce.value);
+        const ceSI = q.unit.empty ? toSI(q.value, k.unit, interval) : toSI(q.value, q.unit, interval);
+        if (close(sSI, ceSI, relTol, absTol)) {
+          return { status: 'incorrect', credit: 0, messages: [ce.message, pideUnidad].filter(Boolean), code: 'common_error' };
+        }
+      }
       const diag = factorDiagnosis(s.value, k.value);
       return {
         status: 'incorrect',
         credit: 0,
-        messages: [...(diag ? [diag.message] : []), unitRequired ? 'Además, incluya la unidad en su respuesta.' : ''].filter(Boolean),
+        messages: [...(diag ? [diag.message] : []), pideUnidad].filter(Boolean),
         code: diag?.code ?? 'wrong_value',
       };
     }

@@ -217,6 +217,25 @@ describe('calificación numérica', () => {
     expect(gradeNumeric({ format: 'numeric', value: '30 °' }, '30').status).toBe('correct');
     expect(gradeNumeric({ format: 'numeric', value: '30 °' }, '0.5236 rad').status).toBe('correct');
   });
+  it('sin unidad: misma tolerancia que con unidad (incluida la absoluta) y errores típicos', () => {
+    const angulo = { format: 'numeric' as const, value: '-53.1 °', relTol: 0, absTol: 0.0175, commonErrors: [{ value: '53.1 °', message: 'Revise el signo de la fase.' }] };
+    expect(gradeNumeric(angulo, '-53.13').status).toBe('correct');
+    expect(gradeNumeric(angulo, '-53.13 °').status).toBe('correct');
+    expect(gradeNumeric(angulo, '-56').status).toBe('incorrect');
+    const ce = gradeNumeric(angulo, '53.13');
+    expect(ce.code).toBe('common_error');
+    expect(ce.messages).toEqual(['Revise el signo de la fase.']);
+    // con unidad obligatoria: el error típico se reconoce y además se pide la unidad
+    const v = { format: 'numeric' as const, value: '12 m/s', commonErrors: [{ value: '6 m/s', message: 'Olvidó el factor 2.' }] };
+    const r = gradeNumeric(v, '6');
+    expect(r.code).toBe('common_error');
+    expect(r.messages).toEqual(['Olvidó el factor 2.', 'Además, incluya la unidad en su respuesta.']);
+    expect(gradeNumeric(v, '12').code).toBe('missing_unit');
+    // respuesta cero sin unidad, con unitRequired: false
+    const cero = { format: 'numeric' as const, value: '0 J', absTol: 0.01, unitRequired: false, commonErrors: [{ value: '11.3 J', message: 'Ese es el trabajo de ida.' }] };
+    expect(gradeNumeric(cero, '0').status).toBe('correct');
+    expect(gradeNumeric(cero, '11.3').messages).toEqual(['Ese es el trabajo de ida.']);
+  });
   it('temperaturas absolutas y diferencias', () => {
     expect(gradeNumeric({ format: 'numeric', value: '298.15 K' }, '25 °C').status).toBe('correct');
     expect(gradeNumeric({ format: 'numeric', value: '20 K', temperatureInterval: true }, '20 °C').status).toBe('correct');
