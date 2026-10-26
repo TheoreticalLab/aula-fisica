@@ -48,16 +48,27 @@ on conflict (code) do update set
   objectives = case when courses.objectives = '[]'::jsonb then excluded.objectives else courses.objectives end;`);
     out.push(`insert into public.course_staff (course_id, user_id) select ${C}, p.id from public.profiles p where p.role = 'admin' on conflict do nothing;`);
     for (const s of inst.secciones ?? []) {
-      out.push(`do $sec$ declare v_clase uuid; begin
+      // Una clase no puede cambiar de asignatura (trigger classes_lock_course, de seguridad): en lugar de
+      // moverla se crea la sección en la asignatura nueva (mismo nombre, periodo y docentes) y se archiva la
+      // antigua. Solo si la antigua está vacía; si no, se detiene todo y lo decide el profesor.
+      out.push(`do $sec$ declare v_clase uuid; v_nueva uuid; begin
   select c.id into v_clase from public.classes c join public.courses k on k.id = c.course_id
-    where c.name = ${q(s.nombre)} and k.code = ${q(s.desde)};
-  if v_clase is not null then
-    -- las actividades apuntan a ejercicios de la asignatura de origen: con actividades no se mueve
-    if exists (select 1 from public.activities where class_id = v_clase) then
-      raise exception 'La sección % ya tiene actividades: no se mueve automáticamente', ${q(s.nombre)};
-    end if;
-    update public.classes set course_id = ${C} where id = v_clase;
+    where c.name = ${q(s.nombre)} and k.code = ${q(s.desde)} and not c.archived;
+  if v_clase is null then return; end if;
+  if exists (select 1 from public.activities where class_id = v_clase)
+     or exists (select 1 from public.enrollments where class_id = v_clase)
+     or exists (select 1 from public.announcements where class_id = v_clase) then
+    raise exception 'La sección % ya tiene actividades, matrículas o avisos: no se traslada automáticamente', ${q(s.nombre)};
   end if;
+  select c.id into v_nueva from public.classes c where c.course_id = ${C} and c.name = ${q(s.nombre)} and not c.archived;
+  if v_nueva is null then
+    insert into public.classes (course_id, name, term, join_open, created_by)
+      select ${C}, c.name, c.term, c.join_open, c.created_by from public.classes c where c.id = v_clase
+      returning id into v_nueva;
+  end if;
+  insert into public.class_teachers (class_id, user_id)
+    select v_nueva, t.user_id from public.class_teachers t where t.class_id = v_clase on conflict do nothing;
+  update public.classes set archived = true, join_open = false where id = v_clase;
 end $sec$;`);
     }
 

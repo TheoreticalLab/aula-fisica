@@ -147,7 +147,11 @@ describe('instalador de la biblioteca', () => {
     expect(sql).not.toMatch(/\bdelete\b|\bdrop\b|\btruncate\b/i);
   });
 
-  it('solo mueve una sección si no tiene actividades', () => {
-    expect(sql).toMatch(/if exists \(select 1 from public\.activities where class_id = v_clase\) then\s+raise exception/);
+  it('traslada una sección vacía creándola en la asignatura nueva, sin cambiar el curso de una clase existente', () => {
+    expect(sql).toMatch(/exists \(select 1 from public\.activities where class_id = v_clase\)/);
+    expect(sql).toMatch(/exists \(select 1 from public\.enrollments where class_id = v_clase\)[\s\S]*?raise exception/);
+    expect(sql).not.toMatch(/update public\.classes set course_id/);
+    expect(sql).toMatch(/insert into public\.classes \(course_id, name, term, join_open, created_by\)/);
+    expect(sql).toMatch(/update public\.classes set archived = true, join_open = false where id = v_clase/);
   });
 });
