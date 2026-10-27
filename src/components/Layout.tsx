@@ -7,6 +7,7 @@ import { SeguimientoTiempo } from '@/components/SeguimientoTiempo';
 import { ReceptorMensajes } from '@/components/ReceptorMensajes';
 import { ConexionEnVivo } from '@/components/ConexionEnVivo';
 import { BloqueoPantalla } from '@/components/BloqueoPantalla';
+import { AvisoAsistencia } from '@/components/AvisoAsistencia';
 import { AVISO_PRIVACIDAD } from '@/lib/tiempo';
 import { useTema } from '@/lib/tema';
 import { Spinner } from './ui';
@@ -140,6 +141,7 @@ export function Layout() {
       <ConexionEnVivo />
       <BloqueoPantalla />
       <ReceptorMensajes />
+      {session && !isTeacher && <AvisoAsistencia />}
       {session && <BottomNav docente={docente && isTeacher} />}
     </div>
   );

@@ -59,6 +59,9 @@ begin
     raise exception 'FALLO: un estudiante marcó a otro';
   exception when insufficient_privilege then null; end;
   if (select presentes from public.my_attendance()) <> 1 then raise exception 'FALLO: mi asistencia'; end if;
+  -- aviso de asistencia abierta: aparece, ya marcado como presente, y sin revelar el código
+  if not (select presente from public.my_open_attendance()) then raise exception 'FALLO: aviso de asistencia'; end if;
+  if (select to_jsonb(x) from public.my_open_attendance() x) ? 'code' then raise exception 'FALLO: el aviso revela el código'; end if;
 end $$;
 
 -- 4) estudiante 3 (no inscrito): el código correcto no lo marca en una sección ajena
@@ -66,6 +69,7 @@ select set_config('request.jwt.claims', '{"sub":"d8000000-0000-4000-8000-0000000
 select set_config('request.jwt.claim.sub', 'd8000000-0000-4000-8000-000000000013', true);
 do $$ begin
   if (public.attendance_mark(current_setting('prueba.asis')::jsonb ->> 'code') ->> 'ok')::boolean then raise exception 'FALLO: marcó en una sección ajena'; end if;
+  if exists (select 1 from public.my_open_attendance()) then raise exception 'FALLO: aviso de asistencia en una sección ajena'; end if;
 end $$;
 
 -- 5) estudiante 2: tras 6 códigos incorrectos queda bloqueado aunque luego acierte (contra la adivinación)
