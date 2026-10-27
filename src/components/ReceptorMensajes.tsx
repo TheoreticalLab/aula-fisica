@@ -93,10 +93,29 @@ export function ReceptorMensajes() {
     };
   }, [activo, uid, recuperar]);
 
+  // varias pestañas del aula: lo respondido en una se retira de las demás (sin volver a confirmar)
+  const canalPestanas = useRef<BroadcastChannel | null>(null);
+  useEffect(() => {
+    if (!activo || !('BroadcastChannel' in window)) return;
+    const c = new BroadcastChannel('aula-mensajes');
+    c.onmessage = (ev: MessageEvent<{ id?: string }>) => {
+      const id = ev.data?.id;
+      if (!id) return;
+      respondidos.current.add(id);
+      setCola((cola) => cola.filter((x) => x.id !== id));
+    };
+    canalPestanas.current = c;
+    return () => {
+      c.close();
+      canalPestanas.current = null;
+    };
+  }, [activo]);
+
   const responder = useCallback((m: MensajeVivo, accion: Accion) => {
     respondidos.current.add(m.id);
     guardar(RESPONDIDOS, [...respondidos.current].slice(-300));
     setCola((c) => c.filter((x) => x.id !== m.id));
+    canalPestanas.current?.postMessage({ id: m.id });
     rpc('ack_live_message', { p_id: m.id, p_action: accion }).catch(() => {
       guardar(ACKS, [...leer<{ id: string; accion: Accion }[]>(ACKS, []), { id: m.id, accion }]);
     });

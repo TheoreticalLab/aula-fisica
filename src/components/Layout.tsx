@@ -5,6 +5,7 @@ import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
 import { SeguimientoTiempo } from '@/components/SeguimientoTiempo';
 import { ReceptorMensajes } from '@/components/ReceptorMensajes';
+import { ConexionEnVivo } from '@/components/ConexionEnVivo';
 import { AVISO_PRIVACIDAD } from '@/lib/tiempo';
 import { useTema } from '@/lib/tema';
 import { Spinner } from './ui';
@@ -132,6 +133,7 @@ export function Layout() {
       </footer>
       {introVisible && <IntroLaboratorio nombre={(profile?.full_name ?? '').trim().split(/\s+/)[0] ?? ''} onFin={cerrarIntro} />}
       <SeguimientoTiempo />
+      <ConexionEnVivo />
       <ReceptorMensajes />
       {session && <BottomNav docente={docente && isTeacher} />}
     </div>
