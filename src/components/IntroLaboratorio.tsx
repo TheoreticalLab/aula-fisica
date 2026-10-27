@@ -1,9 +1,9 @@
 /**
- * Bienvenida animada tras iniciar sesión: el profesor en su laboratorio escribe en la pizarra ecuaciones de
- * teoría cuántica de campos mientras mira al espectador.
- *  · La cabeza es la caricatura real del profesor (public/profesor.png), recortada en pantalla; el cuerpo
- *    (traje azul marino, camisa y corbata granate, como en la caricatura) es SVG para poder animar el brazo.
- *  · Las ecuaciones aparecen trazo a trazo con un punto de tiza; el brazo acompaña la escritura.
+ * Bienvenida animada tras iniciar sesión: el profesor (su caricatura, ENTERA y sin recortes: public/profesor.png)
+ * de pie tras la mesa de su laboratorio, mirando al espectador, con la tiza en la mano contra la pizarra, donde
+ * se van escribiendo ecuaciones de teoría cuántica de campos.
+ *  · La mesa delante tapa las piernas (la caricatura está en pose de marcha).
+ *  · Cada ecuación tiene un ancho fijo (textLength): nunca se sale de la pizarra.
  *  · Una vez por inicio de sesión, ~9 s, con «Entrar al aula» para saltarla; con «reducir movimiento» queda
  *    quieta (todo escrito) y dura menos. Es solo una capa: la página carga debajo.
  */
@@ -13,41 +13,44 @@ const DURACION_MS = 9500;
 // (el acceso indirecto permite compilar también este archivo fuera de Vite, p. ej. en la vista previa)
 const IMAGEN = `${(import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/'}profesor.png`;
 
-// Colores de la caricatura
-const TRAJE = '#26304f';
-const TRAJE_OSCURO = '#1c2440';
-const CONTORNO = '#141a30';
-const CAMISA = '#f8fafc';
-const CORBATA = '#7a1f35';
-const PIEL = '#b8743f';
+// Caricatura original: 1086 × 1448 px. Escala y posición en la escena (viewBox 400 × 240).
+const ESCALA = 0.17;
+const X0 = 8;
+const Y0 = 6;
+// puño adelantado de la caricatura (≈ 930, 660 px) → posición de la tiza en la escena
+const PUNO = { x: X0 + 930 * ESCALA, y: Y0 + 660 * ESCALA };
 
-// Ecuaciones (texto con sub/superíndices): [texto, 'sup' | 'sub' | undefined]
 type Trozo = [string, ('sup' | 'sub')?];
-const ECUACIONES: { y: number; ancho: number; trozos: Trozo[] }[] = [
-  { y: 44, ancho: 196, trozos: [['ℒ = ψ̄(iγ'], ['μ', 'sup'], ['∂'], ['μ', 'sub'], [' − m)ψ − ¼ F'], ['μν', 'sub'], ['F'], ['μν', 'sup']] },
-  { y: 66, ancho: 178, trozos: [['Z[J] = ∫𝒟φ exp{ i∫d'], ['4', 'sup'], ['x (ℒ + Jφ) }']] },
-  { y: 88, ancho: 110, trozos: [['(□ + m'], ['2', 'sup'], [') φ(x) = 0']] },
-  { y: 110, ancho: 200, trozos: [['⟨0|T φ(x)φ(y)|0⟩ = ∫ '], ['d⁴p', 'sup'], ['/(2π)⁴ · i e'], ['−ip·(x−y)', 'sup'], [' / (p² − m² + iε)']] },
+const ECUACIONES: { trozos: Trozo[]; ancho: number }[] = [
+  { ancho: 128, trozos: [['ℒ = ψ̄(iγ'], ['μ', 'sup'], ['∂'], ['μ', 'sub'], [' − m)ψ − ¼F'], ['μν', 'sub'], ['F'], ['μν', 'sup']] },
+  { ancho: 138, trozos: [['Z[J] = ∫𝒟φ exp{ i∫d'], ['4', 'sup'], ['x (ℒ + Jφ) }']] },
+  { ancho: 74, trozos: [['(□ + m'], ['2', 'sup'], [') φ(x) = 0']] },
+  { ancho: 118, trozos: [['D'], ['F', 'sub'], ['(x − y) = ⟨0|T φ(x)φ(y)|0⟩']] },
+  { ancho: 178, trozos: [['= ∫ d'], ['4', 'sup'], ['p/(2π)'], ['4', 'sup'], [' · i e'], ['−ip·(x−y)', 'sup'], [' / (p'], ['2', 'sup'], [' − m'], ['2', 'sup'], [' + iε)']] },
 ];
-const INICIO = 0.7; // s
-const POR_LINEA = 1.9; // s escribiendo cada línea
-const PAUSA = 0.25;
+const X_TEXTO = PUNO.x + 9;
+const Y_PRIMERA = 46;
+const INTERLINEA = 21;
+const INICIO = 0.6;
+const POR_LINEA = 1.45;
+const PAUSA = 0.2;
 
 function Linea({ i }: { i: number }) {
   const e = ECUACIONES[i];
+  const y = Y_PRIMERA + i * INTERLINEA;
   const t0 = INICIO + i * (POR_LINEA + PAUSA);
   return (
     <g>
       <clipPath id={`il-rev-${i}`}>
-        <rect className="il-rev" x="24" y={e.y - 14} width={e.ancho + 6} height="20" style={{ animationDelay: `${t0}s`, animationDuration: `${POR_LINEA}s` }} />
+        <rect className="il-rev" x={X_TEXTO - 2} y={y - 13} width={e.ancho + 4} height="19" style={{ animationDelay: `${t0}s`, animationDuration: `${POR_LINEA}s` }} />
       </clipPath>
-      <text clipPath={`url(#il-rev-${i})`} x="26" y={e.y} fontSize="10" fill="#f1f5f0" fontFamily="'Cambria Math', 'STIX Two Math', Georgia, serif" fontStyle="italic">
+      <text clipPath={`url(#il-rev-${i})`} x={X_TEXTO} y={y} textLength={e.ancho} lengthAdjust="spacingAndGlyphs"
+        fontSize="9.5" fill="#eef4ee" fontFamily="'Cambria Math', 'STIX Two Math', 'Latin Modern Math', Georgia, serif" fontStyle="italic">
         {e.trozos.map(([t, tipo], k) => (
-          <tspan key={k} fontSize={tipo ? 7 : 10} baselineShift={tipo === 'sup' ? 'super' : tipo === 'sub' ? 'sub' : undefined}>{t}</tspan>
+          <tspan key={k} fontSize={tipo ? 6.5 : 9.5} baselineShift={tipo === 'sup' ? 'super' : tipo === 'sub' ? 'sub' : undefined}>{t}</tspan>
         ))}
       </text>
-      {/* punto de tiza que recorre la línea mientras se escribe */}
-      <circle className="il-tiza" cx="26" cy={e.y - 3} r="1.6" fill="#ffffff"
+      <circle className="il-tiza" cx={X_TEXTO} cy={y - 3} r="1.5" fill="#ffffff"
         style={{ animationDelay: `${t0}s`, animationDuration: `${POR_LINEA}s`, ['--il-dx' as string]: `${e.ancho}px` }} />
     </g>
   );
@@ -67,121 +70,99 @@ export function IntroLaboratorio({ nombre, onFin }: { nombre: string; onFin: () 
     return () => window.clearTimeout(t);
   }, [saliendo, onFin]);
 
-  // el brazo baja una línea cada vez que empieza la siguiente ecuación
-  const pasos = ECUACIONES.map((_, i) => INICIO + i * (POR_LINEA + PAUSA));
-  const total = pasos[pasos.length - 1] + POR_LINEA;
-  const keyBrazo = ECUACIONES.map((e, i) => {
-    const p = ((pasos[i] / total) * 100).toFixed(1);
-    return `${p}% { transform: translateY(${(e.y - ECUACIONES[0].y) * 0.55}px) rotate(${-i * 6}deg); }`;
-  }).join(' ');
-
+  const mesaY = Y0 + 845 * ESCALA; // a la altura del cinturón
   return (
     <div
       role="dialog"
       aria-label="Bienvenida"
-      className={`fixed inset-0 z-[55] flex flex-col items-center justify-center bg-gradient-to-b from-primario-50 to-white px-4 transition-opacity duration-300 dark:from-primario-950 dark:to-[#071022] ${saliendo ? 'opacity-0' : 'opacity-100'}`}
+      className={`fixed inset-0 z-[55] flex flex-col items-center justify-center bg-gradient-to-b from-slate-100 to-white px-4 transition-opacity duration-300 dark:from-primario-950 dark:to-[#071022] ${saliendo ? 'opacity-0' : 'opacity-100'}`}
     >
-      <svg viewBox="0 0 400 240" className="w-full max-w-2xl" role="img" aria-label="El profesor escribe ecuaciones de teoría cuántica de campos en la pizarra de su laboratorio">
+      <svg viewBox="0 0 400 240" className="w-full max-w-3xl drop-shadow-sm" role="img" aria-label="El profesor, en su laboratorio, escribe ecuaciones de teoría cuántica de campos en la pizarra">
         <style>{`
           .il-rev { transform-box: fill-box; transform-origin: left; transform: scaleX(0); animation: il-rev linear forwards; }
           .il-tiza { opacity: 0; animation: il-tiza linear forwards; }
           .il-burbuja { animation: il-sube 1.6s ease-in infinite; }
-          .il-brazo { transform-box: view-box; transform-origin: 268px 116px; animation: il-baja ${total}s steps(1, end) forwards; }
-          .il-mano { transform-box: view-box; transform-origin: 268px 116px; animation: il-escribe .22s ease-in-out infinite alternate; }
-          .il-cabeza { transform-box: view-box; transform-origin: 300px 100px; animation: il-cabeza 3.2s ease-in-out infinite; }
+          .il-llama { transform-box: fill-box; transform-origin: bottom; animation: il-llama .5s ease-in-out infinite alternate; }
+          .il-profe { transform-box: view-box; transform-origin: ${X0 + 560 * ESCALA}px ${mesaY}px; animation: il-escribe 1.1s ease-in-out infinite alternate; }
           @keyframes il-rev { to { transform: scaleX(1); } }
-          @keyframes il-tiza { 0% { opacity: 1; transform: translateX(0); } 98% { opacity: 1; } 100% { opacity: 0; transform: translateX(var(--il-dx)); } }
-          @keyframes il-sube { 0% { transform: translateY(0); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(-30px); opacity: 0; } }
-          @keyframes il-baja { 0% { transform: none; } ${keyBrazo} 100% { transform: translateY(${(ECUACIONES[3].y - ECUACIONES[0].y) * 0.55}px) rotate(-18deg); } }
-          @keyframes il-escribe { from { transform: rotate(-2.5deg); } to { transform: rotate(2.5deg); } }
-          @keyframes il-cabeza { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-2deg); } }
+          @keyframes il-tiza { 0% { opacity: 1; transform: translateX(0); } 97% { opacity: 1; } 100% { opacity: 0; transform: translateX(var(--il-dx)); } }
+          @keyframes il-sube { 0% { transform: translateY(0); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(-26px); opacity: 0; } }
+          @keyframes il-llama { from { transform: scaleY(.85); } to { transform: scaleY(1.15); } }
+          @keyframes il-escribe { from { transform: rotate(-1.2deg); } to { transform: rotate(0.8deg); } }
           @media (prefers-reduced-motion: reduce) {
             .il-rev { animation: none; transform: none; }
-            .il-tiza, .il-burbuja, .il-brazo, .il-mano, .il-cabeza { animation: none; }
+            .il-tiza, .il-burbuja, .il-llama, .il-profe { animation: none; }
           }
         `}</style>
         <defs>
-          {/* recorte de la cabeza en las coordenadas de la imagen original (1086 × 1448) */}
-          <clipPath id="il-cabeza-recorte"><ellipse cx="615" cy="262" rx="172" ry="222" /></clipPath>
+          <linearGradient id="il-pared" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stopColor="#e2e8f0" />
+            <stop offset="1" stopColor="#f8fafc" />
+          </linearGradient>
+          <linearGradient id="il-madera" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stopColor="#9a7652" />
+            <stop offset="1" stopColor="#6f5137" />
+          </linearGradient>
+          <linearGradient id="il-pizarra" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0" stopColor="#2c5146" />
+            <stop offset="1" stopColor="#1d3a32" />
+          </linearGradient>
         </defs>
 
-        {/* pared y pizarra */}
-        <rect x="14" y="16" width="236" height="110" rx="3" fill="#7a5a3a" />
-        <rect x="19" y="21" width="226" height="100" rx="2" fill="#24423a" />
-        <rect x="19" y="121" width="226" height="4" fill="#5d4329" />
-        <rect x="40" y="119" width="10" height="3" rx="1" fill="#f8fafc" />
+        {/* pared, zócalo y pizarra */}
+        <rect x="0" y="0" width="400" height="240" fill="url(#il-pared)" />
+        <rect x="0" y="200" width="400" height="40" fill="#cbd5e1" />
+        <rect x={PUNO.x - 4} y="20" width={400 - PUNO.x - 4} height="140" rx="3" fill="#7a5a3a" />
+        <rect x={PUNO.x} y="24" width={400 - PUNO.x - 12} height="128" rx="2" fill="url(#il-pizarra)" />
+        <rect x={PUNO.x - 4} y="152" width={400 - PUNO.x - 4} height="5" rx="1" fill="#5d4329" />
+        <rect x={PUNO.x + 150} y="149" width="12" height="3" rx="1" fill="#f8fafc" />
+        <rect x={PUNO.x + 166} y="149" width="9" height="3" rx="1" fill="#fde68a" />
+        {/* restos de tiza borrada, para dar textura */}
+        <path d={`M${PUNO.x + 120} 135 q20 -6 40 2 M${PUNO.x + 20} 30 q30 4 60 -2`} stroke="#ffffff10" strokeWidth="6" fill="none" />
         {ECUACIONES.map((_, i) => <Linea key={i} i={i} />)}
 
-        {/* mesa del laboratorio */}
-        <rect x="14" y="178" width="180" height="6" rx="2" fill="#8b6b4a" />
-        <rect x="20" y="184" width="5" height="40" fill="#6b4f35" />
-        <rect x="183" y="184" width="5" height="40" fill="#6b4f35" />
-        <line x1="0" y1="224" x2="400" y2="224" stroke="#94a3b8" strokeWidth="2" />
-        {/* matraz Erlenmeyer burbujeante */}
-        <path d="M40 146 h10 v8 l13 19 q2 4 -2 4 h-32 q-4 0 -2 -4 l13 -19 z" fill="#ffffff55" stroke={CONTORNO} strokeWidth="1.1" />
-        <path d="M31 167 h28 l5 7 q1 3 -2 3 h-34 q-3 0 -2 -3 z" fill="#22c55e" opacity="0.85" />
-        {[0, 0.5, 1.0].map((d, i) => <circle key={i} className="il-burbuja" cx={41 + i * 4} cy={166} r={1.5 + (i % 2)} fill="#bbf7d0" style={{ animationDelay: `${d}s` }} />)}
-        {/* vaso de precipitados */}
-        <path d="M78 152 h22 v24 q0 2 -2 2 h-18 q-2 0 -2 -2 z" fill="#ffffff55" stroke={CONTORNO} strokeWidth="1" />
-        <rect x="79" y="164" width="20" height="13" fill="#3b82f6" opacity="0.7" />
-        {/* gradilla con tubos de ensayo */}
-        <rect x="112" y="166" width="44" height="4" rx="1" fill="#94a3b8" />
-        {[['#e11d48', 116], ['#eab308', 126], ['#a855f7', 136], ['#0ea5e9', 146]].map(([c, x]) => (
-          <g key={x as number}>
-            <rect x={x as number} y="148" width="6" height="22" rx="3" fill="#ffffff66" stroke={CONTORNO} strokeWidth="0.8" />
-            <rect x={(x as number) + 1} y="158" width="4" height="11" rx="2" fill={c as string} />
-          </g>
-        ))}
-        {/* mechero */}
-        <rect x="166" y="168" width="14" height="10" rx="2" fill="#64748b" />
-        <rect x="171" y="156" width="4" height="12" fill="#94a3b8" />
-        <path className="il-burbuja" d="M173 156 q-4 -6 0 -12 q4 6 0 12 z" fill="#60a5fa" opacity="0.8" style={{ animationDuration: '0.9s' }} />
+        {/* el profesor: su caricatura entera, de pie detrás de la mesa */}
+        <g className="il-profe">
+          {imagenOk ? (
+            <image href={IMAGEN} x={X0} y={Y0} width={1086 * ESCALA} height={1448 * ESCALA} onError={() => setImagenOk(false)} />
+          ) : (
+            <text x={X0 + 90} y="100" fontSize="9" textAnchor="middle" fill="#64748b">(falta public/profesor.png)</text>
+          )}
+          {/* tiza en el puño adelantado */}
+          <rect x={PUNO.x + 1} y={PUNO.y - 8} width="3.2" height="10" rx="1.2" fill="#f8fafc" stroke="#94a3b8" strokeWidth="0.4" transform={`rotate(48 ${PUNO.x + 2.6} ${PUNO.y - 3})`} />
+        </g>
 
-        {/* el profesor: de frente, mirando al espectador; escribe con la mano derecha */}
-        <g>
-          {/* piernas y zapatos */}
-          <path d="M286 168 L284 218 L296 218 L299 170 Z" fill={TRAJE_OSCURO} stroke={CONTORNO} strokeWidth="1" />
-          <path d="M301 170 L304 218 L316 218 L314 168 Z" fill={TRAJE} stroke={CONTORNO} strokeWidth="1" />
-          <path d="M280 217 h17 q3 0 3 4 v2 h-22 q-1 -6 2 -6 z" fill="#141414" />
-          <path d="M303 217 h17 q3 0 3 6 h-22 v-2 q0 -4 2 -4 z" fill="#141414" />
-          {/* brazo izquierdo (a la derecha del dibujo), relajado */}
-          <path d="M330 110 q10 22 8 46" fill="none" stroke={CONTORNO} strokeWidth="11" strokeLinecap="round" />
-          <path d="M330 110 q10 22 8 46" fill="none" stroke={TRAJE} strokeWidth="9" strokeLinecap="round" />
-          <circle cx="338" cy="160" r="5" fill={PIEL} stroke={CONTORNO} strokeWidth="0.8" />
-          {/* chaqueta */}
-          <path d="M270 104 Q300 96 330 104 L338 170 Q300 176 262 170 Z" fill={TRAJE} stroke={CONTORNO} strokeWidth="1.2" />
-          {/* camisa, corbata, cinturón */}
-          <path d="M289 100 L311 100 L304 150 L296 150 Z" fill={CAMISA} />
-          <path d="M297 102 h6 l-1 4 l3 32 l-5 6 l-5 -6 l3 -32 z" fill={CORBATA} stroke={CONTORNO} strokeWidth="0.6" />
-          <path d="M289 100 L296 126 L284 116 Z M311 100 L304 126 L316 116 Z" fill={TRAJE_OSCURO} stroke={CONTORNO} strokeWidth="0.8" />
-          <circle cx="300" cy="156" r="1.4" fill={CONTORNO} />
-          <circle cx="300" cy="164" r="1.4" fill={CONTORNO} />
-          {/* cabeza: la caricatura real, recortada */}
-          <g className="il-cabeza">
-            {imagenOk ? (
-              <g transform="translate(213.9 31.5) scale(0.14)">
-                <image href={IMAGEN} x="0" y="0" width="1086" height="1448" clipPath="url(#il-cabeza-recorte)" onError={() => setImagenOk(false)} />
-              </g>
-            ) : (
-              <g>
-                <circle cx="300" cy="66" r="26" fill={PIEL} stroke={CONTORNO} strokeWidth="1.2" />
-                <path d="M276 60 Q276 38 300 38 Q324 38 324 60 Q318 46 300 46 Q282 46 276 60 Z" fill="#1d1815" />
-              </g>
-            )}
-          </g>
-          {/* brazo derecho (a la izquierda del dibujo) hacia la pizarra, con la tiza */}
-          <g className="il-brazo">
-            <g className="il-mano">
-              <path d="M270 112 L246 96 L236 78" fill="none" stroke={CONTORNO} strokeWidth="11" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M270 112 L246 96 L236 78" fill="none" stroke={TRAJE} strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M238 82 l-4 -6" stroke={CAMISA} strokeWidth="5" strokeLinecap="round" />
-              <circle cx="233" cy="72" r="5" fill={PIEL} stroke={CONTORNO} strokeWidth="0.8" />
-              <rect x="226" y="64" width="3" height="8" rx="1" fill="#f8fafc" transform="rotate(-35 228 68)" />
+        {/* mesa de laboratorio delante (tapa las piernas) */}
+        <rect x="0" y={mesaY} width={PUNO.x + 18} height="6" rx="1.5" fill="#3f4a5a" />
+        <rect x="4" y={mesaY + 6} width={PUNO.x + 10} height={240 - mesaY - 6} fill="url(#il-madera)" />
+        <rect x="12" y={mesaY + 14} width={(PUNO.x - 6) / 2} height={240 - mesaY - 22} rx="2" fill="none" stroke="#5d4329" strokeWidth="1.2" />
+        <rect x={18 + (PUNO.x - 6) / 2} y={mesaY + 14} width={(PUNO.x - 6) / 2 - 6} height={240 - mesaY - 22} rx="2" fill="none" stroke="#5d4329" strokeWidth="1.2" />
+
+        {/* sobre la mesa: matraz que burbujea, vaso, gradilla y mechero (en los extremos, sin tapar al profesor) */}
+        <g transform={`translate(4 ${mesaY - 32})`}>
+          <path d="M10 2 h9 v8 l12 18 q2 4 -2 4 h-28 q-4 0 -2 -4 l11 -18 z" fill="#ffffffaa" stroke="#334155" strokeWidth="1" />
+          <path d="M2 22 h26 l3 6 q1 4 -3 4 h-25 q-4 0 -3 -4 z" fill="#22c55e" opacity="0.9" />
+          {[0, 0.55, 1.1].map((d, i) => <circle key={i} className="il-burbuja" cx={12 + i * 4} cy={22} r={1.3 + (i % 2) * 0.6} fill="#dcfce7" style={{ animationDelay: `${d}s` }} />)}
+          <path d="M36 12 h16 v18 q0 2 -2 2 h-12 q-2 0 -2 -2 z" fill="#ffffffaa" stroke="#334155" strokeWidth="0.9" />
+          <rect x="37" y="21" width="14" height="10" fill="#3b82f6" opacity="0.75" />
+        </g>
+        {/* mechero */}
+        <g transform={`translate(-2 ${mesaY - 26})`}>
+          <rect x="62" y="16" width="10" height="10" rx="2" fill="#64748b" />
+          <rect x="65.5" y="7" width="3" height="9" fill="#94a3b8" />
+          <path className="il-llama" d="M67 7 q-3 -4 0 -9 q3 5 0 9 z" fill="#60a5fa" />
+        </g>
+        <g transform={`translate(${PUNO.x - 44} ${mesaY - 24})`}>
+          <rect x="0" y="16" width="30" height="3" rx="1" fill="#94a3b8" />
+          {['#e11d48', '#eab308', '#a855f7', '#0ea5e9'].map((c, i) => (
+            <g key={c}>
+              <rect x={2 + i * 7} y="0" width="4.6" height="19" rx="2.3" fill="#ffffffaa" stroke="#334155" strokeWidth="0.7" />
+              <rect x={2.8 + i * 7} y="8" width="3" height="10" rx="1.5" fill={c} />
             </g>
-          </g>
+          ))}
         </g>
       </svg>
-      <h1 className="mt-2 text-center font-serif text-2xl font-semibold text-primario-950 dark:text-white">¡Bienvenido{nombre ? `, ${nombre}` : ''}!</h1>
+      <h1 className="mt-3 text-center font-serif text-2xl font-semibold text-primario-950 dark:text-white">¡Bienvenido{nombre ? `, ${nombre}` : ''}!</h1>
       <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Preparando la clase…</p>
       <button className="btn-primario mt-4" onClick={() => setSaliendo(true)}>Entrar al aula</button>
     </div>
