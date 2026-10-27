@@ -22,5 +22,5 @@
       "@calif/*": ["supabase/functions/_shared/calificacion/*"]
     }
   },
-  "include": ["src", "supabase/functions/_shared"]
+  "include": ["src", "supabase/functions/_shared", "orbe-control/src"]
 }

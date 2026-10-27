@@ -40,6 +40,7 @@ export default function InicioDocente() {
           <Link to="/" className="btn-secundario">👁 Vista de estudiante</Link>
           <Link to="/docente/analitica" className="btn-secundario">⏱ Analítica de tiempo</Link>
           <Link to="/docente/comunicacion" className="btn-secundario">📢 Comunicación en vivo</Link>
+          <a href={`${import.meta.env.BASE_URL}control/`} className="btn-secundario">📱 Orbe Control</a>
           {isAdmin && <Link to="/docente/cuentas" className="btn-secundario">Cuentas</Link>}
         </>} />
       {!courses.length && <Notice tone="warn">No hay ninguna asignatura. Cargue la semilla del curso inicial o cree una en «Asignaturas y contenido».</Notice>}
