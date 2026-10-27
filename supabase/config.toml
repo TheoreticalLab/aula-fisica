@@ -6,3 +6,7 @@ project_id = "aula-fisica-basica"
 # de los proyectos recientes. La función verifica ella misma la sesión con auth.getUser() y rechaza
 # cualquier petición sin un usuario válido (ver supabase/functions/calificar/index.ts).
 verify_jwt = false
+
+[functions.entregas]
+# Igual que «calificar»: verifica la sesión con auth.getUser() (supabase/functions/entregas/index.ts).
+verify_jwt = false

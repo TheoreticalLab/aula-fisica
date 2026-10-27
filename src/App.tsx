@@ -21,6 +21,8 @@ const Calificaciones = lazy(() => import('@/pages/estudiante/Calificaciones'));
 const Progreso = lazy(() => import('@/pages/estudiante/Progreso'));
 const Laboratorio = lazy(() => import('@/pages/estudiante/Laboratorio'));
 const Perfil = lazy(() => import('@/pages/estudiante/Perfil'));
+const Asistencia = lazy(() => import('@/pages/estudiante/Asistencia'));
+const Entregas = lazy(() => import('@/pages/estudiante/Entregas'));
 // Docente
 const InicioDocente = lazy(() => import('@/pages/docente/InicioDocente'));
 const Clase = lazy(() => import('@/pages/docente/Clase'));
@@ -90,6 +92,8 @@ export default function App() {
               <Route path="laboratorio" element={auth(<Laboratorio />)} />
               <Route path="laboratorio/:simKey" element={auth(<Laboratorio />)} />
               <Route path="perfil" element={auth(<Perfil />)} />
+              <Route path="asistencia" element={auth(<Asistencia />)} />
+              <Route path="entregas" element={auth(<Entregas />)} />
 
               <Route path="docente" element={teacher(<InicioDocente />)} />
               <Route path="docente/clases/:classId" element={teacher(<Clase />)} />

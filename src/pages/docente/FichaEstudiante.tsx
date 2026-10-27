@@ -7,7 +7,8 @@ import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { rpc } from '@/lib/supabase';
-import { useAsync } from '@/lib/util';
+import { useAction, useAsync } from '@/lib/util';
+import { abrirPdf } from '@/api/entregas';
 import { useDark } from '@/lib/tema';
 import { etiquetaSeccion, formatoDuracion } from '@/lib/tiempo';
 import { CATEGORIAS, calcularNota, type Notas } from '@/lib/notas';
@@ -62,7 +63,7 @@ interface Ficha {
   cuenta: { fecha: string; accion: string; por: string | null }[];
 }
 
-type Tab = 'resumen' | 'accesos' | 'estudio' | 'actividades' | 'respuestas' | 'notas' | 'dominio' | 'comunicacion';
+type Tab = 'resumen' | 'accesos' | 'estudio' | 'actividades' | 'respuestas' | 'notas' | 'asistencia' | 'dominio' | 'comunicacion';
 
 const fecha = (iso: Iso) => (iso ? new Date(iso).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 const dia = (iso: string) => new Date(iso).toLocaleDateString('es-DO', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -474,6 +475,50 @@ function Dominio({ f, userId }: { f: Ficha; userId: string }) {
   );
 }
 
+interface Extras {
+  asistencia: { clase: string; sesiones: number; presentes: number; detalle: { fecha: string; presente: boolean; hora: Iso; como: string | null }[] }[];
+  entregas: { buzon: string; clase: string; tipo: string; cierra: Iso; permiso: string | null; archivos: { id: string; nombre: string; bytes: number; subido: string; estado: string; nota: string | null }[] }[];
+}
+
+function AsistenciaEntregas({ userId }: { userId: string }) {
+  const st = useAsync(() => rpc<Extras>('student_extras', { p_user: userId }), [userId]);
+  const accion = useAction();
+  if (st.loading) return <Spinner />;
+  if (st.error) return <ErrorBox error={st.error} />;
+  const x = st.data!;
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card title="Asistencia">
+        <ErrorBox error={accion.error} />
+        {x.asistencia.length ? x.asistencia.map((a) => (
+          <div key={a.clase} className="mb-3">
+            <p className="text-sm font-medium">{a.clase} — {a.presentes}/{a.sesiones} clases ({pct(a.presentes, a.sesiones)})</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {a.detalle.map((d, i) => (
+                <span key={i} title={d.presente ? `Presente ${d.hora ? hora(d.hora) : ''}${d.como === 'profesor' ? ' (marcado por el profesor)' : ''}` : 'Ausente'}
+                  className={`rounded px-1.5 py-0.5 text-xs ${d.presente ? 'bg-green-100 text-green-900 dark:bg-green-900/40 dark:text-green-200' : 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200'}`}>
+                  {dia(d.fecha)} {d.presente ? '✓' : '✗'}
+                </span>
+              ))}
+            </div>
+          </div>
+        )) : <p className="text-sm text-gray-500">No se ha pasado lista en sus secciones.</p>}
+      </Card>
+      <Card title="Entregas en PDF">
+        {x.entregas.length ? x.entregas.map((e, i) => (
+          <div key={i} className="border-b border-gray-100 py-1.5 text-sm dark:border-white/5">
+            <span className="font-medium">{e.buzon}</span> <span className="text-xs text-gray-500">· {e.clase}{e.cierra ? ` · cierra ${fecha(e.cierra)}` : ''} · autorización: {e.permiso ?? 'no solicitada'}</span>
+            {e.archivos.map((a) => (
+              <span key={a.id} className="block text-xs"><button className="enlace" onClick={() => void accion.run(() => abrirPdf(a.id))}>📄 {a.nombre}</button> · {fecha(a.subido)} · {a.estado}{a.nota ? ` · «${a.nota}»` : ''}</span>
+            ))}
+            {!e.archivos.length && <span className="block text-xs text-gray-400">sin archivos</span>}
+          </div>
+        )) : <p className="text-sm text-gray-500">No hay buzones de entrega en sus secciones.</p>}
+      </Card>
+    </div>
+  );
+}
+
 function Comunicacion({ f }: { f: Ficha }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -523,7 +568,7 @@ export default function FichaEstudiante() {
       />
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
         { id: 'resumen', label: 'Resumen' }, { id: 'accesos', label: 'Accesos' }, { id: 'estudio', label: 'Estudio y sesiones' },
-        { id: 'actividades', label: 'Actividades' }, { id: 'respuestas', label: 'Respuestas y errores' }, { id: 'notas', label: 'Calificaciones' },
+        { id: 'actividades', label: 'Actividades' }, { id: 'respuestas', label: 'Respuestas y errores' }, { id: 'notas', label: 'Calificaciones' }, { id: 'asistencia', label: 'Asistencia y entregas' },
         { id: 'dominio', label: 'Dominio' }, { id: 'comunicacion', label: 'Mensajes y cuenta' },
       ]} />
       {tab === 'resumen' && <Resumen f={f} />}
@@ -532,7 +577,8 @@ export default function FichaEstudiante() {
       {tab === 'actividades' && <Actividades f={f} />}
       {tab === 'respuestas' && <Respuestas f={f} />}
       {tab === 'notas' && <Calificaciones f={f} />}
-      {tab === 'dominio' && <Dominio f={f} userId={f.perfil.id} />}
+      {tab === 'asistencia' && <AsistenciaEntregas userId={f.perfil.id} />}
+      {tab === 'dominio' &&<Dominio f={f} userId={f.perfil.id} />}
       {tab === 'comunicacion' && <Comunicacion f={f} />}
       <p className="text-xs text-gray-500">Datos al {fecha(f.generado)}. Cada consulta de esta ficha queda registrada. Solo se muestran las secciones a su cargo.</p>
     </div>

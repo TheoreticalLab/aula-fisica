@@ -59,7 +59,7 @@ export function calificar<T>(body: Record<string, unknown>): Promise<T> {
 }
 
 /** Llama a una Edge Function y convierte sus errores en mensajes legibles. */
-export async function invocar<T>(funcion: string, body: Record<string, unknown>): Promise<T> {
+export async function invocar<T>(funcion: string, body: Record<string, unknown> | FormData): Promise<T> {
   const { data, error } = await supabase.functions.invoke(funcion, { body });
   if (error) {
     // FunctionsHttpError trae la respuesta JSON con { error }

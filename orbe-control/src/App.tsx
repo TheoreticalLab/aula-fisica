@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { configurado, ingresar, rpc, supabase } from './supabase';
+import { Asistencia } from './Asistencia';
 import { agrupar, combinarTodos, edadSenal, estadoSync, filtrar, haceTexto, unicos, type Alumno, type EnLinea, type Fila } from './logica';
 
 type Tipo = 'informativo' | 'importante' | 'urgente' | 'bloqueo';
@@ -152,7 +153,7 @@ function Panel({ nombre }: { nombre: string }) {
   const [destino, setDestino] = useState<Destino | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [historial, setHistorial] = useState<Historial[]>([]);
-  const [vista, setVista] = useState<'conectados' | 'todos'>('conectados');
+  const [vista, setVista] = useState<'conectados' | 'todos' | 'asistencia'>('conectados');
   // alertas de seguridad graves (solo administrador: para cualquier otro, el servidor rechaza y no se muestra nada)
   const [alertas, setAlertas] = useState<{ regla: string; sujeto: string; severidad: string }[]>([]);
   useEffect(() => {
@@ -292,7 +293,9 @@ function Panel({ nombre }: { nombre: string }) {
       <div className="pestanas" role="tablist">
         <button role="tab" aria-selected={vista === 'conectados'} className={vista === 'conectados' ? 'activa' : ''} onClick={() => setVista('conectados')}>🟢 Conectados ({total})</button>
         <button role="tab" aria-selected={vista === 'todos'} className={vista === 'todos' ? 'activa' : ''} onClick={() => setVista('todos')}>👥 Todos{totalTodos ? ` (${totalTodos})` : ''}</button>
+        <button role="tab" aria-selected={vista === 'asistencia'} className={vista === 'asistencia' ? 'activa' : ''} onClick={() => setVista('asistencia')}>📋 Asistencia</button>
       </div>
+      {vista === 'asistencia' ? <Asistencia /> : <>
       <div className="filtros">
         <select aria-label="Filtrar por sección" value={seccion} onChange={(e) => setSeccion(e.target.value)}>
           <option value="">Todas las secciones</option>
@@ -341,6 +344,7 @@ function Panel({ nombre }: { nombre: string }) {
           );
         })}
       </div>
+      </>}
 
       {bloqueos.length > 0 && (
         <section className="grupo">

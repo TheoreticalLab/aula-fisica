@@ -29,8 +29,10 @@ import { getCourse } from '@/api/estudiante';
 import type { ClassRow, Mode } from '@/api/tipos';
 import { downloadText, fecha, porcentaje, puntaje, toCsv, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, Empty, ErrorBox, Field, Notice, PageTitle, Spinner, Tabs } from '@/components/ui';
+import { TabAsistencia } from './AsistenciaTab';
+import { TabEntregas } from './EntregasPdf';
 
-type Tab = 'estudiantes' | 'avisos' | 'actividades' | 'calificaciones' | 'revision' | 'estadisticas';
+type Tab = 'estudiantes' | 'asistencia' | 'avisos' | 'actividades' | 'entregas' | 'calificaciones' | 'revision' | 'estadisticas';
 
 export default function Clase() {
   const { classId = '' } = useParams();
@@ -65,14 +67,18 @@ export default function Clase() {
         onChange={(t) => setParams({ t }, { replace: true })}
         tabs={[
           { id: 'estudiantes', label: 'Estudiantes y grupos' },
+          { id: 'asistencia', label: 'Asistencia' },
           { id: 'avisos', label: 'Avisos' },
           { id: 'actividades', label: 'Actividades' },
+          { id: 'entregas', label: 'Entregas en PDF' },
           { id: 'calificaciones', label: 'Calificaciones' },
           { id: 'revision', label: 'Revisión manual' },
           { id: 'estadisticas', label: 'Estadísticas' },
         ]}
       />
       {tab === 'estudiantes' && <TabEstudiantes c={c} onChange={(nc) => cls.setData({ c: nc, course, secciones })} />}
+      {tab === 'asistencia' && <TabAsistencia classId={c.id} nombre={c.name} />}
+      {tab === 'entregas' && <TabEntregas classId={c.id} />}
       {tab === 'avisos' && <TabAvisos c={c} />}
       {tab === 'actividades' && <TabActividades c={c} />}
       {tab === 'calificaciones' && <TabCalificaciones c={c} />}

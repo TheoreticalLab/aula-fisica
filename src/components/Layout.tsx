@@ -82,6 +82,8 @@ export function Layout() {
                 <NavLink to="/" end className={topLink}>Inicio</NavLink>
                 <NavLink to="/laboratorio" className={topLink}>Laboratorio</NavLink>
                 <NavLink to="/calificaciones" className={topLink}>Calificaciones</NavLink>
+                {!isTeacher && <NavLink to="/asistencia" className={topLink}>Asistencia</NavLink>}
+                {!isTeacher && <NavLink to="/entregas" className={topLink}>Entregas</NavLink>}
                 {isTeacher && <NavLink to="/docente" className={topLink}>Panel docente</NavLink>}
                 {isAdmin && <NavLink to="/docente/cuentas" className={topLink}>Cuentas</NavLink>}
               </>
@@ -102,6 +104,7 @@ export function Layout() {
                     <p className="px-3 py-2 text-xs text-gray-500">ID: {profile?.login_id ?? '—'}<br />{profile?.role === 'admin' ? 'Administrador' : profile?.role === 'teacher' ? 'Profesor' : 'Estudiante'}</p>
                     <Link role="menuitem" to="/perfil" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Mi perfil</Link>
                     {esMonitor && <Link role="menuitem" to="/secretaria" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Secretaría del curso</Link>}
+                    <Link role="menuitem" to="/entregas" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Entregas en PDF</Link>
                     <Link role="menuitem" to="/unirse" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Unirme a una clase</Link>
                     {isTeacher && <Link role="menuitem" to={docente ? '/' : '/docente'} className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10 md:hidden">{docente ? 'Vista de estudiante' : 'Panel docente'}</Link>}
                     {isAdmin && <Link role="menuitem" to="/docente/cuentas" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10 md:hidden">Cuentas</Link>}
@@ -159,6 +162,7 @@ function BottomNav({ docente }: { docente: boolean }) {
         <>
           <NavLink to="/" end className={item}>{icon(<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />)}Inicio</NavLink>
           <NavLink to="/temario" className={item}>{icon(<path d="M4 5h11a3 3 0 0 1 3 3v12H7a3 3 0 0 1-3-3zM18 8h2v12" />)}Temario</NavLink>
+          <NavLink to="/asistencia" className={item}>{icon(<path d="M9 11l3 3 8-8M4 4h10M4 9h4M4 14h4M4 19h16" />)}Asistencia</NavLink>
           <NavLink to="/laboratorio" className={item}>{icon(<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3" />)}Laboratorio</NavLink>
           <NavLink to="/calificaciones" className={item}>{icon(<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />)}Notas</NavLink>
         </>
