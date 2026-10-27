@@ -34,6 +34,11 @@ describe('«¿Pude haber sido yo?»', () => {
     expect(r.texto).toBe('Evidencia insuficiente para clasificar.');
     expect(r.desconocido.length).toBeGreaterThanOrEqual(3);
   });
+  it('también evalúa los accesos correctos, con un lenguaje adecuado', () => {
+    expect(evaluar(base({}, { success: true, reason: 'ok' })).texto).toMatch(/acceso es coherente con el historial/);
+    const raro = evaluar(base({ origen_visto_en_correctos: false, dispositivo_reconocido: false, correcto_despues: null }, { success: true, reason: 'ok', browser: 'Chrome 129', os: 'Android 14', country: 'US' }));
+    expect(raro.texto).toMatch(/conviene confirmarlo con el titular/);
+  });
   it('cada señal declara si es hecho o inferencia y su peso', () => {
     for (const s of evaluar(base()).senales) {
       expect(['hecho', 'inferencia']).toContain(s.tipo);

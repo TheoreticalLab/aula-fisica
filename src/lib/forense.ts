@@ -120,6 +120,16 @@ export function evaluar(c: ContextoEvento): Evaluacion {
   const puntuacion = Math.max(0, Math.min(100, BASE + s.reduce((t, x) => t + x.peso, 0)));
   const cat = categoria(puntuacion);
   const coincidencias = s.filter((x) => x.peso < 0 && x.tipo === 'hecho').length;
+  if (e.success) {
+    // acceso CORRECTO: se compara igual con el historial, con un lenguaje adecuado
+    const t =
+      puntuacion <= UMBRALES.bajoModerado && coincidencias >= 2
+        ? 'Este acceso es coherente con el historial habitual de la cuenta, aunque no demuestra quién lo realizó.'
+        : puntuacion > UMBRALES.moderado
+          ? 'Este acceso correcto presenta diferencias importantes respecto al historial habitual de la cuenta; conviene confirmarlo con el titular.'
+          : 'Este acceso mezcla coincidencias y diferencias con el historial de la cuenta.';
+    return { senales: s, desconocido, puntuacion, categoria: cat, automatizacion: auto, texto: t };
+  }
   const texto =
     puntuacion <= UMBRALES.bajoModerado && coincidencias >= 2
       ? 'Este intento comparte varias características con accesos legítimos anteriores. Es compatible con un error de autenticación del titular, aunque no demuestra quién realizó el intento.'

@@ -19,6 +19,11 @@ interface Evento {
   request_id: string | null; segundos_desde_anterior: number | null; clasificacion: string | null;
 }
 interface Deteccion { regla: string; severidad: string; sujeto: string; eventos: number; detalle: Record<string, unknown>; desde: string; hasta: string; limitaciones: string; accion: string }
+interface Usuario {
+  login_id: string; full_name: string | null; student_code: string | null; rol: string | null; existe: boolean; correctos: number; fallos: number;
+  rechazos: number; ultimo_acceso: string | null; ultimo_intento: string; ultimo_navegador: string | null; ultimo_sistema: string | null;
+  ultimo_tipo: string | null; ultimo_pais: string | null; origenes: number; dispositivos_reconocidos: number; ultimo_evento: string;
+}
 interface Dispositivo { id: number; browser: string | null; os: string | null; device_type: string | null; first_seen: string; last_success: string; success_count: number; revoked_at: string | null; fallos_desde_este: number }
 
 const MOTIVO: Record<string, string> = {
@@ -59,7 +64,7 @@ function Ficha({ ev, onCerrar }: { ev: Evento; onCerrar: () => void }) {
   }
 
   return (
-    <Card title={`¿PUDE HABER SIDO YO? · ${ev.login_id}`} actions={<button className="btn-secundario !py-1 text-xs" onClick={onCerrar}>Cerrar</button>}>
+    <Card title={`${ctx.data?.cuenta?.role === 'admin' ? '¿PUDE HABER SIDO YO?' : 'ANÁLISIS DEL ACCESO'} · ${ev.login_id} · ${ev.success ? 'correcto' : 'fallido'}`} actions={<button className="btn-secundario !py-1 text-xs" onClick={onCerrar}>Cerrar</button>}>
       {ctx.loading ? <Spinner /> : <ErrorBox error={ctx.error} />}
       {ctx.data && e && (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -212,6 +217,15 @@ export default function Seguridad() {
     () => rpc<Evento[]>('sec_events', { p_login: login.trim() || null, p_result: resultado || null, p_from: desde ? new Date(desde).toISOString() : null, p_to: hasta ? new Date(hasta + 'T23:59:59').toISOString() : null, p_limit: 300 }),
     [login, resultado, desde, hasta],
   );
+  const usuarios = useAsync(() => rpc<Usuario[]>('sec_users', { p_days: 30 }), []);
+  async function abrirUsuario(id: string) {
+    setLogin(id);
+    const ult = await rpc<Evento[]>('sec_events', { p_login: id, p_result: null, p_from: null, p_to: null, p_limit: 1 }).catch(() => []);
+    if (ult[0]) {
+      setSel(ult[0]);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
   const r = resumen.data;
   const exportar = () => {
     const filas = (eventos.data ?? []).map((e) => [e.created_at, e.login_id, MOTIVO[e.reason] ?? e.reason, origen(e.ip_hash), e.country, e.browser, e.os, e.device_type, e.dispositivo_reconocido ? 'sí' : 'no', e.segundos_desde_anterior, e.clasificacion]);
@@ -257,6 +271,34 @@ export default function Seguridad() {
       </Card>
 
       {sel && <Ficha ev={sel} onCerrar={() => setSel(null)} />}
+
+      <Card title={`Todos los usuarios que ingresan (30 días) · ${usuarios.data?.length ?? 0}`}>
+        <p className="mb-2 text-xs text-gray-500">Cada inicio de sesión (correcto o fallido) de cualquier cuenta, con el mismo detalle. Pulse un usuario para ver su último intento y su historial.</p>
+        {usuarios.loading ? <Spinner /> : (
+          <div className="max-h-[28rem] overflow-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-gray-200 text-left text-xs dark:border-white/10">
+                <th className="py-1">Usuario</th><th>Rol</th><th className="text-right">Correctos</th><th className="text-right">Fallos</th><th>Último acceso</th><th>Último dispositivo</th><th>País</th><th className="text-right">Orígenes</th><th className="text-right">Disp. reconocidos</th>
+              </tr></thead>
+              <tbody>
+                {(usuarios.data ?? []).map((u) => (
+                  <tr key={u.login_id} className="cursor-pointer border-b border-gray-100 hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5" onClick={() => void abrirUsuario(u.login_id)}>
+                    <td className="py-1">{u.full_name || u.login_id}<span className="block font-mono text-xs text-gray-500">{u.login_id}{u.student_code ? ` · ${u.student_code}` : ''}{!u.existe ? ' · inexistente' : ''}</span></td>
+                    <td className="text-xs">{u.rol ?? '—'}</td>
+                    <td className="text-right tabular-nums text-green-700">{u.correctos}</td>
+                    <td className={`text-right tabular-nums ${u.fallos ? 'text-red-600' : ''}`}>{u.fallos}{u.rechazos ? <span className="block text-xs text-amber-700">+{u.rechazos} rech.</span> : null}</td>
+                    <td className="whitespace-nowrap text-xs">{fecha(u.ultimo_acceso)}</td>
+                    <td className="text-xs">{[u.ultimo_navegador, u.ultimo_sistema, u.ultimo_tipo].filter(Boolean).join(' · ') || 'sin datos'}</td>
+                    <td className="text-xs">{u.ultimo_pais ?? '—'}</td>
+                    <td className="text-right tabular-nums">{u.origenes}</td>
+                    <td className="text-right tabular-nums">{u.dispositivos_reconocidos}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
 
       <Card title="Intentos" actions={<button className="btn-secundario !py-1 text-xs" onClick={exportar} disabled={!(eventos.data ?? []).length}>Exportar CSV</button>}>
         <div className="mb-2 grid gap-2 sm:grid-cols-4">

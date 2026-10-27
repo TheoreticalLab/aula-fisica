@@ -374,6 +374,39 @@ begin
 end;
 $$;
 
+-- --- todos los usuarios que ingresan (correctos y fallidos), con el mismo detalle --------------------------------
+create or replace function public.sec_users(p_days integer)
+returns table (login_id text, full_name text, student_code text, rol text, existe boolean, correctos bigint, fallos bigint, rechazos bigint,
+  ultimo_acceso timestamptz, ultimo_intento timestamptz, ultimo_navegador text, ultimo_sistema text, ultimo_tipo text, ultimo_pais text,
+  origenes bigint, dispositivos_reconocidos bigint, ultimo_evento uuid)
+language plpgsql stable security definer set search_path = ''
+as $$
+begin
+  perform public.sec_assert_admin();
+  perform public.sec_log('consulta_usuarios', jsonb_build_object('dias', p_days));
+  return query
+  with a as (
+    select * from public.login_attempts where created_at > now() - make_interval(days => least(greatest(coalesce(p_days, 30), 1), 180))
+  ), ult as (
+    select distinct on (x.login_id) x.login_id, x.event_id, x.browser, x.os, x.device_type, x.country
+    from a x order by x.login_id, x.created_at desc
+  )
+  select a.login_id, max(p.full_name), max(p.student_code), max(p.role::text), bool_or(a.user_id is not null),
+    count(*) filter (where a.success), count(*) filter (where a.reason in ('bad_password','unknown_id','suspended')),
+    count(*) filter (where a.reason in ('locked','rate_ip')),
+    max(a.created_at) filter (where a.success), max(a.created_at),
+    max(u.browser), max(u.os), max(u.device_type), max(u.country),
+    count(distinct a.ip_hash),
+    (select count(*) from public.known_devices k where k.user_id = max(a.user_id::text)::uuid and k.revoked_at is null),
+    (array_agg(u.event_id))[1]
+  from a left join public.profiles p on p.id = a.user_id join ult u on u.login_id = a.login_id
+  group by a.login_id
+  order by max(a.created_at) desc;
+end;
+$$;
+revoke all on function public.sec_users(integer) from public, anon;
+grant execute on function public.sec_users(integer) to authenticated;
+
 -- --- anotaciones, dispositivos -------------------------------------------------------------------------------------
 create or replace function public.sec_annotate(p_event uuid, p_login text, p_classification text, p_note text)
 returns void language plpgsql security definer set search_path = ''
