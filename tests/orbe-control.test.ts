@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agrupar, edadSenal, estadoSync, filtrar, haceTexto, unicos, type EnLinea } from '../orbe-control/src/logica';
+import { agrupar, combinarTodos, edadSenal, estadoSync, filtrar, haceTexto, unicos, type EnLinea } from '../orbe-control/src/logica';
 
 const AHORA = new Date('2026-10-27T15:00:00Z').getTime();
 const e = (id: string, nombre: string, clase: string, hace: number, extra: Partial<EnLinea> = {}): EnLinea => ({
@@ -27,6 +27,20 @@ describe('Orbe Control', () => {
     const g = agrupar(l);
     expect(g.map((x) => x.titulo)).toEqual(['Física General I — Sección A', 'Física General I — Sección B']);
     expect(g[0].alumnos.map((a) => a.full_name)).toEqual(['Ana', 'Juan']);
+  });
+  it('vista «Todos»: incluye a los desconectados, marca a los conectados y respeta filtro y búsqueda', () => {
+    const alumnos = [
+      { user_id: '1', full_name: 'Juan Pérez', student_code: 'M-1', class_id: 'A', class_name: 'Sección A', course_title: 'Física General I' },
+      { user_id: '2', full_name: 'Ana Gómez', student_code: 'M-2', class_id: 'A', class_name: 'Sección A', course_title: 'Física General I' },
+      { user_id: '3', full_name: 'Luis Díaz', student_code: 'M-3', class_id: 'B', class_name: 'Sección B', course_title: 'Física General I' },
+    ];
+    const vivos = [e('1', 'Juan Pérez', 'A', 10), e('3', 'Luis Díaz', 'B', 300)]; // Luis: señal caducada
+    const ultimas = new Map([['2', '2026-10-26T10:00:00Z'], ['3', new Date(AHORA - 300_000).toISOString()]]);
+    const t = combinarTodos(alumnos, vivos, ultimas, '', '', 0, AHORA);
+    expect(t.map((x) => [x.user_id, x.online])).toEqual([['1', true], ['2', false], ['3', false]]);
+    expect(t[1].last_seen).toBe('2026-10-26T10:00:00Z');
+    expect(combinarTodos(alumnos, vivos, ultimas, 'A', '', 0, AHORA)).toHaveLength(2);
+    expect(combinarTodos(alumnos, vivos, ultimas, '', 'gomez', 0, AHORA).map((x) => x.user_id)).toEqual(['2']);
   });
   it('no presenta datos viejos como actuales', () => {
     expect(estadoSync(AHORA - 5_000, true, AHORA)).toBe('conectado');

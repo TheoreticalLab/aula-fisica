@@ -5,12 +5,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { configurado, ingresar, rpc, supabase } from './supabase';
-import { agrupar, edadSenal, estadoSync, filtrar, haceTexto, unicos, type EnLinea } from './logica';
+import { agrupar, combinarTodos, edadSenal, estadoSync, filtrar, haceTexto, unicos, type Alumno, type EnLinea, type Fila } from './logica';
 
 type Tipo = 'informativo' | 'importante' | 'urgente' | 'bloqueo';
 interface Bloqueo { id: string; full_name: string; student_code: string | null; body: string; created_at: string; failed_attempts: number }
 interface Historial { id: string; body: string; kind: Tipo; created_at: string; total: number; pendientes: number; recibidos: number; confirmados: number; expirados: number }
-type Destino = { tipo: 'uno'; alumno: EnLinea } | { tipo: 'seccion'; class_id: string; titulo: string; n: number } | { tipo: 'todos'; n: number };
+// alcance: 'conectados' = solo quienes están en línea ahora (decidido en el servidor); 'todos' = todos los
+// estudiantes, conectados o no (los desconectados verán el mensaje al entrar al aula)
+type Alcance = 'conectados' | 'todos';
+type Destino =
+  | { tipo: 'uno'; alumno: Fila }
+  | { tipo: 'seccion'; class_id: string; titulo: string; n: number; alcance: Alcance }
+  | { tipo: 'todos'; n: number; alcance: Alcance };
 
 const SECCION: Record<string, string> = { teoria: 'Teoría', ejemplos: 'Ejemplos', practica: 'Práctica', comprension: 'Comprensión', simulacion: 'Simulación', formulas: 'Fórmulas', actividad: 'Actividad', intento: 'Resolviendo una actividad' };
 
@@ -65,7 +71,7 @@ function Redactar({ destino, onCerrar, onEnviado }: { destino: Destino; onCerrar
         const b = await rpc<{ locked: number }>('send_screen_lock', {
           p_body: texto,
           p_code: codigo,
-          p_mode: destino.tipo === 'uno' ? 'seleccion' : 'conectados',
+          p_mode: destino.tipo === 'uno' ? 'seleccion' : destino.alcance === 'conectados' ? 'conectados' : destino.tipo === 'seccion' ? 'seccion' : 'todos',
           p_users: destino.tipo === 'uno' ? [destino.alumno.user_id] : null,
           p_class: destino.tipo === 'seccion' ? destino.class_id : null,
         });
@@ -75,7 +81,12 @@ function Redactar({ destino, onCerrar, onEnviado }: { destino: Destino; onCerrar
       const r =
         destino.tipo === 'uno'
           ? await rpc<{ recipients: number }>('send_live_message', { p_kind: tipo, p_body: texto, p_mode: 'seleccion', p_users: [destino.alumno.user_id], p_class: null, p_expires_minutes: 1440 })
-          : await rpc<{ recipients: number }>('send_live_message_online', { p_kind: tipo, p_body: texto, p_class: destino.tipo === 'seccion' ? destino.class_id : null, p_expires_minutes: 1440 });
+          : destino.alcance === 'conectados'
+            ? await rpc<{ recipients: number }>('send_live_message_online', { p_kind: tipo, p_body: texto, p_class: destino.tipo === 'seccion' ? destino.class_id : null, p_expires_minutes: 1440 })
+            : await rpc<{ recipients: number }>('send_live_message', {
+                p_kind: tipo, p_body: texto, p_mode: destino.tipo === 'seccion' ? 'seccion' : 'todos', p_users: null,
+                p_class: destino.tipo === 'seccion' ? destino.class_id : null, p_expires_minutes: 10080,
+              });
       onEnviado(`Mensaje guardado para ${r.recipients} estudiante(s).`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -84,7 +95,13 @@ function Redactar({ destino, onCerrar, onEnviado }: { destino: Destino; onCerrar
       setBusy(false);
     }
   }
-  const titulo = destino.tipo === 'uno' ? destino.alumno.full_name : destino.tipo === 'seccion' ? `${destino.titulo} · ${destino.n} conectado(s)` : `Todos los conectados · ${destino.n}`;
+  const quien = (n: number, alc: Alcance) => (alc === 'conectados' ? `${n} conectado(s)` : `${n} estudiante(s), conectados o no`);
+  const titulo =
+    destino.tipo === 'uno'
+      ? `${destino.alumno.full_name}${destino.alumno.online ? '' : ' (desconectado: lo verá al entrar al aula)'}`
+      : destino.tipo === 'seccion'
+        ? `${destino.titulo} · ${quien(destino.n, destino.alcance)}`
+        : `${destino.alcance === 'conectados' ? 'Todos los conectados' : 'Todos mis estudiantes'} · ${quien(destino.n, destino.alcance)}`;
   return (
     <div className="velo" onClick={onCerrar}>
       <div className="tarjeta modal" role="dialog" aria-modal="true" aria-label="Enviar mensaje" onClick={(e) => e.stopPropagation()}>
@@ -135,7 +152,30 @@ function Panel({ nombre }: { nombre: string }) {
   const [destino, setDestino] = useState<Destino | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [historial, setHistorial] = useState<Historial[]>([]);
+  const [vista, setVista] = useState<'conectados' | 'todos'>('conectados');
+  const [alumnos, setAlumnos] = useState<Alumno[]>([]);
+  const [ultimas, setUltimas] = useState<Map<string, string | null>>(new Map());
   const espera = useRef<number | undefined>(undefined);
+
+  // todos mis estudiantes y su última señal conocida (para la vista «Todos»)
+  const cargarTodos = useCallback(async () => {
+    try {
+      const [als, pres] = await Promise.all([
+        rpc<Alumno[]>('my_messageable_students'),
+        rpc<{ user_id: string; last_seen: string | null }[]>('live_presence'),
+      ]);
+      setAlumnos(als);
+      setUltimas(new Map(pres.map((p) => [p.user_id, p.last_seen])));
+    } catch {
+      /* sin conexión */
+    }
+  }, []);
+  useEffect(() => {
+    if (vista !== 'todos') return;
+    void cargarTodos();
+    const t = window.setInterval(() => void cargarTodos(), 60_000);
+    return () => window.clearInterval(t);
+  }, [vista, cargarTodos]);
 
   const cargar = useCallback(async () => {
     try {
@@ -193,13 +233,23 @@ function Panel({ nombre }: { nombre: string }) {
   const estado = estadoSync(ultimaOk, red);
   const secciones = useMemo(() => {
     const m = new Map<string, string>();
-    for (const e of lista) m.set(e.class_id, `${e.course_title} — ${e.class_name}`);
+    for (const e of [...lista, ...alumnos]) m.set(e.class_id, `${e.course_title} — ${e.class_name}`);
     return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], 'es'));
-  }, [lista]);
+  }, [lista, alumnos]);
   const vigentes = filtrar(lista, '', '', offset);
-  const visibles = filtrar(lista, seccion, busqueda, offset);
-  const grupos = agrupar(visibles);
   const total = unicos(vigentes);
+  const filas: Fila[] =
+    vista === 'conectados'
+      ? filtrar(lista, seccion, busqueda, offset).map((e) => ({ ...e, online: true }))
+      : combinarTodos(alumnos, lista, ultimas, seccion, busqueda, offset);
+  const grupos = agrupar(filas);
+  const totalTodos = new Set(alumnos.map((a) => a.user_id)).size;
+  const ultimaVez = (iso: string) => {
+    if (!iso) return 'Sin conexiones registradas';
+    const s = edadSenal(iso, offset);
+    if (s < 86400) return `Última conexión ${haceTexto(s)}`;
+    return `Última conexión: ${new Date(iso).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' })}`;
+  };
 
   return (
     <main className="panel">
@@ -211,8 +261,16 @@ function Panel({ nombre }: { nombre: string }) {
       <section className={`tarjeta resumen ${estado === 'conectado' ? '' : 'viejo'}`}>
         <p className="tenue">ESTUDIANTES EN LÍNEA</p>
         <p className="cifra">{estado === 'conectado' ? total : '—'}</p>
-        <button className="boton" disabled={estado !== 'conectado' || total === 0} onClick={() => setDestino({ tipo: 'todos', n: total })}>Enviar mensaje a todos ({total})</button>
+        {vista === 'conectados' ? (
+          <button className="boton" disabled={estado !== 'conectado' || total === 0} onClick={() => setDestino({ tipo: 'todos', n: total, alcance: 'conectados' })}>Enviar mensaje a todos los conectados ({total})</button>
+        ) : (
+          <button className="boton" disabled={estado !== 'conectado' || totalTodos === 0} onClick={() => setDestino({ tipo: 'todos', n: totalTodos, alcance: 'todos' })}>Enviar mensaje a todos mis estudiantes ({totalTodos})</button>
+        )}
       </section>
+      <div className="pestanas" role="tablist">
+        <button role="tab" aria-selected={vista === 'conectados'} className={vista === 'conectados' ? 'activa' : ''} onClick={() => setVista('conectados')}>🟢 Conectados ({total})</button>
+        <button role="tab" aria-selected={vista === 'todos'} className={vista === 'todos' ? 'activa' : ''} onClick={() => setVista('todos')}>👥 Todos{totalTodos ? ` (${totalTodos})` : ''}</button>
+      </div>
       <div className="filtros">
         <select aria-label="Filtrar por sección" value={seccion} onChange={(e) => setSeccion(e.target.value)}>
           <option value="">Todas las secciones</option>
@@ -223,32 +281,43 @@ function Panel({ nombre }: { nombre: string }) {
       {aviso && <p className="ok" onClick={() => setAviso(null)}>{aviso}</p>}
 
       <div className={estado === 'conectado' ? '' : 'viejo'}>
-        {grupos.length === 0 && <p className="vacio">{estado === 'conectado' ? 'No hay estudiantes conectados en este momento.' : 'Esperando datos actualizados…'}</p>}
-        {grupos.map((g) => (
-          <section key={g.clave} className="grupo">
-            <div className="grupo-cab">
-              <h2>{g.titulo.toUpperCase()}</h2>
-              <button className="boton pequeno" disabled={estado !== 'conectado'} onClick={() => setDestino({ tipo: 'seccion', class_id: g.class_id, titulo: g.titulo, n: g.alumnos.length })}>
-                Enviar a los {g.alumnos.length}
-              </button>
-            </div>
-            {g.alumnos.map((a) => {
-              const edad = edadSenal(a.last_seen, offset);
-              const act = a.lesson_title ? `${a.lesson_title}${a.section ? ` · ${SECCION[a.section] ?? a.section}` : ''}` : a.activity_title ?? (a.section ? SECCION[a.section] ?? '' : '');
-              return (
-                <article key={`${g.clave}-${a.user_id}`} className="tarjeta alumno">
-                  <div>
-                    <p className="nombre"><span className="punto" aria-hidden="true" /> {a.full_name || 'Sin nombre'}</p>
-                    <p className="tenue">Matrícula: {a.student_code ?? '—'}</p>
-                    <p className="tenue">En línea · Última señal {haceTexto(edad)}{a.visible ? '' : ' · aula en segundo plano'}{a.conexiones > 1 ? ` · ${a.conexiones} dispositivos/pestañas` : ''}</p>
-                    {act && <p className="tenue">{act}</p>}
-                  </div>
-                  <button className="boton" disabled={estado !== 'conectado'} onClick={() => setDestino({ tipo: 'uno', alumno: a })}>Enviar mensaje</button>
-                </article>
-              );
-            })}
-          </section>
-        ))}
+        {grupos.length === 0 && (
+          <p className="vacio">
+            {estado !== 'conectado' ? 'Esperando datos actualizados…' : vista === 'conectados' ? 'No hay estudiantes conectados en este momento.' : 'No hay estudiantes que coincidan.'}
+          </p>
+        )}
+        {grupos.map((g) => {
+          const enLineaGrupo = g.alumnos.filter((a) => a.online).length;
+          return (
+            <section key={g.clave} className="grupo">
+              <div className="grupo-cab">
+                <h2>{g.titulo.toUpperCase()}{vista === 'todos' ? ` · ${enLineaGrupo}/${g.alumnos.length} en línea` : ''}</h2>
+                <button className="boton pequeno" disabled={estado !== 'conectado'}
+                  onClick={() => setDestino({ tipo: 'seccion', class_id: g.class_id, titulo: g.titulo, n: g.alumnos.length, alcance: vista })}>
+                  Enviar a los {g.alumnos.length}
+                </button>
+              </div>
+              {g.alumnos.map((a) => {
+                const act = a.lesson_title ? `${a.lesson_title}${a.section ? ` · ${SECCION[a.section] ?? a.section}` : ''}` : a.activity_title ?? (a.section ? SECCION[a.section] ?? '' : '');
+                return (
+                  <article key={`${g.clave}-${a.user_id}`} className={`tarjeta alumno ${a.online ? '' : 'fuera'}`}>
+                    <div>
+                      <p className="nombre"><span className={a.online ? 'punto' : 'punto apagado'} aria-hidden="true" /> {a.full_name || 'Sin nombre'}</p>
+                      <p className="tenue">Matrícula: {a.student_code ?? '—'}</p>
+                      {a.online ? (
+                        <p className="tenue">En línea · Última señal {haceTexto(edadSenal(a.last_seen, offset))}{a.visible ? '' : ' · aula en segundo plano'}{a.conexiones > 1 ? ` · ${a.conexiones} dispositivos/pestañas` : ''}</p>
+                      ) : (
+                        <p className="tenue">Desconectado · {ultimaVez(a.last_seen)}</p>
+                      )}
+                      {a.online && act && <p className="tenue">{act}</p>}
+                    </div>
+                    <button className={a.online ? 'boton' : 'boton secundario'} disabled={estado !== 'conectado'} onClick={() => setDestino({ tipo: 'uno', alumno: a })}>Enviar mensaje</button>
+                  </article>
+                );
+              })}
+            </section>
+          );
+        })}
       </div>
 
       {bloqueos.length > 0 && (

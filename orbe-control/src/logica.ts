@@ -49,8 +49,8 @@ export function unicos(lista: EnLinea[]): number {
 }
 
 /** Agrupa por «ASIGNATURA — SECCIÓN», en orden. */
-export function agrupar(lista: EnLinea[]): { clave: string; class_id: string; titulo: string; alumnos: EnLinea[] }[] {
-  const m = new Map<string, { clave: string; class_id: string; titulo: string; alumnos: EnLinea[] }>();
+export function agrupar<T extends EnLinea>(lista: T[]): { clave: string; class_id: string; titulo: string; alumnos: T[] }[] {
+  const m = new Map<string, { clave: string; class_id: string; titulo: string; alumnos: T[] }>();
   for (const e of lista) {
     const g = m.get(e.class_id) ?? { clave: e.class_id, class_id: e.class_id, titulo: `${e.course_title} — ${e.class_name}`, alumnos: [] };
     g.alumnos.push(e);
@@ -59,6 +59,39 @@ export function agrupar(lista: EnLinea[]): { clave: string; class_id: string; ti
   return [...m.values()]
     .map((g) => ({ ...g, alumnos: g.alumnos.sort((a, b) => a.full_name.localeCompare(b.full_name, 'es')) }))
     .sort((a, b) => a.titulo.localeCompare(b.titulo, 'es'));
+}
+
+/** Estudiante de mis secciones (my_messageable_students) con su última señal conocida (live_presence). */
+export interface Alumno {
+  user_id: string;
+  full_name: string;
+  student_code: string | null;
+  class_id: string;
+  class_name: string;
+  course_title: string;
+}
+export interface Fila extends EnLinea {
+  online: boolean;
+}
+
+/**
+ * Vista «Todos»: cada estudiante de mis secciones, marcado en línea si tiene una señal vigente; los demás con su
+ * última señal conocida (o ninguna). Filtra por sección y búsqueda, sin quitar a los desconectados.
+ */
+export function combinarTodos(
+  alumnos: Alumno[], enLinea: EnLinea[], ultimas: Map<string, string | null>, seccion: string, busqueda: string,
+  offsetMs: number, ahoraLocal = Date.now(),
+): Fila[] {
+  const vivos = new Map(filtrar(enLinea, '', '', offsetMs, ahoraLocal).map((e) => [`${e.user_id}:${e.class_id}`, e]));
+  const q = normal(busqueda.trim());
+  return alumnos
+    .filter((a) => (!seccion || a.class_id === seccion) && (!q || normal(a.full_name).includes(q) || normal(a.student_code ?? '').includes(q)))
+    .map((a) => {
+      const v = vivos.get(`${a.user_id}:${a.class_id}`);
+      return v
+        ? { ...v, online: true }
+        : { ...a, online: false, last_seen: ultimas.get(a.user_id) ?? '', conexiones: 0, visible: false, section: null, lesson_title: null, activity_title: null };
+    });
 }
 
 /** Estado de la sincronización: datos frescos si la última consulta correcta fue hace poco y hay red. */

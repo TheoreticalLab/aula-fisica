@@ -59,6 +59,14 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--acento); ou
 .nombre { font-weight: 600; }
 .punto { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--verde); box-shadow: 0 0 0 3px #22c55e33; margin-right: 0.15rem; }
 .verde { color: var(--verde); }
+.punto.apagado { background: #475569; box-shadow: none; }
+.alumno.fuera { opacity: 0.8; }
+.pestanas { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-bottom: 0.7rem; }
+.pestanas button {
+  font: inherit; font-weight: 600; min-height: 44px; border-radius: 10px; cursor: pointer;
+  background: transparent; color: var(--tenue); border: 1px solid var(--borde);
+}
+.pestanas button.activa { background: var(--tarjeta); color: var(--texto); border-color: var(--acento); }
 .vacio { text-align: center; color: var(--tenue); padding: 2rem 0; }
 .viejo { opacity: 0.45; transition: opacity 0.3s; }
 .velo { position: fixed; inset: 0; background: #000a; display: flex; align-items: flex-end; justify-content: center; padding: 0.6rem; z-index: 10; }
