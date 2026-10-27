@@ -76,6 +76,25 @@ do $$ begin
   end;
 end $$;
 
+-- desglose del estudiante: sin publicar ve la distribución y las actividades, pero no las notas
+do $$
+declare d jsonb := public.my_grade_breakdown() -> 0 -> 'categorias';
+begin
+  if jsonb_array_length(d) <> 5 or (d -> 3 ->> 'max')::numeric <> 30 then raise exception 'FALLO: distribución del desglose'; end if;
+  if d -> 3 -> 'score' <> 'null'::jsonb then raise exception 'FALLO: vio una nota sin publicar'; end if;
+  if jsonb_array_length(d -> 3 -> 'actividades') <> 3 then raise exception 'FALLO: actividades de práctica en el desglose'; end if;
+end $$;
+reset role;
+update public.grade_settings set published = true where class_id = 'd1000000-0000-4000-8000-000000000031';
+insert into public.grade_settings (class_id, published) values ('d1000000-0000-4000-8000-000000000031', true) on conflict do nothing;
+set local role authenticated;
+do $$
+declare d jsonb := public.my_grade_breakdown() -> 0 -> 'categorias';
+begin
+  if (d -> 0 ->> 'score')::numeric <> 12 or d -> 0 ->> 'source' <> 'manual' then raise exception 'FALLO: parcial 1 manual en el desglose'; end if;
+  if (d -> 3 ->> 'score')::numeric <> 6.25 or d -> 3 ->> 'source' <> 'actividades' then raise exception 'FALLO: práctica en el desglose'; end if;
+end $$;
+
 reset role;
 select 'PRUEBAS DE ACTIVIDADES EN EL REGISTRO PASARON' as resultado;
 rollback;
