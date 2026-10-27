@@ -153,6 +153,17 @@ function Panel({ nombre }: { nombre: string }) {
   const [aviso, setAviso] = useState<string | null>(null);
   const [historial, setHistorial] = useState<Historial[]>([]);
   const [vista, setVista] = useState<'conectados' | 'todos'>('conectados');
+  // alertas de seguridad graves (solo administrador: para cualquier otro, el servidor rechaza y no se muestra nada)
+  const [alertas, setAlertas] = useState<{ regla: string; sujeto: string; severidad: string }[]>([]);
+  useEffect(() => {
+    const cargarAlertas = () =>
+      rpc<{ regla: string; sujeto: string; severidad: string }[]>('sec_detections', { p_hours: 24 })
+        .then((d) => setAlertas(d.filter((x) => x.severidad === 'alta' || x.severidad === 'critica')))
+        .catch(() => setAlertas([]));
+    void cargarAlertas();
+    const t = window.setInterval(cargarAlertas, 120_000);
+    return () => window.clearInterval(t);
+  }, []);
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
   const [ultimas, setUltimas] = useState<Map<string, string | null>>(new Map());
   const espera = useRef<number | undefined>(undefined);
@@ -258,6 +269,11 @@ function Panel({ nombre }: { nombre: string }) {
         <button className="enlace" onClick={() => void supabase.auth.signOut()}>Salir</button>
       </header>
       <p className={`estado ${estado}`}>{estado === 'conectado' ? '🟢 Sistema conectado' : '🔴 Conexión interrumpida. Reconectando…'}</p>
+      {alertas.length > 0 && (
+        <a className="aviso alerta" href="../#/docente/seguridad">
+          ⚠ {alertas.length} alerta(s) de seguridad grave(s) en 24 h ({[...new Set(alertas.map((a) => a.sujeto))].slice(0, 3).join(', ')}). Revisar en el Centro de seguridad →
+        </a>
+      )}
       <section className={`tarjeta resumen ${estado === 'conectado' ? '' : 'viejo'}`}>
         <p className="tenue">ESTUDIANTES EN LÍNEA</p>
         <p className="cifra">{estado === 'conectado' ? total : '—'}</p>

@@ -54,6 +54,7 @@ select set_config('request.jwt.claims', '{"sub":"d4000000-0000-4000-8000-0000000
 select set_config('request.jwt.claim.sub', 'd4000000-0000-4000-8000-000000000011', true);
 do $$ begin
   begin perform public.sec_overview(); raise exception 'FALLO: un estudiante vio el resumen'; exception when insufficient_privilege then null; end;
+  begin perform public.sec_series(30); raise exception 'FALLO: un estudiante vio los gráficos'; exception when insufficient_privilege then null; end;
   begin perform * from public.sec_events(null, null, null, null, 10); raise exception 'FALLO: un estudiante vio eventos'; exception when insufficient_privilege then null; end;
   begin perform * from public.sec_detections(72); raise exception 'FALLO: un estudiante vio detecciones'; exception when insufficient_privilege then null; end;
   begin perform public.sec_annotate(null, 'sint-100', 'reconozco', null); raise exception 'FALLO: un estudiante anotó'; exception when insufficient_privilege then null; end;
@@ -78,6 +79,11 @@ begin
     if (x ->> 'ips')::int > (x ->> 'fallos')::int then raise exception 'FALLO: orígenes de fallos (%) > fallos (%)', x ->> 'ips', x ->> 'fallos'; end if;
   end loop;
   if not exists (select 1 from public.sec_detections(72) where regla = 'enumeracion_identificadores') then raise exception 'FALLO: no detectó la enumeración'; end if;
+  -- gráficos: la suma por día coincide con los eventos reales del periodo (sin datos inventados)
+  if (select sum((d ->> 'fallos')::int + (d ->> 'rechazos')::int + (d ->> 'correctos')::int) from jsonb_array_elements(public.sec_series(30) -> 'por_dia') d)
+     <> (select count(*) from public.login_attempts where created_at > now() - interval '30 days' and (reason in ('bad_password','unknown_id','suspended','locked','rate_ip') or success)) then
+    raise exception 'FALLO: los gráficos no cuadran con los eventos';
+  end if;
   if not exists (select 1 from public.sec_detections(72) where regla = 'abuso_de_bloqueo' and sujeto = 'sint-100') then raise exception 'FALLO: no detectó el abuso de bloqueo'; end if;
   select event_id into v_ev from public.sec_events('sint-100', 'fallo', null, null, 1);
   x := public.sec_event_context(v_ev);

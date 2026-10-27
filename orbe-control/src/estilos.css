@@ -45,6 +45,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--acento); ou
 .error { color: var(--rojo); font-size: 0.9rem; }
 .ok { background: #0f2e1d; border: 1px solid #1f6b3e; color: #bbf7d0; border-radius: 10px; padding: 0.6rem 0.8rem; font-size: 0.9rem; }
 .aviso { background: #2b230a; border: 1px solid #7a5f12; color: #fde68a; border-radius: 10px; padding: 0.6rem 0.8rem; font-size: 0.9rem; }
+.alerta { display: block; margin-bottom: 0.8rem; text-decoration: none; }
 .cabecera { display: flex; justify-content: space-between; align-items: center; }
 .estado { font-size: 0.9rem; margin: 0.4rem 0 0.8rem; }
 .estado.reconectando { color: var(--rojo); }

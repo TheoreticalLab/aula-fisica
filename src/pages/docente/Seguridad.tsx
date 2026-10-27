@@ -4,6 +4,8 @@
  * procedencia de cada dato (servidor / red / declarado por el navegador).
  */
 import { useState } from 'react';
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useDark } from '@/lib/tema';
 import { rpc } from '@/lib/supabase';
 import { Badge, Card, ErrorBox, PageTitle, Spinner } from '@/components/ui';
 import { useAction, useAsync } from '@/lib/util';
@@ -135,6 +137,69 @@ function Ficha({ ev, onCerrar }: { ev: Evento; onCerrar: () => void }) {
   );
 }
 
+interface Series {
+  por_dia: { dia: string; fallos: number; rechazos: number; correctos: number }[];
+  por_hora: { hora: number; fallos: number }[];
+  origenes: { origen: string; fallos: number; ids: number }[];
+  navegadores: { navegador: string; intentos: number }[];
+}
+
+/** Gráficos con datos reales de los últimos 30 días (sin datos de relleno). */
+function Graficos() {
+  const s = useAsync(() => rpc<Series>('sec_series', { p_days: 30 }), []);
+  const dark = useDark();
+  const texto = dark ? '#d1d5db' : '#374151';
+  const rejilla = dark ? '#ffffff1a' : '#00000014';
+  const tip = { background: dark ? '#0b1730' : '#fff', border: '1px solid #8884', fontSize: 12 };
+  const azul = dark ? '#7f9fd6' : '#335ca6';
+  if (s.loading) return <Spinner />;
+  if (!s.data) return null;
+  const horas = Array.from({ length: 24 }, (_, h) => ({ hora: h, fallos: s.data!.por_hora.find((x) => x.hora === h)?.fallos ?? 0 }));
+  return (
+    <Card title="Gráficos (últimos 30 días)">
+      {!s.data.por_dia.length ? <p className="text-sm text-gray-500">Sin intentos en este periodo.</p> : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div>
+            <h3 className="mb-1 text-sm font-medium">Intentos por día</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={s.data.por_dia}>
+                <CartesianGrid stroke={rejilla} vertical={false} />
+                <XAxis dataKey="dia" tick={{ fill: texto, fontSize: 10 }} />
+                <YAxis allowDecimals={false} tick={{ fill: texto, fontSize: 11 }} />
+                <Tooltip contentStyle={tip} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="fallos" name="Fallos" stackId="a" fill="#b4475a" />
+                <Bar dataKey="rechazos" name="Rechazos por bloqueo" stackId="a" fill="#c99325" />
+                <Bar dataKey="correctos" name="Correctos" stackId="a" fill="#2f8f6b" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div>
+            <h3 className="mb-1 text-sm font-medium">Fallos por hora del día (Santo Domingo)</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={horas}>
+                <CartesianGrid stroke={rejilla} vertical={false} />
+                <XAxis dataKey="hora" tick={{ fill: texto, fontSize: 10 }} />
+                <YAxis allowDecimals={false} tick={{ fill: texto, fontSize: 11 }} />
+                <Tooltip contentStyle={tip} formatter={(v) => [v, 'Fallos']} labelFormatter={(h) => `${h}:00–${Number(h) + 1}:00`} />
+                <Bar dataKey="fallos" fill={azul} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div>
+            <h3 className="mb-1 text-sm font-medium">Orígenes con más fallos (seudónimos)</h3>
+            <ul className="text-sm">{s.data.origenes.map((o) => <li key={o.origen} className="flex justify-between border-b border-gray-100 py-0.5 dark:border-white/5"><span className="font-mono">{o.origen}</span><span>{o.fallos} fallos · {o.ids} ID(s)</span></li>)}</ul>
+          </div>
+          <div>
+            <h3 className="mb-1 text-sm font-medium">Navegadores (declarados)</h3>
+            <ul className="text-sm">{s.data.navegadores.map((n) => <li key={n.navegador} className="flex justify-between border-b border-gray-100 py-0.5 dark:border-white/5"><span>{n.navegador}</span><span>{n.intentos}</span></li>)}</ul>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function Seguridad() {
   const [login, setLogin] = useState('');
   const [resultado, setResultado] = useState('');
@@ -175,6 +240,8 @@ export default function Seguridad() {
         «Fallos» = contraseña incorrecta, ID inexistente o cuenta suspendida. «Rechazos por bloqueo» se cuentan aparte (no se comprobó la contraseña).
         Orígenes = redes seudónimas distintas entre todos los intentos. Los metadatos de dispositivo existen solo desde {r?.primer_evento_forense ? fecha(r.primer_evento_forense as string) : 'la activación de esta fase'}; los eventos anteriores no los tienen y no se inventan.
       </p>
+
+      <Graficos />
 
       <Card title={`Alertas por reglas (7 días) · ${detecciones.data?.length ?? 0}`}>
         {detecciones.loading ? <Spinner /> : (detecciones.data ?? []).length ? (

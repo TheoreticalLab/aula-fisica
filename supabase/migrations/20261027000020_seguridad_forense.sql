@@ -89,9 +89,46 @@ as $$ begin
   if not public.is_admin() then raise exception 'Solo el administrador' using errcode = '42501'; end if;
 end $$;
 
+-- Auditoría + retención: la auditoría y las anotaciones se conservan 1 año
 create or replace function public.sec_log(p_action text, p_detail jsonb)
-returns void language sql security definer set search_path = ''
-as $$ insert into public.security_audit (actor_id, action, detail) values (auth.uid(), p_action, coalesce(p_detail, '{}'::jsonb)) $$;
+returns void language plpgsql security definer set search_path = ''
+as $$
+begin
+  insert into public.security_audit (actor_id, action, detail) values (auth.uid(), p_action, coalesce(p_detail, '{}'::jsonb));
+  delete from public.security_audit where created_at < now() - interval '365 days';
+  delete from public.security_annotations where created_at < now() - interval '365 days';
+end;
+$$;
+
+-- Series para los gráficos (solo datos reales): por día, por hora del día, y los principales orígenes y navegadores
+create or replace function public.sec_series(p_days integer)
+returns jsonb language plpgsql stable security definer set search_path = ''
+as $$
+declare v_desde timestamptz := now() - make_interval(days => least(greatest(coalesce(p_days, 30), 1), 180)); r jsonb;
+begin
+  perform public.sec_assert_admin();
+  with a as (select * from public.login_attempts where created_at > v_desde)
+  select jsonb_build_object(
+    'por_dia', (select coalesce(jsonb_agg(x order by x ->> 'dia'), '[]') from (
+        select jsonb_build_object('dia', (created_at at time zone 'America/Santo_Domingo')::date,
+          'fallos', count(*) filter (where reason in ('bad_password','unknown_id','suspended')),
+          'rechazos', count(*) filter (where reason in ('locked','rate_ip')),
+          'correctos', count(*) filter (where success)) x
+        from a group by 1 order by 1) z),
+    'por_hora', (select coalesce(jsonb_agg(jsonb_build_object('hora', h, 'fallos', n) order by h), '[]') from (
+        select extract(hour from created_at at time zone 'America/Santo_Domingo')::int h, count(*) n
+        from a where reason in ('bad_password','unknown_id','suspended') group by 1) z),
+    'origenes', (select coalesce(jsonb_agg(jsonb_build_object('origen', 'O-' || left(ip_hash, 6), 'fallos', n, 'ids', ids) order by n desc), '[]') from (
+        select ip_hash, count(*) n, count(distinct login_id) ids from a
+        where ip_hash is not null and reason in ('bad_password','unknown_id','suspended') group by ip_hash order by 2 desc limit 8) z),
+    'navegadores', (select coalesce(jsonb_agg(jsonb_build_object('navegador', b, 'intentos', n) order by n desc), '[]') from (
+        select coalesce(browser, 'sin dato') b, count(*) n from a group by 1 order by 2 desc limit 8) z)
+  ) into r;
+  return r;
+end;
+$$;
+grant execute on function public.sec_series(integer) to authenticated;
+revoke all on function public.sec_series(integer) from public, anon;
 
 -- --- corrección 1: el bloqueo por ID solo cuenta contraseñas incorrectas (no los rechazos por bloqueo) -------------
 create or replace function public.svc_login_check(p_login text, p_ip_hash text)
@@ -147,8 +184,8 @@ begin
       on conflict (user_id, device_hash) do update set last_success = now(), success_count = public.known_devices.success_count + 1,
         browser = excluded.browser, os = excluded.os, device_type = excluded.device_type;
   end if;
-  -- retención de eventos detallados: 90 días
-  delete from public.login_attempts where created_at < now() - interval '90 days';
+  -- retención de eventos detallados: 180 días (igual que antes de esta migración; no se acorta sin decisión expresa)
+  delete from public.login_attempts where created_at < now() - interval '180 days';
   return jsonb_build_object('must_change_password',
     coalesce((select must_change_password from public.profiles where id = p_user and p_success), false));
 end;
