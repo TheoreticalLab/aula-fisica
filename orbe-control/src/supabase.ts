@@ -3,6 +3,7 @@
  * las funciones del servidor). Sesión guardada con otra clave para no interferir con el aula, que comparte dominio.
  */
 import { createClient } from '@supabase/supabase-js';
+import { contextoAcceso } from '../../src/lib/instalacion';
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -20,7 +21,7 @@ export async function rpc<T>(fn: string, args?: Record<string, unknown>): Promis
 
 /** Inicio de sesión con el mismo ID y contraseña del aula (Edge Function «acceder»). */
 export async function ingresar(id: string, password: string): Promise<{ must_change_password?: boolean }> {
-  const { data, error } = await supabase.functions.invoke('acceder', { body: { id: id.trim(), password } });
+  const { data, error } = await supabase.functions.invoke('acceder', { body: { id: id.trim(), password, ...contextoAcceso() } });
   if (error) {
     const ctx = (error as { context?: Response }).context;
     let msg = error.message;

@@ -4,6 +4,7 @@ import { invocar, rpc, supabase, errorMessage } from '@/lib/supabase';
 import { useAuth } from '@/auth/AuthContext';
 import { ErrorBox, Field, Notice } from '@/components/ui';
 import { AVISO_PRIVACIDAD } from '@/lib/tiempo';
+import { contextoAcceso } from '@/lib/instalacion';
 import { problemasContrasena } from '../../../supabase/functions/_shared/cuentas.ts';
 
 function Marco({ title, children }: { title: string | null; children: ReactNode }) {
@@ -36,7 +37,7 @@ export function Ingresar({ titulo = 'Ingresar al aula' }: { titulo?: string | nu
     setBusy(true);
     setError(null);
     try {
-      const s = await invocar<SesionAcceso>('acceder', { id: id.trim(), password });
+      const s = await invocar<SesionAcceso>('acceder', { id: id.trim(), password, ...contextoAcceso() });
       const { error: se } = await supabase.auth.setSession({ access_token: s.access_token, refresh_token: s.refresh_token });
       if (se) throw se;
       nav(s.must_change_password ? '/cambiar-clave' : loc.state?.from ?? '/', { replace: true });

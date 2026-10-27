@@ -1,7 +1,7 @@
 // Edge Function «acceder» (Deno): inicio de sesión con ID y contraseña.
 // Despliegue: npm run plan / npm run aplicar (o: supabase functions deploy acceder --no-verify-jwt)
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { acceder } from './handler.ts';
+import { acceder, describirUA } from './handler.ts';
 
 const ORIGENES = (Deno.env.get('ALLOWED_ORIGINS') ?? '*').split(',').map((s) => s.trim());
 
@@ -39,6 +39,22 @@ Deno.serve(async (req) => {
     // la IP solo se guarda como hash (con un secreto del servidor como sal)
     const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim();
     const ipHash = ip ? (await sha256(service.slice(-24) + '|' + ip)).slice(0, 32) : null;
+    // metadatos forenses: del servidor (request_id), de la red (país, si la plataforma envía la cabecera) y
+    // declarados por el navegador (user-agent, zona horaria, idioma, versión, instalación) — estos son falsificables
+    const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+    const texto = (v: unknown, n: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, n) : null);
+    const ua = (req.headers.get('user-agent') ?? '').slice(0, 300);
+    const instalacion = texto(b.install_id, 64);
+    const meta = {
+      request_id: crypto.randomUUID(),
+      country: texto(req.headers.get('cf-ipcountry'), 2),
+      user_agent: ua || null,
+      ...describirUA(ua),
+      client_tz: texto(b.tz, 60),
+      client_lang: texto(b.lang, 20),
+      app_version: texto(b.app_version, 20),
+      device_hash: instalacion ? (await sha256(service.slice(-24) + '|dev|' + instalacion)).slice(0, 32) : null,
+    };
     const admin = createClient(url, service, { auth: { persistSession: false } });
     const r = await acceder(body, ipHash, {
       rpc: async (fn, args) => {
@@ -56,7 +72,7 @@ Deno.serve(async (req) => {
       },
       esperar: (ms) => new Promise((r) => setTimeout(r, ms)),
       ahora: () => Date.now(),
-    });
+    }, meta);
     return new Response(JSON.stringify(r.body), { status: r.status, headers });
   } catch (e) {
     console.error(e);
