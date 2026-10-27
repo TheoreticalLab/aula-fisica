@@ -109,12 +109,13 @@ begin
   perform public.sec_assert_admin();
   with a as (select * from public.login_attempts where created_at > v_desde)
   select jsonb_build_object(
-    'por_dia', (select coalesce(jsonb_agg(x order by x ->> 'dia'), '[]') from (
-        select jsonb_build_object('dia', (created_at at time zone 'America/Santo_Domingo')::date,
-          'fallos', count(*) filter (where reason in ('bad_password','unknown_id','suspended')),
-          'rechazos', count(*) filter (where reason in ('locked','rate_ip')),
-          'correctos', count(*) filter (where success)) x
-        from a group by 1 order by 1) z),
+    'por_dia', (select coalesce(jsonb_agg(jsonb_build_object('dia', z.dia, 'fallos', z.fallos, 'rechazos', z.rechazos, 'correctos', z.correctos)
+                  order by z.dia), '[]') from (
+        select (created_at at time zone 'America/Santo_Domingo')::date dia,
+          count(*) filter (where reason in ('bad_password','unknown_id','suspended')) fallos,
+          count(*) filter (where reason in ('locked','rate_ip')) rechazos,
+          count(*) filter (where success) correctos
+        from a group by (created_at at time zone 'America/Santo_Domingo')::date) z),
     'por_hora', (select coalesce(jsonb_agg(jsonb_build_object('hora', h, 'fallos', n) order by h), '[]') from (
         select extract(hour from created_at at time zone 'America/Santo_Domingo')::int h, count(*) n
         from a where reason in ('bad_password','unknown_id','suspended') group by 1) z),
