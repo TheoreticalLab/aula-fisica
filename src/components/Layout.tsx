@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { IntroLaboratorio } from '@/components/IntroLaboratorio';
 import { supabase } from '@/lib/supabase';
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
@@ -44,6 +45,18 @@ const topLink = ({ isActive }: { isActive: boolean }) =>
 
 export function Layout() {
   const { session, profile, isTeacher, isAdmin, signOut, loading } = useAuth();
+  // Bienvenida animada: una vez por inicio de sesión (la clave cambia con cada nuevo inicio de sesión)
+  const claveIntro = session ? `aula-intro:${session.user.id}:${session.user.last_sign_in_at ?? ''}` : '';
+  const [introVista, setIntroVista] = useState(false);
+  const introVisible = !!session && !!profile && profile.active !== false && !introVista && !localStorage.getItem(claveIntro);
+  const cerrarIntro = useCallback(() => {
+    try {
+      localStorage.setItem(claveIntro, '1');
+    } catch {
+      /* sin almacenamiento: solo se ocultará en esta pestaña */
+    }
+    setIntroVista(true);
+  }, [claveIntro]);
   // ¿Es monitor de alguna sección? (solo cambia el menú; el acceso real lo comprueba la base de datos)
   const [esMonitor, setEsMonitor] = useState(false);
   useEffect(() => {
@@ -117,6 +130,7 @@ export function Layout() {
         Aula Virtual de Física{isTeacher && <> · <Link to="/acerca" className="enlace">Estado del desarrollo</Link></>}
         {session && !isTeacher && <p className="mt-1">{AVISO_PRIVACIDAD}</p>}
       </footer>
+      {introVisible && <IntroLaboratorio nombre={(profile?.full_name ?? '').trim().split(/\s+/)[0] ?? ''} onFin={cerrarIntro} />}
       <SeguimientoTiempo />
       <ReceptorMensajes />
       {session && <BottomNav docente={docente && isTeacher} />}

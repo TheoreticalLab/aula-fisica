@@ -41,6 +41,8 @@ const PUNTOS = '#e3a9b7';
 const PANTALON = '#27305a';
 const PANTALON_LEJOS = '#1d2447';
 const ZAPATO = '#141414';
+/** Colores del personaje, para reutilizarlo en otras escenas (bienvenida del laboratorio). */
+export const COLORES = { PIEL, PIEL_SOMBRA, CONTORNO, BATA, BATA_SOMBRA, PANTALON, PANTALON_LEJOS, ZAPATO };
 
 // medio ciclo de zancada: brazo y pierna del lado lejano van en contrafase
 const CONTRAFASE: CSSProperties = { animationDelay: '-0.225s' };
@@ -87,7 +89,7 @@ function Brazo({ lejos = false }: { lejos?: boolean }) {
 }
 
 // Cabeza en 3/4 hacia la derecha: nuca y oreja atrás, rasgos hacia el frente, el ojo lejano más estrecho.
-function Cabeza() {
+export function Cabeza() {
   return (
     <g>
       <path
@@ -131,7 +133,7 @@ function Cabeza() {
 }
 
 // Torso en 3/4: espalda redondeada a la izquierda, pecho a la derecha; la abertura de la bata y la corbata, al frente.
-function Torso() {
+export function Torso() {
   return (
     <g>
       <rect x={270} y={68} width={8.5} height={12} rx={3} fill={PIEL_SOMBRA} />
