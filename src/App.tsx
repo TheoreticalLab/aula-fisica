@@ -37,6 +37,7 @@ const EstudianteDetalle = lazy(() => import('@/pages/docente/EstudianteDetalle')
 const Cuentas = lazy(() => import('@/pages/docente/Cuentas'));
 const Analitica = lazy(() => import('@/pages/docente/Analitica'));
 const Comunicacion = lazy(() => import('@/pages/docente/Comunicacion'));
+const Seguridad = lazy(() => import('@/pages/docente/Seguridad'));
 const RegistroCalificaciones = lazy(() => import('@/pages/docente/RegistroCalificaciones'));
 const Secretaria = lazy(() => import('@/pages/estudiante/Secretaria'));
 
@@ -105,6 +106,7 @@ export default function App() {
               <Route path="docente/cuentas" element={teacher(<Cuentas />)} />
               <Route path="docente/analitica" element={teacher(<Analitica />)} />
               <Route path="docente/comunicacion" element={teacher(<Comunicacion />)} />
+              <Route path="docente/seguridad" element={teacher(<Seguridad />)} />
               <Route path="docente/clases/:classId/registro" element={teacher(<RegistroCalificaciones />)} />
               <Route path="secretaria" element={auth(<Secretaria />)} />
               <Route path="docente/usuarios" element={<Navigate to="/docente/cuentas" replace />} />

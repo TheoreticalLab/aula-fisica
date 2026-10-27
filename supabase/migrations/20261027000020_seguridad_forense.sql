@@ -15,8 +15,8 @@
 --
 -- Correcciones:
 --   1) Abuso del bloqueo: el bloqueo por ID contaba también los intentos ya rechazados por bloqueo, de modo que
---      un tercero podía mantener bloqueada indefinidamente una cuenta. Ahora solo cuentan contraseñas
---      incorrectas (y cuentas suspendidas).
+--      un tercero podía mantener bloqueada indefinidamente una cuenta. Ahora solo cuentan los intentos en que se
+--      comprobó la credencial (contraseña incorrecta, ID inexistente, cuenta suspendida).
 --   2) Incoherencia «fallos < orígenes»: los orígenes se contaban sobre TODOS los intentos (incluidos los
 --      correctos) y los fallos solo sobre los fallidos. Ahora cada indicador declara su universo.
 -- =============================================================================
@@ -108,8 +108,9 @@ begin
   if v_login !~ '^[a-z0-9][a-z0-9._-]{2,39}$' then
     return jsonb_build_object('allowed', false, 'reason', 'invalid_format', 'login', v_login, 'rule', 'formato_invalido');
   end if;
+  -- también cuentan los IDs inexistentes: así se bloquean igual que los reales y el bloqueo no revela cuáles existen
   select count(*) into v_fail_id from public.login_attempts
-    where login_id = v_login and reason in ('bad_password', 'suspended') and created_at > now() - interval '15 minutes';
+    where login_id = v_login and reason in ('bad_password', 'unknown_id', 'suspended') and created_at > now() - interval '15 minutes';
   select count(*) into v_fail_ip from public.login_attempts
     where p_ip_hash is not null and ip_hash = p_ip_hash and reason in ('bad_password', 'unknown_id', 'suspended')
       and created_at > now() - interval '15 minutes';

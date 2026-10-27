@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
 import {
   adminListUsers,
@@ -286,11 +287,13 @@ export default function Cuentas() {
         <Card title="IDs con 3 o más intentos fallidos en las últimas 72 horas">
           <p className="mb-2 text-xs text-gray-500">
             Tras 5 fallos en 15 minutos, el ID queda bloqueado 15 minutos (también los IDs que no existen, para no revelar cuáles son válidos).
-            Las IP se guardan solo como huella anónima.
+            Las IP se guardan solo como huella anónima. «Orígenes» cuenta las redes distintas de los fallos (nunca supera a los fallos);
+            «Rechazos» son intentos rechazados por un bloqueo, sin comprobar la contraseña.{' '}
+            <Link to="/docente/seguridad" className="enlace">Abrir el Centro de seguridad →</Link>
           </p>
           {sospechosos.loading ? <Spinner /> : sospechosos.data?.length ? (
             <table className="w-full text-sm">
-              <thead><tr className="text-left text-xs uppercase text-gray-500"><th className="py-1 pr-2">ID intentado</th><th className="py-1 pr-2">Fallos</th><th className="py-1 pr-2">Orígenes</th><th className="py-1 pr-2">Bloqueos</th><th className="py-1">Último</th></tr></thead>
+              <thead><tr className="text-left text-xs uppercase text-gray-500"><th className="py-1 pr-2">ID intentado</th><th className="py-1 pr-2">Fallos</th><th className="py-1 pr-2">Orígenes de los fallos</th><th className="py-1 pr-2">Rechazos por bloqueo</th><th className="py-1">Último</th></tr></thead>
               <tbody>{sospechosos.data.map((s) => (
                 <tr key={s.login_id} className="border-t border-gray-100 dark:border-white/10">
                   <td className="py-1 pr-2 font-mono">{s.login_id} {!s.existe && <Badge>no existe</Badge>}</td>

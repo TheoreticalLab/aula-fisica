@@ -90,5 +90,16 @@ begin
 end $$;
 
 reset role;
+-- 6) anti-enumeración: un ID inexistente se bloquea igual que uno real tras 5 fallos
+do $$
+declare i int;
+begin
+  for i in 1..5 loop
+    perform public.svc_login_record('sint-noexiste', null, 'red-z', false, 'unknown_id', '{}');
+  end loop;
+  if (public.svc_login_check('sint-noexiste', 'red-z') ->> 'reason') <> 'locked' then
+    raise exception 'FALLO: un ID inexistente no se bloquea (permite enumerar cuentas)';
+  end if;
+end $$;
 select 'PRUEBAS DEL CENTRO DE SEGURIDAD PASARON' as resultado;
 rollback;
