@@ -33,7 +33,7 @@ const ActividadEditor = lazy(() => import('@/pages/docente/ActividadEditor'));
 const VistaPrevia = lazy(() => import('@/pages/docente/VistaPrevia'));
 const VistaPanel = lazy(() => import('@/pages/docente/VistaPanel'));
 const RevisionIntento = lazy(() => import('@/pages/docente/RevisionIntento'));
-const EstudianteDetalle = lazy(() => import('@/pages/docente/EstudianteDetalle'));
+const FichaEstudiante = lazy(() => import('@/pages/docente/FichaEstudiante'));
 const Cuentas = lazy(() => import('@/pages/docente/Cuentas'));
 const Analitica = lazy(() => import('@/pages/docente/Analitica'));
 const Comunicacion = lazy(() => import('@/pages/docente/Comunicacion'));
@@ -102,7 +102,8 @@ export default function App() {
               <Route path="docente/actividades/:activityId/vista-previa" element={teacher(<VistaPrevia />)} />
               <Route path="docente/clases/:classId/vista-estudiante" element={teacher(<VistaPanel />)} />
               <Route path="docente/intentos/:attemptId" element={teacher(<RevisionIntento />)} />
-              <Route path="docente/clases/:classId/estudiantes/:userId" element={teacher(<EstudianteDetalle />)} />
+              <Route path="docente/clases/:classId/estudiantes/:userId" element={teacher(<FichaEstudiante />)} />
+              <Route path="docente/estudiantes/:userId" element={teacher(<FichaEstudiante />)} />
               <Route path="docente/cuentas" element={teacher(<Cuentas />)} />
               <Route path="docente/analitica" element={teacher(<Analitica />)} />
               <Route path="docente/comunicacion" element={teacher(<Comunicacion />)} />

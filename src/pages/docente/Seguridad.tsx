@@ -4,6 +4,7 @@
  * procedencia de cada dato (servidor / red / declarado por el navegador).
  */
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useDark } from '@/lib/tema';
 import { rpc } from '@/lib/supabase';
@@ -367,7 +368,7 @@ export default function Seguridad() {
                 {(usuarios.data ?? []).map((u) => (
                   <tr key={u.login_id} className="cursor-pointer border-b border-gray-100 hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5" onClick={() => void abrirUsuario(u.login_id)}>
                     <td className="py-1">{u.full_name || u.login_id}<span className="block font-mono text-xs text-gray-500">{u.login_id}{u.student_code ? ` · ${u.student_code}` : ''}{!u.existe ? ' · inexistente' : ''}</span></td>
-                    <td className="text-xs">{u.rol ?? '—'}</td>
+                    <td className="text-xs">{u.rol ?? '—'}{u.rol === 'student' && <Link className="enlace block" to={`/docente/estudiantes/${encodeURIComponent(u.login_id)}`} onClick={(e) => e.stopPropagation()}>ficha</Link>}</td>
                     <td className="text-right tabular-nums text-green-700">{u.correctos}</td>
                     <td className={`text-right tabular-nums ${u.fallos ? 'text-red-600' : ''}`}>{u.fallos}{u.rechazos ? <span className="block text-xs text-amber-700">+{u.rechazos} rech.</span> : null}</td>
                     <td className="whitespace-nowrap text-xs">{fecha(u.ultimo_acceso)}</td>

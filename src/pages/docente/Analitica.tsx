@@ -272,7 +272,7 @@ export default function Analitica() {
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {elegido ? (
           <>
-            <Indicador titulo={`Tiempo efectivo · ${elegido.full_name}`} valor={formatoDuracion(elegido.effective_seconds)} nota={`visible: ${formatoDuracion(elegido.visible_seconds)}`} />
+            <Indicador titulo={`Tiempo efectivo · ${elegido.full_name}`} valor={formatoDuracion(elegido.effective_seconds)} nota={<>visible: {formatoDuracion(elegido.visible_seconds)} · <Link className="enlace" to={`/docente/estudiantes/${elegido.user_id}`}>ficha completa</Link></>} />
             <Indicador titulo="Sesiones efectivas" valor={elegido.sessions} nota={elegido.sessions ? `media: ${formatoDuracion(elegido.effective_seconds / elegido.sessions)} por sesión` : undefined} />
             <Indicador titulo="Días con actividad" valor={elegido.days_active} />
             <Indicador titulo="Primera / última visita" valor={<span className="text-sm">{fecha(elegido.first_visit)}</span>} nota={fecha(elegido.last_visit)} />

@@ -325,7 +325,7 @@ function Panel({ nombre }: { nombre: string }) {
                   <article key={`${g.clave}-${a.user_id}`} className={`tarjeta alumno ${a.online ? '' : 'fuera'}`}>
                     <div>
                       <p className="nombre"><span className={a.online ? 'punto' : 'punto apagado'} aria-hidden="true" /> {a.full_name || 'Sin nombre'}</p>
-                      <p className="tenue">Matrícula: {a.student_code ?? '—'}</p>
+                      <p className="tenue">Matrícula: {a.student_code ?? '—'} · <a href={`../#/docente/estudiantes/${a.user_id}`} target="_blank" rel="noreferrer">Ficha completa</a></p>
                       {a.online ? (
                         <p className="tenue">En línea · Última señal {haceTexto(edadSenal(a.last_seen, offset))}{a.visible ? '' : ' · aula en segundo plano'}{a.conexiones > 1 ? ` · ${a.conexiones} dispositivos/pestañas` : ''}</p>
                       ) : (

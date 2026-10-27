@@ -19,6 +19,7 @@ Leyenda: ✅ hecho y probado · 🟡 hecho, verificado solo parcialmente (ver no
 | Corrección automática (unidades, cifras significativas, tolerancia, equivalencias, errores típicos) | ✅ | `tests/calificacion.test.ts` y `tests/handler.test.ts` |
 | Persistencia de resultados e intentos, borradores, registro de envíos | 🟡 | SQL revisado; ejecute `supabase/pruebas/rls.sql` en su proyecto |
 | RLS, protección de claves, calificaciones y datos personales | 🟡 | Controles estáticos en `tests/seguridad.test.ts`; pruebas reales con `supabase/pruebas/rls.sql` |
+| Ficha completa del estudiante (accesos, sesiones de estudio, actividades intentadas y no intentadas, respuestas y errores, calificaciones, dominio, mensajes, historial de la cuenta) | 🟡 | Migración `20261027000022` + `supabase/pruebas/ficha_estudiante.sql`; `src/pages/docente/FichaEstudiante.tsx`. Pendiente de aplicar en producción |
 | Centro de seguridad (Beta): eventos de acceso con procedencia, detecciones por reglas, «¿Pude haber sido yo?», todos los usuarios que ingresan, «Fallaron y luego entraron» | 🟡 | Migraciones `20261027000020` y `20261027000021` + `supabase/pruebas/seguridad_forense.sql` y `acceso_tras_fallos.sql`; pendiente de aplicar en producción. Sin MFA ni proveedor/VPN (requieren servicio externo) |
 
 ## Segunda etapa

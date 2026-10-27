@@ -3,7 +3,7 @@
  * aquí solo se edita y se muestra. Celda vacía = pendiente (no es cero).
  */
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { getClass } from '@/api/docente';
 import { rpc } from '@/lib/supabase';
 import { Card, ErrorBox, Modal, Notice, PageTitle, Spinner } from '@/components/ui';
@@ -152,7 +152,7 @@ export default function RegistroCalificaciones() {
             <tbody>
               {(filas.data ?? []).map((f) => (
                 <tr key={f.user_id} className="border-b border-gray-100 dark:border-white/5">
-                  <td className="px-1 py-1">{f.full_name || '—'} {f.es_monitor && <span className="ml-1 rounded bg-amber-100 px-1 text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">monitor</span>}
+                  <td className="px-1 py-1"><Link className="enlace" to={`/docente/clases/${classId}/estudiantes/${f.user_id}`} title="Ficha completa del estudiante">{f.full_name || '—'}</Link> {f.es_monitor && <span className="ml-1 rounded bg-amber-100 px-1 text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">monitor</span>}
                     <span className="block text-xs text-gray-500">{f.student_code}</span></td>
                   {CATEGORIAS.map((c) => {
                     const o = origenes.data?.get(`${f.user_id}:${c.id}`);

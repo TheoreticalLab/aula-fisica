@@ -172,7 +172,7 @@ export default function Cuentas() {
                   {lista.data.map((u) => (
                     <tr key={u.id} className="border-t border-gray-100 align-top dark:border-white/10">
                       <td className="py-2 pr-2 font-mono">{u.login_id ?? <span className="text-gray-400">sin ID</span>}</td>
-                      <td className="py-2 pr-2">{u.full_name}{u.student_code && <span className="block text-xs text-gray-500">{u.student_code}</span>}</td>
+                      <td className="py-2 pr-2">{u.role === 'student' ? <Link className="enlace" to={`/docente/estudiantes/${u.id}`} title="Ficha completa del estudiante">{u.full_name || '(sin nombre)'}</Link> : u.full_name}{u.student_code && <span className="block text-xs text-gray-500">{u.student_code}</span>}</td>
                       <td className="py-2 pr-2 text-xs">{u.classes.join(', ') || '—'}</td>
                       <td className="py-2 pr-2 space-y-1">
                         {!u.active ? <Badge tone="red">Suspendida</Badge> : u.must_change_password ? <Badge tone="amber">Contraseña provisional</Badge> : <Badge tone="green">Activa</Badge>}

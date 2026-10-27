@@ -4,7 +4,7 @@
  * Presencia: deducida del último latido del seguimiento de tiempo (no es prueba de atención).
  */
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { rpc, supabase } from '@/lib/supabase';
 import { Card, ErrorBox, Notice, PageTitle, Spinner } from '@/components/ui';
 import { useAction, useAsync } from '@/lib/util';
@@ -167,7 +167,7 @@ export default function Comunicacion() {
                       <tr key={a.user_id} className="border-b border-gray-100 dark:border-white/5">
                         <td className="px-1 py-1.5"><input type="checkbox" aria-label={`Seleccionar a ${a.full_name}`} checked={sel.has(a.user_id)} onChange={() => alternar(a.user_id)} /></td>
                         <td className="px-1 py-1.5"><button className="enlace text-left" onClick={() => setVerAlumno(a.user_id)}>{a.full_name || a.student_code || '—'}</button>
-                          <span className="block text-xs text-gray-500">{a.secciones.join(', ')}</span></td>
+                          <span className="block text-xs text-gray-500">{a.secciones.join(', ')} · <Link className="enlace" to={`/docente/estudiantes/${a.user_id}`}>ficha</Link></span></td>
                         <td className="whitespace-nowrap px-1 py-1.5 text-xs" title={p?.last_seen ? `Último latido: ${fecha(p.last_seen)}` : 'Sin registros recientes'}>{PUNTO[p?.estado ?? 'desconectado']}</td>
                         <td className="hidden px-1 py-1.5 text-xs text-gray-600 dark:text-gray-400 md:table-cell">{actividad(p)}</td>
                         <td className="px-1 py-1.5 text-right"><button className="btn-secundario !px-2 !py-0.5 text-xs" onClick={() => { setSel(new Set([a.user_id])); setModo('seleccion'); document.getElementById('mensaje-texto')?.focus(); }}>✉ Mensaje</button></td>

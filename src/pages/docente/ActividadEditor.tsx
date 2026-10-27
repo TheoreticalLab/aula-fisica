@@ -22,6 +22,7 @@ import { aInputFecha, CATEGORIA, deInputFecha, DIFICULTAD, downloadText, fecha, 
 import { Badge, Card, Empty, ErrorBox, Field, Notice, PageTitle, Spinner, Tabs } from '@/components/ui';
 import { EditorMarkdown } from '@/components/EditorMarkdown';
 import { analizarTexto, formatoTiempo, MAX_SEGUNDOS, MIN_SEGUNDOS, segundosSugeridos } from '@/lib/lectura';
+import { CODIGO_ERROR } from '@/lib/codigos';
 
 /** Lectura cronometrada previa a los ejercicios: texto y tiempo mínimo (con sugerencia según el texto). */
 function LecturaEditor({ draft, set }: { draft: Activity; set: (p: Partial<Activity>) => void }) {
@@ -60,22 +61,7 @@ function LecturaEditor({ draft, set }: { draft: Activity; set: (p: Partial<Activ
 
 type Tab = 'config' | 'ejercicios' | 'resultados';
 
-const CODE_LABEL: Record<string, string> = {
-  unit_mismatch: 'unidad de otra magnitud',
-  missing_unit: 'sin unidad',
-  sign: 'signo cambiado',
-  kmh: 'conversión km/h–m/s',
-  time_conversion: 'conversión de tiempo',
-  power_of_ten: 'potencia de 10',
-  factor_two: 'factor 2',
-  mass_weight: 'masa/peso',
-  common_error: 'error típico previsto',
-  wrong_value: 'valor incorrecto',
-  wrong_option: 'opción incorrecta',
-  sig_figs: 'cifras significativas',
-  blank: 'sin responder',
-  expected_unit: 'unidad no pedida',
-};
+const CODE_LABEL = CODIGO_ERROR;
 
 export default function ActividadEditor() {
   const { activityId = '' } = useParams();
