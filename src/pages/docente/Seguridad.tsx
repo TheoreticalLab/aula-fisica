@@ -24,6 +24,14 @@ interface Usuario {
   rechazos: number; ultimo_acceso: string | null; ultimo_intento: string; ultimo_navegador: string | null; ultimo_sistema: string | null;
   ultimo_tipo: string | null; ultimo_pais: string | null; origenes: number; dispositivos_reconocidos: number; ultimo_evento: string;
 }
+interface TrasFallo {
+  event_id: string; created_at: string; login_id: string; full_name: string | null; student_code: string | null; rol: string | null;
+  fallos: number; rechazos: number; primer_fallo: string; ultimo_fallo: string; segundos_tras_ultimo_fallo: number;
+  origenes_fallos: number; dispositivos_fallos: number; mismo_origen: boolean; mismo_dispositivo: boolean;
+  dispositivo_reconocido: boolean; origen_visto_antes: boolean; primer_acceso: boolean;
+  ip_hash: string | null; country: string | null; paises_fallos: string[]; browser: string | null; os: string | null; device_type: string | null;
+  nivel: 'critica' | 'alta' | 'moderada' | 'baja'; motivo: string; clasificacion: string | null;
+}
 interface Dispositivo { id: number; browser: string | null; os: string | null; device_type: string | null; first_seen: string; last_success: string; success_count: number; revoked_at: string | null; fallos_desde_este: number }
 
 const MOTIVO: Record<string, string> = {
@@ -205,6 +213,72 @@ function Graficos() {
   );
 }
 
+const NIVEL: Record<TrasFallo['nivel'], ['red' | 'amber' | 'green', string]> = {
+  critica: ['red', 'crítica'], alta: ['red', 'alta'], moderada: ['amber', 'moderada'], baja: ['green', 'baja'],
+};
+const espera = (s: number) => (s < 60 ? `${Math.round(s)} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`);
+
+/** «Fallaron y luego entraron»: un fallo informa poco; importa si quien falló logró entrar. */
+function TrasFallos({ onAbrir }: { onAbrir: (t: TrasFallo) => void }) {
+  const [dias, setDias] = useState(30);
+  const [todos, setTodos] = useState(false);
+  const d = useAsync(() => rpc<TrasFallo[]>('sec_access_after_failures', { p_days: dias }), [dias]);
+  const filas = (d.data ?? []).filter((t) => todos || t.nivel !== 'baja');
+  const graves = (d.data ?? []).filter((t) => t.nivel === 'critica' || t.nivel === 'alta').length;
+  const si = (b: boolean) => (b ? <strong className="text-red-600">sí</strong> : 'no');
+  return (
+    <Card
+      title={`Fallaron y luego entraron (${dias} días) · ${graves} a revisar`}
+      actions={
+        <select className="campo !w-auto !py-1 text-xs" value={dias} onChange={(e) => setDias(Number(e.target.value))}>
+          {[1, 7, 30, 90, 180].map((n) => <option key={n} value={n}>{n === 1 ? '24 h' : `${n} días`}</option>)}
+        </select>
+      }
+    >
+      <p className="mb-2 text-xs text-gray-500">
+        Cada acceso CORRECTO precedido de fallos de la misma cuenta (desde su acceso correcto anterior, máximo 24 h). La pregunta es si <strong>quien falló es quien entró</strong>:
+        mismo dispositivo o misma red que los fallos, desde un contexto que la cuenta nunca usó. Si entró desde su dispositivo o red habitual, lo normal es que el titular se equivocara y luego acertara.
+      </p>
+      <ErrorBox error={d.error} />
+      {d.loading ? <Spinner /> : !filas.length ? (
+        <p className="text-sm text-gray-500">{(d.data ?? []).length ? 'Solo hay casos de nivel bajo (contexto habitual).' : 'Ningún acceso correcto precedido de fallos en este periodo.'}</p>
+      ) : (
+        <div className="max-h-[28rem] overflow-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-gray-200 text-left text-xs dark:border-white/10">
+              <th className="py-1">Nivel</th><th>Cuenta</th><th>Entró</th><th className="text-right">Fallos antes</th><th>¿El que falló entró?</th><th>Contexto del acceso</th><th>Dispositivo</th><th />
+            </tr></thead>
+            <tbody>
+              {filas.map((t) => (
+                <tr key={t.event_id} className="cursor-pointer border-b border-gray-100 align-top hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5" onClick={() => onAbrir(t)}>
+                  <td className="py-1"><Badge tone={NIVEL[t.nivel][0]}>{NIVEL[t.nivel][1]}</Badge></td>
+                  <td>{t.full_name || t.login_id}{t.rol && t.rol !== 'student' && <> <Badge tone="purple">{t.rol}</Badge></>}<span className="block font-mono text-xs text-gray-500">{t.login_id}{t.student_code ? ` · ${t.student_code}` : ''}</span></td>
+                  <td className="whitespace-nowrap text-xs">{fecha(t.created_at)}<span className="block text-gray-500">{espera(t.segundos_tras_ultimo_fallo)} tras el último fallo</span></td>
+                  <td className="text-right tabular-nums text-red-600">{t.fallos}{t.rechazos ? <span className="block text-xs text-amber-700">+{t.rechazos} rech.</span> : null}<span className="block text-xs text-gray-500">{t.origenes_fallos} origen(es)</span></td>
+                  <td className="text-xs">Mismo dispositivo: {si(t.mismo_dispositivo)}<br />Misma red: {si(t.mismo_origen)}</td>
+                  <td className="text-xs">
+                    {t.primer_acceso ? 'Primer acceso de la cuenta' : <>Dispositivo reconocido: {t.dispositivo_reconocido ? 'sí' : <strong>no</strong>}<br />Red vista antes: {t.origen_visto_antes ? 'sí' : <strong>no</strong>}</>}
+                    {t.country && t.paises_fallos.length > 0 && <><br />País: {t.country} (fallos: {t.paises_fallos.join(', ')})</>}
+                  </td>
+                  <td className="text-xs">{[t.browser, t.os, t.device_type].filter(Boolean).join(' · ') || 'sin datos'}<span className="block font-mono text-gray-500">{origen(t.ip_hash)}</span></td>
+                  <td className="max-w-[16rem] text-xs">{t.motivo}{t.clasificacion && <span className="block font-semibold">Clasificado: {t.clasificacion}</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <label className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+        <input type="checkbox" checked={todos} onChange={(e) => setTodos(e.target.checked)} /> Mostrar también los de nivel bajo (contexto habitual)
+      </label>
+      <p className="mt-1 text-xs text-gray-500">
+        Nivel por reglas visibles, no probabilidades. Limitación: una red compartida (laboratorio, operador móvil) puede hacer «habitual» un origen ajeno, y el identificador del dispositivo puede borrarse.
+        Pulse una fila para analizar el acceso y clasificarlo («No la reconozco» si el titular no fue).
+      </p>
+    </Card>
+  );
+}
+
 export default function Seguridad() {
   const [login, setLogin] = useState('');
   const [resultado, setResultado] = useState('');
@@ -223,6 +297,13 @@ export default function Seguridad() {
     const ult = await rpc<Evento[]>('sec_events', { p_login: id, p_result: null, p_from: null, p_to: null, p_limit: 1 }).catch(() => []);
     if (ult[0]) {
       setSel(ult[0]);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+  async function abrirAcceso(t: TrasFallo) {
+    const ev = await rpc<Evento[]>('sec_events', { p_login: t.login_id, p_result: 'correcto', p_from: t.created_at, p_to: t.created_at, p_limit: 1 }).catch(() => []);
+    if (ev[0]) {
+      setSel(ev[0]);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }
@@ -255,6 +336,10 @@ export default function Seguridad() {
         Orígenes = redes seudónimas distintas entre todos los intentos. Los metadatos de dispositivo existen solo desde {r?.primer_evento_forense ? fecha(r.primer_evento_forense as string) : 'la activación de esta fase'}; los eventos anteriores no los tienen y no se inventan.
       </p>
 
+      {sel && <Ficha ev={sel} onCerrar={() => setSel(null)} />}
+
+      <TrasFallos onAbrir={(t) => void abrirAcceso(t)} />
+
       <Graficos />
 
       <Card title={`Alertas por reglas (7 días) · ${detecciones.data?.length ?? 0}`}>
@@ -269,8 +354,6 @@ export default function Seguridad() {
           </ul>
         ) : <p className="text-sm text-gray-500">Ninguna regla se activó en los últimos 7 días.</p>}
       </Card>
-
-      {sel && <Ficha ev={sel} onCerrar={() => setSel(null)} />}
 
       <Card title={`Todos los usuarios que ingresan (30 días) · ${usuarios.data?.length ?? 0}`}>
         <p className="mb-2 text-xs text-gray-500">Cada inicio de sesión (correcto o fallido) de cualquier cuenta, con el mismo detalle. Pulse un usuario para ver su último intento y su historial.</p>

@@ -157,8 +157,14 @@ function Panel({ nombre }: { nombre: string }) {
   const [alertas, setAlertas] = useState<{ regla: string; sujeto: string; severidad: string }[]>([]);
   useEffect(() => {
     const cargarAlertas = () =>
-      rpc<{ regla: string; sujeto: string; severidad: string }[]>('sec_detections', { p_hours: 24 })
-        .then((d) => setAlertas(d.filter((x) => x.severidad === 'alta' || x.severidad === 'critica')))
+      Promise.all([
+        rpc<{ regla: string; sujeto: string; severidad: string }[]>('sec_detections', { p_hours: 24 }),
+        // «fallaron y luego entraron» con contexto nunca visto (si la migración aún no está aplicada, se ignora)
+        rpc<{ login_id: string; nivel: string }[]>('sec_access_after_failures', { p_days: 1 })
+          .then((d) => d.map((x) => ({ regla: 'acceso_tras_fallos', sujeto: x.login_id, severidad: x.nivel })))
+          .catch(() => []),
+      ])
+        .then(([a, b]) => setAlertas([...a, ...b].filter((x) => x.severidad === 'alta' || x.severidad === 'critica')))
         .catch(() => setAlertas([]));
     void cargarAlertas();
     const t = window.setInterval(cargarAlertas, 120_000);
