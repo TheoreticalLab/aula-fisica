@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { abrirAsistencia, asistenciaEnVivo, cerrarAsistencia, informeAsistencia, marcarManual, nuevoCodigo, type AsistenciaEnVivo } from '@/api/asistencia';
 import { aCsv } from '@/lib/tiempo';
+import { porcentajeAsistencia, tonoAsistencia, UMBRAL_ASISTENCIA } from '@/lib/asistencia';
 import { useAction, useAsync } from '@/lib/util';
 import { Badge, Card, ErrorBox, Spinner } from '@/components/ui';
 
@@ -71,8 +72,8 @@ export function TabAsistencia({ classId, nombre }: { classId: string; nombre: st
 
   function exportar() {
     const ses = [...(inf.data?.sesiones ?? [])].reverse();
-    const filas = (inf.data?.estudiantes ?? []).map((e) => [e.full_name, e.student_code, ...ses.map((s) => (e.sesiones ?? []).includes(s.id) ? 'P' : 'A'), e.presentes, ses.length]);
-    const url = URL.createObjectURL(new Blob([aCsv([['Estudiante', 'Matrícula', ...ses.map((s) => fecha(s.opened_at)), 'Presentes', 'Clases'], ...filas])], { type: 'text/csv;charset=utf-8' }));
+    const filas = (inf.data?.estudiantes ?? []).map((e) => [e.full_name, e.student_code, ...ses.map((s) => (e.sesiones ?? []).includes(s.id) ? 'P' : 'A'), e.presentes, ses.length, porcentajeAsistencia(e.presentes, ses.length)]);
+    const url = URL.createObjectURL(new Blob([aCsv([['Estudiante', 'Matrícula', ...ses.map((s) => fecha(s.opened_at)), 'Presentes', 'Clases', '% asistencia'], ...filas])], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
     a.download = `asistencia-${nombre.replace(/\W+/g, '-')}.csv`;
@@ -97,6 +98,22 @@ export function TabAsistencia({ classId, nombre }: { classId: string; nombre: st
         )}
         {activa && <button className="btn-secundario mt-3 text-xs" onClick={() => { setActiva(null); void inf.reload(); }}>Volver al historial</button>}
       </Card>
+      {inf.data && inf.data.sesiones.length > 0 && (() => {
+        const n = inf.data.sesiones.length;
+        const pcts = inf.data.estudiantes.map((e) => porcentajeAsistencia(e.presentes, n) ?? 0);
+        const media = pcts.length ? Math.round(pcts.reduce((s, x) => s + x, 0) / pcts.length) : 0;
+        const bajos = inf.data.estudiantes.filter((e) => (porcentajeAsistencia(e.presentes, n) ?? 0) < UMBRAL_ASISTENCIA);
+        const ultima = inf.data.sesiones[0];
+        return (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="tarjeta !p-3"><p className="text-xs text-gray-500">Clases con lista pasada</p><p className="font-serif text-2xl font-semibold">{n}</p></div>
+            <div className="tarjeta !p-3"><p className="text-xs text-gray-500">Asistencia media</p><p className="font-serif text-2xl font-semibold"><Badge tone={tonoAsistencia(media)}>{media} %</Badge></p></div>
+            <div className="tarjeta !p-3"><p className="text-xs text-gray-500">Por debajo del {UMBRAL_ASISTENCIA} %</p><p className="font-serif text-2xl font-semibold">{bajos.length}<span className="text-sm text-gray-500"> de {inf.data.estudiantes.length}</span></p>
+              {bajos.length > 0 && <p className="text-xs text-gray-500">{bajos.slice(0, 4).map((e) => e.full_name.split(' ')[0]).join(', ')}{bajos.length > 4 ? '…' : ''}</p>}</div>
+            <div className="tarjeta !p-3"><p className="text-xs text-gray-500">Última clase ({fecha(ultima.opened_at)})</p><p className="font-serif text-2xl font-semibold">{ultima.presentes}<span className="text-sm text-gray-500"> / {inf.data.estudiantes.length} presentes</span></p></div>
+          </div>
+        );
+      })()}
       <Card title={`Historial · ${inf.data?.sesiones.length ?? 0} clases`} actions={<button className="btn-secundario !py-1 text-xs" onClick={exportar} disabled={!inf.data?.sesiones.length}>Exportar CSV</button>}>
         {inf.loading ? <Spinner /> : !inf.data?.sesiones.length ? <p className="text-sm text-gray-500">Aún no se ha pasado lista.</p> : (
           <div className="overflow-x-auto">
@@ -108,7 +125,7 @@ export function TabAsistencia({ classId, nombre }: { classId: string; nombre: st
                 {inf.data.estudiantes.map((e) => (
                   <tr key={e.user_id} className="border-b border-gray-100 dark:border-white/5">
                     <td className="py-1 pr-3"><Link className="enlace" to={`/docente/estudiantes/${e.user_id}`}>{e.full_name || e.student_code}</Link></td>
-                    <td className="pr-3 text-right tabular-nums">{e.presentes}/{inf.data!.sesiones.length}</td>
+                    <td className="whitespace-nowrap pr-3 text-right tabular-nums">{e.presentes}/{inf.data!.sesiones.length} <Badge tone={tonoAsistencia(porcentajeAsistencia(e.presentes, inf.data!.sesiones.length))}>{porcentajeAsistencia(e.presentes, inf.data!.sesiones.length)} %</Badge></td>
                     {inf.data!.sesiones.map((s) => <td key={s.id} className="px-1 text-center">{(e.sesiones ?? []).includes(s.id) ? <Badge tone="green">P</Badge> : <span className="text-red-500">A</span>}</td>)}
                   </tr>
                 ))}

@@ -1,4 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { porcentajeAsistencia, textoAsistencia, tonoAsistencia } from '../src/lib/asistencia';
+
+describe('métrica de asistencia', () => {
+  it('porcentaje, nivel y texto', () => {
+    expect(porcentajeAsistencia(8, 10)).toBe(80);
+    expect(porcentajeAsistencia(0, 0)).toBeNull();
+    expect([tonoAsistencia(null), tonoAsistencia(60), tonoAsistencia(80), tonoAsistencia(95)]).toEqual(['gray', 'red', 'amber', 'green']);
+    expect(textoAsistencia(7, 9)).toBe('7/9 · 78 %');
+    expect(textoAsistencia(0, 0)).toBe('sin clases registradas');
+  });
+});
 import { calcularNota, CATEGORIAS, leerCelda } from '../src/lib/notas';
 
 describe('registro de calificaciones', () => {

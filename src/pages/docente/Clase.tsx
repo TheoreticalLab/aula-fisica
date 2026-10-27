@@ -30,6 +30,8 @@ import type { ClassRow, Mode } from '@/api/tipos';
 import { downloadText, fecha, porcentaje, puntaje, toCsv, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, Empty, ErrorBox, Field, Notice, PageTitle, Spinner, Tabs } from '@/components/ui';
 import { TabAsistencia } from './AsistenciaTab';
+import { informeAsistencia } from '@/api/asistencia';
+import { porcentajeAsistencia, tonoAsistencia } from '@/lib/asistencia';
 import { TabEntregas } from './EntregasPdf';
 
 type Tab = 'estudiantes' | 'asistencia' | 'avisos' | 'actividades' | 'entregas' | 'calificaciones' | 'revision' | 'estadisticas';
@@ -90,8 +92,8 @@ export default function Clase() {
 
 function TabEstudiantes({ c, onChange }: { c: ClassRow; onChange: (c: ClassRow) => void }) {
   const data = useAsync(async () => {
-    const [r, g, t] = await Promise.all([roster(c.id), listGroups(c.id), classTeachers(c.id)]);
-    return { roster: r, groups: g, teachers: t };
+    const [r, g, t, a] = await Promise.all([roster(c.id), listGroups(c.id), classTeachers(c.id), informeAsistencia(c.id).catch(() => null)]);
+    return { roster: r, groups: g, teachers: t, asistencia: a };
   }, [c.id]);
   const action = useAction();
   const [groupName, setGroupName] = useState('');
@@ -100,7 +102,9 @@ function TabEstudiantes({ c, onChange }: { c: ClassRow; onChange: (c: ClassRow) 
   const [edit, setEdit] = useState({ name: c.name, term: c.term });
   if (data.loading) return <Spinner />;
   if (data.error) return <ErrorBox error={data.error} onRetry={data.reload} />;
-  const { roster: rs, groups, teachers } = data.data!;
+  const { roster: rs, groups, teachers, asistencia } = data.data!;
+  const clasesDadas = asistencia?.sesiones.length ?? 0;
+  const presentesDe = new Map((asistencia?.estudiantes ?? []).map((e) => [e.user_id, e.presentes]));
   const sorted = [...rs].sort((a, b) => (a.profiles?.full_name ?? '').localeCompare(b.profiles?.full_name ?? ''));
   const patch = async (p: Partial<ClassRow>) => {
     const r = await action.run(() => updateClass(c.id, p));
@@ -112,14 +116,15 @@ function TabEstudiantes({ c, onChange }: { c: ClassRow; onChange: (c: ClassRow) 
         <Card title={`Estudiantes matriculados (${rs.length})`}
           actions={rs.length > 0 && (
             <button className="btn-texto text-sm" onClick={() => downloadText(`estudiantes-${c.name}.csv`, toCsv([
-              ['Nombre', 'ID', 'Matrícula', 'Grupo', 'Fecha de matrícula'],
-              ...sorted.map((s) => [s.profiles?.full_name, s.profiles?.login_id, s.profiles?.student_code, groups.find((g) => g.id === s.group_id)?.name, fecha(s.enrolled_at)]),
+              ['Nombre', 'ID', 'Matrícula', 'Grupo', 'Fecha de matrícula', 'Asistencias', 'Clases', '% asistencia'],
+              ...sorted.map((s) => [s.profiles?.full_name, s.profiles?.login_id, s.profiles?.student_code, groups.find((g) => g.id === s.group_id)?.name, fecha(s.enrolled_at),
+                presentesDe.get(s.user_id) ?? 0, clasesDadas, porcentajeAsistencia(presentesDe.get(s.user_id) ?? 0, clasesDadas) ?? '']),
             ]))}>Exportar CSV</button>
           )}>
           {rs.length ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="text-left text-xs uppercase text-gray-500"><th className="py-1 pr-2">Nombre</th><th className="py-1 pr-2">Matrícula</th><th className="py-1 pr-2">Grupo</th><th /></tr></thead>
+                <thead><tr className="text-left text-xs uppercase text-gray-500"><th className="py-1 pr-2">Nombre</th><th className="py-1 pr-2">Matrícula</th><th className="py-1 pr-2" title={`Clases con lista pasada: ${clasesDadas}`}>Asistencia</th><th className="py-1 pr-2">Grupo</th><th /></tr></thead>
                 <tbody>
                   {sorted.map((s) => (
                     <tr key={s.user_id} className="border-t border-gray-100 dark:border-white/10">
@@ -128,6 +133,14 @@ function TabEstudiantes({ c, onChange }: { c: ClassRow; onChange: (c: ClassRow) 
                         <span className="block text-xs text-gray-500">ID {s.profiles?.login_id ?? '—'}{s.profiles && !s.profiles.active ? ' · suspendida' : ''}</span>
                       </td>
                       <td className="py-2 pr-2">{s.profiles?.student_code}</td>
+                      <td className="py-2 pr-2 whitespace-nowrap">
+                        {clasesDadas ? (() => {
+                          const p = presentesDe.get(s.user_id) ?? 0;
+                          const pct = porcentajeAsistencia(p, clasesDadas);
+                          return <Badge tone={tonoAsistencia(pct)}>{pct} %</Badge>;
+                        })() : <span className="text-xs text-gray-400">—</span>}
+                        {clasesDadas > 0 && <span className="block text-xs text-gray-500">{presentesDe.get(s.user_id) ?? 0}/{clasesDadas}</span>}
+                      </td>
                       <td className="py-2 pr-2">
                         <select className="campo py-1 text-sm" value={s.group_id ?? ''} aria-label="Grupo"
                           onChange={async (e) => { await action.run(() => setStudentGroup(c.id, s.user_id, e.target.value || null)); await data.reload(); }}>

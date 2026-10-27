@@ -9,6 +9,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { rpc } from '@/lib/supabase';
 import { useAction, useAsync } from '@/lib/util';
 import { abrirPdf } from '@/api/entregas';
+import { porcentajeAsistencia, textoAsistencia, tonoAsistencia, UMBRAL_ASISTENCIA } from '@/lib/asistencia';
 import { useDark } from '@/lib/tema';
 import { etiquetaSeccion, formatoDuracion } from '@/lib/tiempo';
 import { CATEGORIAS, calcularNota, type Notas } from '@/lib/notas';
@@ -121,14 +122,26 @@ function estadoActividad(a: Actividad): [string, 'green' | 'amber' | 'red' | 'gr
   return vencida ? ['no la intentó (cerrada)', 'red'] : ['no la ha intentado', 'amber'];
 }
 
-function Resumen({ f }: { f: Ficha }) {
+function Resumen({ f, x }: { f: Ficha; x: Extras | null }) {
   const acts = f.actividades;
   const sinIntentar = acts.filter((a) => a.intentos === 0 && !(a.abre && new Date(a.abre) > new Date()));
   const vencidas = sinIntentar.filter((a) => a.cierra && new Date(a.cierra) < new Date());
   const r = f.respuestas;
+  const asis = x?.asistencia ?? [];
+  const clases = asis.reduce((s, a) => s + a.sesiones, 0);
+  const presentes = asis.reduce((s, a) => s + a.presentes, 0);
+  const pctAsis = porcentajeAsistencia(presentes, clases);
+  const ausenciasSeguidas = (() => {
+    // ausencias consecutivas más recientes (en cualquier sección)
+    const det = asis.flatMap((a) => a.detalle).sort((p, q) => q.fecha.localeCompare(p.fecha));
+    let n = 0;
+    for (const d of det) { if (d.presente) break; n++; }
+    return n;
+  })();
   return (
     <div className="space-y-4">
-      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-2 sm:grid-cols-4 lg:grid-cols-7">
+        <Dato k="Asistencia a clase" v={pctAsis === null ? '—' : <Badge tone={tonoAsistencia(pctAsis)}>{pctAsis} %</Badge>} sub={clases ? `${presentes} de ${clases} clases${ausenciasSeguidas ? ` · ${ausenciasSeguidas} ausencia(s) seguida(s)` : ''}` : 'aún no se ha pasado lista'} />
         <Dato k="Última vez que entró" v={hace(f.accesos.ultimo_acceso ?? f.perfil.ultimo_ingreso_auth)} sub={fecha(f.accesos.ultimo_acceso ?? f.perfil.ultimo_ingreso_auth)} />
         <Dato k="Ingresos al aula" v={f.accesos.correctos} sub={`${f.accesos.dias_con_acceso} días distintos · ${f.accesos.fallos} fallos`} />
         <Dato k="Tiempo de estudio efectivo" v={formatoDuracion(f.estudio.efectivo)} sub={`${f.estudio.dias_activos} días activos`} />
@@ -153,11 +166,14 @@ function Resumen({ f }: { f: Ficha }) {
           {f.clases.map((c) => (
             <div key={c.class_id} className="border-b border-gray-100 py-1.5 text-sm dark:border-white/5">
               <Link className="enlace font-medium" to={`/docente/clases/${c.class_id}`}>{c.nombre}</Link> {c.archivada && <Badge>archivada</Badge>} {c.monitor && <Badge tone="purple">monitor</Badge>}
-              <span className="block text-xs text-gray-500">{c.asignatura}{c.periodo ? ` · ${c.periodo}` : ''}{c.grupo ? ` · grupo ${c.grupo}` : ''} · inscrito {fecha(c.inscrito)}</span>
+              <span className="block text-xs text-gray-500">{c.asignatura}{c.periodo ? ` · ${c.periodo}` : ''}{c.grupo ? ` · grupo ${c.grupo}` : ''} · inscrito {fecha(c.inscrito)}
+                {(() => { const a = asis.find((y) => y.clase === c.nombre); return a && a.sesiones ? ` · asistencia ${textoAsistencia(a.presentes, a.sesiones)}` : ''; })()}</span>
             </div>
           ))}
           <h3 className="mb-1 mt-3 text-sm font-semibold">Lo que conviene mirar</h3>
           <ul className="list-disc space-y-0.5 pl-5 text-sm">
+            {pctAsis !== null && pctAsis < UMBRAL_ASISTENCIA && <li className="text-red-700 dark:text-red-400">Asistencia de {pctAsis} %, por debajo del {UMBRAL_ASISTENCIA} % ({clases - presentes} ausencias).</li>}
+            {ausenciasSeguidas >= 2 && <li>Faltó a las últimas {ausenciasSeguidas} clases.</li>}
             {vencidas.length > 0 && <li className="text-red-700 dark:text-red-400">No intentó {vencidas.length} actividad(es) ya cerrada(s): {vencidas.slice(0, 3).map((a) => a.titulo).join(', ')}{vencidas.length > 3 ? '…' : ''}</li>}
             {sinIntentar.length - vencidas.length > 0 && <li>{sinIntentar.length - vencidas.length} actividad(es) abiertas sin empezar.</li>}
             {r.errores.length > 0 && <li>Error más frecuente: <strong>{nombreCodigo(r.errores[0].codigo)}</strong> ({r.errores[0].n} veces).</li>}
@@ -480,19 +496,15 @@ interface Extras {
   entregas: { buzon: string; clase: string; tipo: string; cierra: Iso; permiso: string | null; archivos: { id: string; nombre: string; bytes: number; subido: string; estado: string; nota: string | null }[] }[];
 }
 
-function AsistenciaEntregas({ userId }: { userId: string }) {
-  const st = useAsync(() => rpc<Extras>('student_extras', { p_user: userId }), [userId]);
+function AsistenciaEntregas({ x }: { x: Extras }) {
   const accion = useAction();
-  if (st.loading) return <Spinner />;
-  if (st.error) return <ErrorBox error={st.error} />;
-  const x = st.data!;
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card title="Asistencia">
         <ErrorBox error={accion.error} />
         {x.asistencia.length ? x.asistencia.map((a) => (
           <div key={a.clase} className="mb-3">
-            <p className="text-sm font-medium">{a.clase} — {a.presentes}/{a.sesiones} clases ({pct(a.presentes, a.sesiones)})</p>
+            <p className="text-sm font-medium">{a.clase} — {a.presentes}/{a.sesiones} clases <Badge tone={tonoAsistencia(porcentajeAsistencia(a.presentes, a.sesiones))}>{porcentajeAsistencia(a.presentes, a.sesiones) ?? '—'} %</Badge></p>
             <div className="mt-1 flex flex-wrap gap-1">
               {a.detalle.map((d, i) => (
                 <span key={i} title={d.presente ? `Presente ${d.hora ? hora(d.hora) : ''}${d.como === 'profesor' ? ' (marcado por el profesor)' : ''}` : 'Ausente'}
@@ -549,10 +561,14 @@ export default function FichaEstudiante() {
   const [tab, setTab] = useState<Tab>('resumen');
   // el parámetro es el identificador interno o, desde el Centro de seguridad, el ID de acceso
   const esUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
-  const st = useAsync(() => (esUuid ? rpc<Ficha>('student_dossier', { p_user: userId }) : rpc<Ficha>('student_dossier_by_login', { p_login: userId })), [userId]);
+  const st = useAsync(async () => {
+    const f = await (esUuid ? rpc<Ficha>('student_dossier', { p_user: userId }) : rpc<Ficha>('student_dossier_by_login', { p_login: userId }));
+    const x = await rpc<Extras>('student_extras', { p_user: f.perfil.id }).catch(() => null);
+    return { f, x };
+  }, [userId]);
   if (st.loading) return <Spinner label="Reuniendo toda la información del estudiante…" />;
   if (st.error) return <ErrorBox error={st.error} onRetry={st.reload} />;
-  const f = st.data!;
+  const { f, x } = st.data!;
   const volver = classId ? { to: `/docente/clases/${classId}`, label: f.clases.find((c) => c.class_id === classId)?.nombre ?? 'Sección' } : { to: '/docente', label: 'Panel docente' };
   return (
     <div className="space-y-4">
@@ -571,13 +587,13 @@ export default function FichaEstudiante() {
         { id: 'actividades', label: 'Actividades' }, { id: 'respuestas', label: 'Respuestas y errores' }, { id: 'notas', label: 'Calificaciones' }, { id: 'asistencia', label: 'Asistencia y entregas' },
         { id: 'dominio', label: 'Dominio' }, { id: 'comunicacion', label: 'Mensajes y cuenta' },
       ]} />
-      {tab === 'resumen' && <Resumen f={f} />}
+      {tab === 'resumen' && <Resumen f={f} x={x} />}
       {tab === 'accesos' && <Accesos f={f} />}
       {tab === 'estudio' && <Estudio f={f} />}
       {tab === 'actividades' && <Actividades f={f} />}
       {tab === 'respuestas' && <Respuestas f={f} />}
       {tab === 'notas' && <Calificaciones f={f} />}
-      {tab === 'asistencia' && <AsistenciaEntregas userId={f.perfil.id} />}
+      {tab === 'asistencia' && (x ? <AsistenciaEntregas x={x} /> : <ErrorBox error="No se pudo cargar la asistencia." onRetry={st.reload} />)}
       {tab === 'dominio' &&<Dominio f={f} userId={f.perfil.id} />}
       {tab === 'comunicacion' && <Comunicacion f={f} />}
       <p className="text-xs text-gray-500">Datos al {fecha(f.generado)}. Cada consulta de esta ficha queda registrada. Solo se muestran las secciones a su cargo.</p>
