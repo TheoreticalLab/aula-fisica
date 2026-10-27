@@ -66,6 +66,12 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--acento); ou
 .asistencia { display: grid; gap: 0.8rem; }
 .codigo { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: clamp(3rem, 16vw, 5.5rem); font-weight: 800; letter-spacing: 0.12em; line-height: 1.05; }
 .codigo.vencido { color: #475569; text-decoration: line-through; }
+.barra { height: 6px; width: min(16rem, 80%); margin: 0.2rem auto; background: var(--borde); border-radius: 3px; overflow: hidden; }
+.barra > div { height: 100%; background: var(--acento); transition: width 1s linear; }
+.advertencia { color: #fbbf24; }
+.rechazo { border-color: #7f1d1d; }
+.casilla { display: flex; align-items: center; gap: 0.5rem; color: var(--texto); }
+.casilla input { width: auto; }
 .pestanas button {
   font: inherit; font-weight: 600; min-height: 44px; border-radius: 10px; cursor: pointer;
   background: transparent; color: var(--tenue); border: 1px solid var(--borde);

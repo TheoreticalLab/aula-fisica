@@ -9,6 +9,7 @@ import { construirDatosPanel, type DatosCurso } from '@/lib/panel';
 import { useAsync } from '@/lib/util';
 import { ErrorBox, Spinner } from '@/components/ui';
 import { PanelEstudiante } from '../estudiante/PanelEstudiante';
+import { BotonAsistencia } from '@/components/BotonAsistencia';
 
 export default function VistaPanel() {
   const { classId = '' } = useParams();
@@ -64,7 +65,7 @@ export default function VistaPanel() {
         </p>
       </div>
       {st.loading ? <Spinner /> : st.error ? <ErrorBox error={st.error} onRetry={st.reload} /> : (
-        <PanelEstudiante d={st.data!.datos} rutaActividad={(a) => `/docente/actividades/${a}/vista-previa`} />
+        <PanelEstudiante d={st.data!.datos} rutaActividad={(a) => `/docente/actividades/${a}/vista-previa`} asistencia={<BotonAsistencia />} />
       )}
     </div>
   );

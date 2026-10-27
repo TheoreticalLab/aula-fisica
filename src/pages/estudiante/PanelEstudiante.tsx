@@ -77,7 +77,7 @@ function saludo(): string {
 
 const ICONO_CONTINUAR = { leccion: '📖', practica: '✏️', actividad: '📝' } as const;
 
-export function PanelEstudiante({ d, rutaActividad = (id) => `/actividad/${id}` }: { d: DatosPanel; rutaActividad?: (id: string) => string }) {
+export function PanelEstudiante({ d, rutaActividad = (id) => `/actividad/${id}`, asistencia }: { d: DatosPanel; rutaActividad?: (id: string) => string; asistencia?: ReactNode }) {
   const ahora = Date.now();
   const proximas = d.actividades
     .filter((a) => !a.closes_at || new Date(a.closes_at).getTime() > ahora)
@@ -111,15 +111,7 @@ export function PanelEstudiante({ d, rutaActividad = (id) => `/actividad/${id}` 
         </nav>
       </header>
 
-      {d.cursos.length > 0 && (
-        <Link to="/asistencia" className="flex items-center justify-between gap-3 rounded-2xl border border-primario-200 bg-primario-50 px-5 py-4 hover:bg-primario-100 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
-          <span>
-            <span className="block font-serif text-lg font-semibold">📋 ¿Está en clase? Marque su asistencia</span>
-            <span className="block text-sm text-gray-600 dark:text-gray-300">Escriba el código de 6 cifras que da el profesor.</span>
-          </span>
-          <span className="btn-primario whitespace-nowrap">Marcar asistencia</span>
-        </Link>
-      )}
+      {d.cursos.length > 0 && asistencia}
 
       {!d.cursos.length && (
         <div className="rounded-2xl border border-dashed border-primario-300 p-6 text-center">

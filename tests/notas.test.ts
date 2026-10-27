@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { porcentajeAsistencia, textoAsistencia, tonoAsistencia } from '../src/lib/asistencia';
+import { textoVerificacion } from '../src/lib/ubicacion';
+
+describe('verificación de ubicación en la asistencia', () => {
+  it('texto para el profesor', () => {
+    expect(textoVerificacion('verificado', 25, 12)).toBe('📍 a 25 m');
+    expect(textoVerificacion('impreciso', 400, 800)).toBe('⚠ ubicación imprecisa (±800 m, a 400 m)');
+    expect(textoVerificacion('sin_ubicacion', null, null)).toBe('⚠ sin ubicación');
+    expect(textoVerificacion(null, null, null)).toBe('');
+  });
+});
 
 describe('métrica de asistencia', () => {
   it('porcentaje, nivel y texto', () => {

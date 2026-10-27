@@ -4,12 +4,17 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { rpc } from './supabase';
+import { MOTIVO_RECHAZO, textoVerificacion, ubicacionActual } from '../../src/lib/ubicacion';
 
 interface Seccion { class_id: string; class_name: string; course_title: string }
 interface EnVivo {
   id: string; clase: string; asignatura: string; code: string; code_expires_at: string; closed_at: string | null; server_now: string;
-  estudiantes: { user_id: string; full_name: string; student_code: string | null; presente: boolean; marked_at: string | null; method: string | null }[];
+  rotate_seconds: number; code_changes_at: string | null; require_location: boolean; geo_radius_m: number; tiene_ubicacion: boolean;
+  estudiantes: { user_id: string; full_name: string; student_code: string | null; presente: boolean; marked_at: string | null; method: string | null;
+    geo_status: string | null; distance_m: number | null; accuracy: number | null }[];
+  rechazos: { full_name: string; student_code: string | null; motivo: string; distance_m: number | null; accuracy: number | null; fecha: string }[];
 }
+const distancia = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`);
 interface Abierta { id: string; class_id: string; clase: string; code_expires_at: string; presentes: number }
 
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -18,7 +23,11 @@ export function Asistencia() {
   const [secciones, setSecciones] = useState<Seccion[]>([]);
   const [abiertas, setAbiertas] = useState<Abierta[]>([]);
   const [clase, setClase] = useState('');
-  const [minutos, setMinutos] = useState(10);
+  const [minutos, setMinutos] = useState(15);
+  const [rotar, setRotar] = useState(30);
+  const [verificar, setVerificar] = useState(true);
+  const [radio, setRadio] = useState(100);
+  const [paso, setPaso] = useState<string | null>(null);
   const [activa, setActiva] = useState<string | null>(null);
   const [d, setD] = useState<EnVivo | null>(null);
   const [desfase, setDesfase] = useState(0);
@@ -69,6 +78,8 @@ export function Asistencia() {
     const vigente = !d.closed_at && restante > 0;
     const presentes = d.estudiantes.filter((e) => e.presente).sort((a, b) => (b.marked_at ?? '').localeCompare(a.marked_at ?? ''));
     const ausentes = d.estudiantes.filter((e) => !e.presente);
+    const cambiaEn = d.code_changes_at ? Math.max(0, Math.ceil((new Date(d.code_changes_at).getTime() - (Date.now() + desfase)) / 1000)) : null;
+    if (cambiaEn === 0) void cargar(d.id).catch(() => undefined);
     return (
       <div className="asistencia">
         <button className="enlace" onClick={() => { setActiva(null); setD(null); void cargarInicio(); }}>← Secciones</button>
@@ -76,7 +87,14 @@ export function Asistencia() {
         <section className="tarjeta resumen">
           <p className="tenue">CÓDIGO DE ASISTENCIA</p>
           <p className={`codigo ${vigente ? '' : 'vencido'}`}>{d.code.slice(0, 3)} {d.code.slice(3)}</p>
-          <p className="tenue">{d.closed_at ? 'Asistencia cerrada' : vigente ? `Vence en ${Math.floor(restante / 60)}:${String(restante % 60).padStart(2, '0')}` : 'Código vencido: genere uno nuevo'}</p>
+          {vigente && cambiaEn !== null && (
+            <>
+              <div className="barra" aria-hidden="true"><div style={{ width: `${(100 * cambiaEn) / d.rotate_seconds}%` }} /></div>
+              <p className="tenue pequeno">Cambia en {cambiaEn} s</p>
+            </>
+          )}
+          <p className="tenue">{d.closed_at ? 'Asistencia cerrada' : vigente ? `Abierta ${Math.floor(restante / 60)}:${String(restante % 60).padStart(2, '0')} más` : 'Tiempo terminado'}</p>
+          <p className="tenue pequeno">{d.tiene_ubicacion ? `📍 Verifica ubicación · radio ${d.geo_radius_m} m${d.require_location ? ' · obligatoria' : ''}` : 'Sin verificación de ubicación'}</p>
           <p className="cifra">{presentes.length}<span className="tenue"> / {d.estudiantes.length}</span></p>
           <p className="tenue">PRESENTES</p>
           <div className="fila">
@@ -90,11 +108,23 @@ export function Asistencia() {
           {presentes.map((e) => (
             <article key={e.user_id} className="tarjeta alumno">
               <div><p className="nombre"><span className="punto" aria-hidden="true" /> {e.full_name || e.student_code}</p>
-                <p className="tenue">{e.marked_at ? hora(e.marked_at) : ''}{e.method === 'profesor' ? ' · marcado por usted' : ' · con código'}</p></div>
+                <p className="tenue">{e.marked_at ? hora(e.marked_at) : ''}{e.method === 'profesor' ? ' · marcado por usted' : ' · con código'}</p>
+                {e.method === 'codigo' && e.geo_status && <p className={e.geo_status === 'verificado' ? 'verde pequeno' : 'advertencia pequeno'}>{textoVerificacion(e.geo_status, e.distance_m, e.accuracy)}</p>}</div>
               <button className="boton secundario pequeno" disabled={busy} onClick={() => void hacer(async () => { await rpc('attendance_set', { p_session: d.id, p_user: e.user_id, p_present: false }); await cargar(d.id); })}>Quitar</button>
             </article>
           ))}
         </section>
+        {d.rechazos.length > 0 && (
+          <section className="grupo">
+            <h2>⛔ INTENTOS RECHAZADOS ({d.rechazos.length})</h2>
+            {d.rechazos.map((r, i) => (
+              <article key={i} className="tarjeta rechazo">
+                <p className="nombre">{r.full_name || r.student_code}</p>
+                <p className="tenue">{hora(r.fecha)} · {MOTIVO_RECHAZO[r.motivo] ?? r.motivo}{r.distance_m !== null ? ` · a ${distancia(r.distance_m)}${r.accuracy ? ` (±${r.accuracy} m)` : ''}` : ''}</p>
+              </article>
+            ))}
+          </section>
+        )}
         <section className="grupo">
           <h2>AUSENTES ({ausentes.length})</h2>
           {ausentes.map((e) => (
@@ -130,16 +160,40 @@ export function Asistencia() {
             {secciones.map((s) => <option key={s.class_id} value={s.class_id}>{s.course_title} — {s.class_name}</option>)}
           </select>
         </label>
-        <label>El código vale
+        <label>Abierta durante
           <select value={minutos} onChange={(e) => setMinutos(Number(e.target.value))}>
             {[5, 10, 15, 20, 30, 60].map((m) => <option key={m} value={m}>{m} minutos</option>)}
           </select>
         </label>
+        <label>El código cambia
+          <select value={rotar} onChange={(e) => setRotar(Number(e.target.value))}>
+            <option value={15}>cada 15 segundos</option><option value={30}>cada 30 segundos (recomendado)</option><option value={60}>cada minuto</option><option value={0}>nunca (código fijo)</option>
+          </select>
+        </label>
+        <label className="casilla"><input type="checkbox" checked={verificar} onChange={(e) => setVerificar(e.target.checked)} /> Verificar que están en el aula (ubicación)</label>
+        {verificar && (
+          <label>Radio del aula
+            <select value={radio} onChange={(e) => setRadio(Number(e.target.value))}>
+              {[50, 100, 150, 250, 500].map((m) => <option key={m} value={m}>{m} metros</option>)}
+            </select>
+          </label>
+        )}
         <button className="boton grande" disabled={!clase || busy} onClick={() => void hacer(async () => {
-          const r = await rpc<{ id: string }>('attendance_open', { p_class: clase, p_minutes: minutos });
+          let u: { lat: number; lng: number; accuracy: number } | null = null;
+          if (verificar) {
+            setPaso('Obteniendo su ubicación…');
+            const r = await ubicacionActual();
+            setPaso(null);
+            if (!r.ubicacion) throw new Error(`${r.motivo} Sin su ubicación no se puede verificar la de los estudiantes; desmarque la verificación si quiere abrir igualmente.`);
+            u = r.ubicacion;
+          }
+          const r = await rpc<{ id: string }>('attendance_start', {
+            p_class: clase, p_minutes: minutos, p_rotate: rotar, p_lat: u?.lat ?? null, p_lng: u?.lng ?? null, p_accuracy: u?.accuracy ?? null,
+            p_require_location: verificar, p_radius: radio,
+          });
           setActiva(r.id);
-        })}>Abrir asistencia y generar código</button>
-        <p className="tenue pequeno">Dicte el código en clase. Los estudiantes lo escriben en el aula, en «Asistencia», y aparecen aquí al instante. Si abre otra asistencia en la misma sección, la anterior se cierra.</p>
+        })}>{paso ?? 'Abrir asistencia y mostrar el código'}</button>
+        <p className="tenue pequeno">Muestre esta pantalla en el proyector o léala en voz alta. Con el código que cambia, quien lo reciba por mensaje fuera del aula probablemente llegue tarde. Con la ubicación, el servidor rechaza a quien esté fuera del radio. Un mismo dispositivo no puede marcar a dos estudiantes. Verá cada rechazo aquí. Si abre otra asistencia en la misma sección, la anterior se cierra.</p>
       </section>
     </div>
   );

@@ -21,6 +21,7 @@ import { leerUltimaLeccion } from '@/lib/ultimaLeccion';
 import { useAsync } from '@/lib/util';
 import { Card, ErrorBox, Spinner } from '@/components/ui';
 import { PanelEstudiante, type DatosPanel } from './PanelEstudiante';
+import { BotonAsistencia } from '@/components/BotonAsistencia';
 
 export default function Inicio() {
   const { profile, isTeacher } = useAuth();
@@ -58,7 +59,7 @@ export default function Inicio() {
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   // Un profesor no inscrito como estudiante vería un panel vacío: se le ofrece el de sus secciones.
   if (isTeacher && data!.cursos.length === 0) return <ElegirSeccionVistaPrevia />;
-  return <PanelEstudiante d={data!} />;
+  return <PanelEstudiante d={data!} asistencia={<BotonAsistencia />} />;
 }
 
 function ElegirSeccionVistaPrevia() {
