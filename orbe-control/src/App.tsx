@@ -7,7 +7,8 @@ import type { Session } from '@supabase/supabase-js';
 import { configurado, ingresar, rpc, supabase } from './supabase';
 import { agrupar, edadSenal, estadoSync, filtrar, haceTexto, unicos, type EnLinea } from './logica';
 
-type Tipo = 'informativo' | 'importante' | 'urgente';
+type Tipo = 'informativo' | 'importante' | 'urgente' | 'bloqueo';
+interface Bloqueo { id: string; full_name: string; student_code: string | null; body: string; created_at: string; failed_attempts: number }
 interface Historial { id: string; body: string; kind: Tipo; created_at: string; total: number; pendientes: number; recibidos: number; confirmados: number; expirados: number }
 type Destino = { tipo: 'uno'; alumno: EnLinea } | { tipo: 'seccion'; class_id: string; titulo: string; n: number } | { tipo: 'todos'; n: number };
 
@@ -50,15 +51,27 @@ function Login() {
 function Redactar({ destino, onCerrar, onEnviado }: { destino: Destino; onCerrar: () => void; onEnviado: (msg: string) => void }) {
   const [texto, setTexto] = useState('');
   const [tipo, setTipo] = useState<Tipo>('importante');
+  const [codigo, setCodigo] = useState('');
   const [confirmar, setConfirmar] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const colectivo = destino.tipo !== 'uno';
   async function enviar() {
-    if (colectivo && !confirmar) return setConfirmar(true);
+    if ((colectivo || tipo === 'bloqueo') && !confirmar) return setConfirmar(true);
     setBusy(true);
     setError(null);
     try {
+      if (tipo === 'bloqueo') {
+        const b = await rpc<{ locked: number }>('send_screen_lock', {
+          p_body: texto,
+          p_code: codigo,
+          p_mode: destino.tipo === 'uno' ? 'seleccion' : 'conectados',
+          p_users: destino.tipo === 'uno' ? [destino.alumno.user_id] : null,
+          p_class: destino.tipo === 'seccion' ? destino.class_id : null,
+        });
+        onEnviado(`Pantalla bloqueada a ${b.locked} estudiante(s). Código: ${codigo.trim()}`);
+        return;
+      }
       const r =
         destino.tipo === 'uno'
           ? await rpc<{ recipients: number }>('send_live_message', { p_kind: tipo, p_body: texto, p_mode: 'seleccion', p_users: [destino.alumno.user_id], p_class: null, p_expires_minutes: 1440 })
@@ -83,14 +96,28 @@ function Redactar({ destino, onCerrar, onEnviado }: { destino: Destino; onCerrar
             <option value="informativo">Informativo (aviso breve)</option>
             <option value="importante">Importante (pide «Entendido»)</option>
             <option value="urgente">Urgente (destacado hasta confirmar)</option>
+            <option value="bloqueo">🔒 Bloqueo con código</option>
           </select>
         </label>
-        <label>Mensaje<textarea rows={4} maxLength={2000} autoFocus value={texto} onChange={(e) => { setTexto(e.target.value); setConfirmar(false); }} /></label>
-        {confirmar && <p className="aviso">¿Enviar este mensaje a {destino.tipo === 'uno' ? 1 : destino.n} estudiante(s)? Los destinatarios exactos los determina el servidor en el momento del envío.</p>}
+        <label>Mensaje<textarea rows={4} maxLength={tipo === 'bloqueo' ? 1000 : 2000} autoFocus value={texto} onChange={(e) => { setTexto(e.target.value); setConfirmar(false); }} /></label>
+        {tipo === 'bloqueo' && (
+          <label>Código de desbloqueo (anótelo: se guarda cifrado)
+            <input maxLength={32} autoComplete="off" value={codigo} onChange={(e) => { setCodigo(e.target.value); setConfirmar(false); }} />
+          </label>
+        )}
+        {confirmar && (
+          <p className="aviso">
+            {tipo === 'bloqueo'
+              ? `¿Bloquear la pantalla de ${destino.tipo === 'uno' ? 1 : destino.n} estudiante(s)? Solo se quitará con el código «${codigo.trim()}» o si usted lo libera.`
+              : `¿Enviar este mensaje a ${destino.tipo === 'uno' ? 1 : destino.n} estudiante(s)? Los destinatarios exactos los determina el servidor en el momento del envío.`}
+          </p>
+        )}
         {error && <p className="error">{error}</p>}
         <div className="fila">
           <button className="boton secundario" onClick={onCerrar}>Cancelar</button>
-          <button className="boton" disabled={busy || !texto.trim()} onClick={() => void enviar()}>{busy ? 'Enviando…' : confirmar ? 'Sí, enviar' : 'Enviar mensaje'}</button>
+          <button className="boton" disabled={busy || !texto.trim() || (tipo === 'bloqueo' && codigo.trim().length < 4)} onClick={() => void enviar()}>
+            {busy ? 'Enviando…' : confirmar ? (tipo === 'bloqueo' ? 'Sí, bloquear' : 'Sí, enviar') : tipo === 'bloqueo' ? 'Bloquear pantalla' : 'Enviar mensaje'}
+          </button>
         </div>
       </div>
     </div>
@@ -120,9 +147,11 @@ function Panel({ nombre }: { nombre: string }) {
       /* se muestra «Reconectando…» por la edad de la última consulta correcta */
     }
   }, []);
+  const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
   const cargarHistorial = useCallback(async () => {
     try {
       setHistorial(await rpc<Historial[]>('live_message_history', { p_user: null, p_limit: 8 }));
+      setBloqueos(await rpc<Bloqueo[]>('active_screen_locks'));
     } catch {
       /* sin conexión */
     }
@@ -222,6 +251,21 @@ function Panel({ nombre }: { nombre: string }) {
         ))}
       </div>
 
+      {bloqueos.length > 0 && (
+        <section className="grupo">
+          <h2>🔒 PANTALLAS BLOQUEADAS ({bloqueos.length})</h2>
+          {bloqueos.map((b) => (
+            <article key={b.id} className="tarjeta alumno">
+              <div>
+                <p className="nombre">{b.full_name || b.student_code}</p>
+                <p className="tenue">{b.body}</p>
+                <p className="tenue">{b.failed_attempts ? `${b.failed_attempts} intento(s) fallido(s)` : 'Sin intentos fallidos'}</p>
+              </div>
+              <button className="boton secundario" onClick={() => void rpc('release_screen_lock', { p_lock: b.id }).then(cargarHistorial)}>Liberar</button>
+            </article>
+          ))}
+        </section>
+      )}
       {historial.length > 0 && (
         <section className="grupo">
           <h2>ÚLTIMOS MENSAJES</h2>

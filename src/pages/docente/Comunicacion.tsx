@@ -40,7 +40,9 @@ export default function Comunicacion() {
   const [sel, setSel] = useState<Set<string>>(new Set(params.get('u') ? [params.get('u')!] : []));
   const [seccion, setSeccion] = useState('');
   const [modo, setModo] = useState<'seleccion' | 'seccion' | 'todos' | 'conectados'>(params.get('u') ? 'seleccion' : 'seleccion');
-  const [tipo, setTipo] = useState<TipoMensaje>('importante');
+  const [tipo, setTipo] = useState<TipoMensaje | 'bloqueo'>('importante');
+  const [codigo, setCodigo] = useState('');
+  const bloqueos = useAsync(() => rpc<{ id: string; user_id: string; full_name: string; student_code: string | null; body: string; created_at: string; failed_attempts: number }[]>('active_screen_locks'), []);
   const [vigencia, setVigencia] = useState(1440);
   const [texto, setTexto] = useState('');
   const [enviado, setEnviado] = useState<string | null>(null);
@@ -96,6 +98,25 @@ export default function Comunicacion() {
 
   async function enviar() {
     setEnviado(null);
+    if (tipo === 'bloqueo') {
+      const n = destinatarios;
+      if (!window.confirm(`¿Bloquear la pantalla de ${n} estudiante(s)? Solo se desbloqueará con el código «${codigo.trim()}» (anótelo) o si usted lo libera.`)) return;
+      const b = await envio.run(() =>
+        rpc<{ locked: number }>('send_screen_lock', {
+          p_body: texto,
+          p_code: codigo,
+          p_mode: modo,
+          p_users: modo === 'seleccion' ? [...sel] : null,
+          p_class: modo === 'seccion' || modo === 'conectados' ? seccion || null : null,
+        }),
+      );
+      if (b) {
+        setEnviado(`Pantalla bloqueada a ${b.locked} estudiante(s). Código: ${codigo.trim()}`);
+        setTexto('');
+        void bloqueos.reload();
+      }
+      return;
+    }
     const r = await envio.run(() =>
       rpc<{ id: string; recipients: number }>('send_live_message', {
         p_kind: tipo,
@@ -180,10 +201,11 @@ export default function Comunicacion() {
           )}
           <div className="mb-2 grid grid-cols-2 gap-2">
             <label className="text-xs">Tipo
-              <select className="campo mt-1" value={tipo} onChange={(e) => setTipo(e.target.value as TipoMensaje)}>
+              <select className="campo mt-1" value={tipo} onChange={(e) => setTipo(e.target.value as TipoMensaje | 'bloqueo')}>
                 <option value="informativo">Informativo (aviso breve)</option>
                 <option value="importante">Importante (pide «Entendido»)</option>
                 <option value="urgente">Urgente (destacado hasta confirmar)</option>
+                <option value="bloqueo">🔒 Bloqueo con código</option>
               </select>
             </label>
             <label className="text-xs">Vigencia
@@ -193,16 +215,35 @@ export default function Comunicacion() {
             </label>
           </div>
           <label className="mb-2 block text-xs">Mensaje
-            <textarea id="mensaje-texto" className="campo mt-1 min-h-[7rem]" maxLength={2000} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Escriba el mensaje…" />
+            <textarea id="mensaje-texto" className="campo mt-1 min-h-[7rem]" maxLength={tipo === 'bloqueo' ? 1000 : 2000} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Escriba el mensaje…" />
           </label>
+          {tipo === 'bloqueo' && (
+            <label className="mb-2 block text-xs">Código de desbloqueo (4 a 32 caracteres; anótelo: se guarda cifrado y no podrá verse después)
+              <input className="campo mt-1 tracking-widest" maxLength={32} autoComplete="off" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
+            </label>
+          )}
           <p className="mb-2 text-xs text-gray-500">{texto.length}/2000 · llegará a {destinatarios} estudiante(s). A los desconectados se les mostrará al volver, mientras esté vigente.</p>
           <ErrorBox error={envio.error} />
           {enviado && <Notice tone="ok">{enviado}</Notice>}
-          <button className="btn-primario w-full" disabled={envio.busy || !texto.trim() || destinatarios === 0} onClick={() => void enviar()}>
-            {envio.busy ? 'Enviando…' : 'ENVIAR MENSAJE'}
+          <button className="btn-primario w-full" disabled={envio.busy || !texto.trim() || destinatarios === 0 || (tipo === 'bloqueo' && codigo.trim().length < 4)} onClick={() => void enviar()}>
+            {envio.busy ? 'Enviando…' : tipo === 'bloqueo' ? 'BLOQUEAR PANTALLA' : 'ENVIAR MENSAJE'}
           </button>
         </Card>
       </div>
+
+      {(bloqueos.data ?? []).length > 0 && (
+        <Card title={`🔒 Pantallas bloqueadas (${bloqueos.data!.length})`}>
+          <ul className="divide-y divide-gray-100 text-sm dark:divide-white/10">
+            {bloqueos.data!.map((b) => (
+              <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span><strong>{b.full_name || b.student_code}</strong> · {b.body}
+                  <span className="block text-xs text-gray-500">desde {new Date(b.created_at).toLocaleString('es-DO', { dateStyle: 'short', timeStyle: 'short' })}{b.failed_attempts ? ` · ${b.failed_attempts} intento(s) fallido(s)` : ''}</span></span>
+                <button className="btn-secundario !py-1 text-xs" onClick={() => void envio.run(() => rpc('release_screen_lock', { p_lock: b.id })).then(() => bloqueos.reload())}>Liberar</button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Card title={verAlumno ? `Historial de ${lista.find((a) => a.user_id === verAlumno)?.full_name ?? 'el estudiante'}` : 'Historial de comunicaciones'}
         actions={verAlumno ? <button className="btn-secundario !py-1 text-xs" onClick={() => setVerAlumno(null)}>Ver todos mis mensajes</button> : undefined}>
