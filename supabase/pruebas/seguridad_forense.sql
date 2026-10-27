@@ -98,11 +98,24 @@ begin
   select count(*) into v_antes from public.login_attempts;
   perform public.sec_annotate(v_ev, 'sint-100', 'no_seguro', 'Revisar con el estudiante');
   if (select count(*) from public.login_attempts) <> v_antes then raise exception 'FALLO: la anotación alteró la evidencia'; end if;
-  if (select actor_session from public.security_annotations where event_id = v_ev) <> 'sesion-prueba' then raise exception 'FALLO: no registró la sesión'; end if;
-  if (select count(*) from public.security_audit where actor_id = 'd4000000-0000-4000-8000-000000000001') < 3 then raise exception 'FALLO: no auditó las consultas'; end if;
+  -- ni siquiera el administrador lee directamente anotaciones y auditoría: solo mediante las funciones
+  begin
+    perform 1 from public.security_annotations;
+    raise exception 'FALLO: lectura directa de las anotaciones';
+  exception when insufficient_privilege then null;
+  end;
 end $$;
 
 reset role;
+-- comprobaciones internas (como propietario de la base de datos)
+do $$ begin
+  if (select actor_session from public.security_annotations where login_id = 'sint-100' order by id desc limit 1) <> 'sesion-prueba' then
+    raise exception 'FALLO: no registró la sesión de la anotación';
+  end if;
+  if (select count(*) from public.security_audit where actor_id = 'd4000000-0000-4000-8000-000000000001') < 3 then
+    raise exception 'FALLO: no auditó las consultas del administrador';
+  end if;
+end $$;
 -- 6) anti-enumeración: un ID inexistente se bloquea igual que uno real tras 5 fallos
 do $$
 declare i int;
