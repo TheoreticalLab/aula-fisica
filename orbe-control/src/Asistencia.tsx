@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { rpc } from './supabase';
-import { MOTIVO_RECHAZO, textoVerificacion, ubicacionActual } from '../../src/lib/ubicacion';
+import { avisoPrecision, MOTIVO_RECHAZO, PRECISION_PROFESOR, textoVerificacion, ubicacionActual } from '../../src/lib/ubicacion';
 
 interface Seccion { class_id: string; class_name: string; course_title: string }
 interface EnVivo {
@@ -61,6 +61,14 @@ export function Asistencia() {
     return () => { window.clearInterval(t); window.clearInterval(s); };
   }, [activa, cargar]);
 
+  // con código rotativo: recargar justo cuando cambia (además de la consulta cada 3 s)
+  useEffect(() => {
+    if (!activa || !d?.code_changes_at) return;
+    const ms = new Date(d.code_changes_at).getTime() - (Date.now() + desfase) + 300;
+    const t = window.setTimeout(() => void cargar(activa).catch(() => undefined), Math.max(300, ms));
+    return () => window.clearTimeout(t);
+  }, [activa, d?.code_changes_at, desfase, cargar]);
+
   async function hacer(fn: () => Promise<unknown>) {
     setBusy(true);
     setError(null);
@@ -79,7 +87,6 @@ export function Asistencia() {
     const presentes = d.estudiantes.filter((e) => e.presente).sort((a, b) => (b.marked_at ?? '').localeCompare(a.marked_at ?? ''));
     const ausentes = d.estudiantes.filter((e) => !e.presente);
     const cambiaEn = d.code_changes_at ? Math.max(0, Math.ceil((new Date(d.code_changes_at).getTime() - (Date.now() + desfase)) / 1000)) : null;
-    if (cambiaEn === 0) void cargar(d.id).catch(() => undefined);
     return (
       <div className="asistencia">
         <button className="enlace" onClick={() => { setActiva(null); setD(null); void cargarInicio(); }}>← Secciones</button>
@@ -121,6 +128,7 @@ export function Asistencia() {
               <article key={i} className="tarjeta rechazo">
                 <p className="nombre">{r.full_name || r.student_code}</p>
                 <p className="tenue">{hora(r.fecha)} · {MOTIVO_RECHAZO[r.motivo] ?? r.motivo}{r.distance_m !== null ? ` · a ${distancia(r.distance_m)}${r.accuracy ? ` (±${r.accuracy} m)` : ''}` : ''}</p>
+                {presentes.some((p) => p.full_name === r.full_name && p.student_code === r.student_code) && <p className="verde pequeno">Después quedó presente</p>}
               </article>
             ))}
           </section>
@@ -185,6 +193,7 @@ export function Asistencia() {
             const r = await ubicacionActual();
             setPaso(null);
             if (!r.ubicacion) throw new Error(`${r.motivo} Sin su ubicación no se puede verificar la de los estudiantes; desmarque la verificación si quiere abrir igualmente.`);
+            if (r.ubicacion.accuracy > PRECISION_PROFESOR && !window.confirm(avisoPrecision(r.ubicacion.accuracy))) return;
             u = r.ubicacion;
           }
           const r = await rpc<{ id: string }>('attendance_start', {

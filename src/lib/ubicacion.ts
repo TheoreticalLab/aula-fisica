@@ -32,6 +32,12 @@ export function textoVerificacion(geo: string | null, distancia: number | null, 
   return '';
 }
 
+/** Con una referencia peor que esta (en metros) se advierte al profesor antes de abrir. */
+export const PRECISION_PROFESOR = 150;
+export const avisoPrecision = (precision: number) =>
+  `La ubicación de este dispositivo es imprecisa (±${Math.round(precision)} m). Si la usa como referencia, podría rechazar a estudiantes que sí están en el aula.\n\n` +
+  'Recomendación: abra la asistencia desde su teléfono con el GPS activado (Orbe Control), o elija un radio mayor.\n\n¿Abrir de todos modos con esta ubicación?';
+
 export const MOTIVO_RECHAZO: Record<string, string> = {
   lejos: 'fuera del aula', sin_ubicacion: 'no compartió su ubicación', dispositivo_compartido: 'mismo dispositivo que otro estudiante',
 };

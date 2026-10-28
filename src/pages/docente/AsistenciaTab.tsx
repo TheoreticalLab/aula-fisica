@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { asistenciaEnVivo, cerrarAsistencia, iniciarAsistencia, informeAsistencia, marcarManual, nuevoCodigo, type AsistenciaEnVivo } from '@/api/asistencia';
-import { MOTIVO_RECHAZO, textoVerificacion, ubicacionActual } from '@/lib/ubicacion';
+import { avisoPrecision, MOTIVO_RECHAZO, PRECISION_PROFESOR, textoVerificacion, ubicacionActual } from '@/lib/ubicacion';
 import { aCsv } from '@/lib/tiempo';
 import { porcentajeAsistencia, tonoAsistencia, UMBRAL_ASISTENCIA } from '@/lib/asistencia';
 import { useAction, useAsync } from '@/lib/util';
@@ -28,12 +28,19 @@ export function EnVivo({ id, onCerrada }: { id: string; onCerrada: () => void })
     return () => { window.clearInterval(t); window.clearInterval(s); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+  // con código rotativo: recargar justo cuando cambia (además de la consulta periódica)
+  useEffect(() => {
+    if (!d?.code_changes_at) return;
+    const ms = new Date(d.code_changes_at).getTime() - (Date.now() + desfase) + 300;
+    const t = window.setTimeout(() => void cargar().catch(() => undefined), Math.max(300, ms));
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d?.code_changes_at]);
   if (!d) return accion.error ? <ErrorBox error={accion.error} /> : <Spinner />;
   const restante = Math.max(0, Math.round((new Date(d.code_expires_at).getTime() - (Date.now() + desfase)) / 1000));
   const abierta = !d.closed_at && restante > 0;
   const presentes = d.estudiantes.filter((e) => e.presente);
   const cambiaEn = d.code_changes_at ? Math.max(0, Math.ceil((new Date(d.code_changes_at).getTime() - (Date.now() + desfase)) / 1000)) : null;
-  if (cambiaEn === 0) void cargar().catch(() => undefined);
   return (
     <div className="space-y-3">
       <ErrorBox error={accion.error} />
@@ -73,7 +80,8 @@ export function EnVivo({ id, onCerrada }: { id: string; onCerrada: () => void })
           <p className="mb-1 text-sm font-semibold text-red-700 dark:text-red-400">Intentos rechazados ({d.rechazos.length})</p>
           <ul className="text-xs">
             {d.rechazos.map((r, i) => (
-              <li key={i}>{hora(r.fecha)} · <strong>{r.full_name || r.student_code}</strong> · {MOTIVO_RECHAZO[r.motivo] ?? r.motivo}{r.distance_m !== null ? ` (a ${r.distance_m >= 1000 ? `${(r.distance_m / 1000).toFixed(1)} km` : `${r.distance_m} m`}${r.accuracy ? `, ±${r.accuracy} m` : ''})` : ''}</li>
+              <li key={i}>{hora(r.fecha)} · <strong>{r.full_name || r.student_code}</strong> · {MOTIVO_RECHAZO[r.motivo] ?? r.motivo}{r.distance_m !== null ? ` (a ${r.distance_m >= 1000 ? `${(r.distance_m / 1000).toFixed(1)} km` : `${r.distance_m} m`}${r.accuracy ? `, ±${r.accuracy} m` : ''})` : ''}
+                {presentes.some((p) => p.full_name === r.full_name && p.student_code === r.student_code) && <span className="text-green-700 dark:text-green-400"> · después quedó presente</span>}</li>
             ))}
           </ul>
         </div>
@@ -97,6 +105,7 @@ function AbrirAsistencia({ classId, onAbierta }: { classId: string; onAbierta: (
         setPaso('Obteniendo su ubicación…');
         const r = await ubicacionActual();
         if (!r.ubicacion) throw new Error(`${r.motivo} Sin su ubicación no se puede verificar la de los estudiantes; desmarque «Verificar ubicación» si quiere abrir igualmente.`);
+        if (r.ubicacion.accuracy > PRECISION_PROFESOR && !window.confirm(avisoPrecision(r.ubicacion.accuracy))) return;
         ubic = r.ubicacion;
       }
       setPaso('Abriendo…');
