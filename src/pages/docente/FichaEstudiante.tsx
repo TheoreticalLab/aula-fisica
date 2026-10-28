@@ -10,6 +10,7 @@ import { rpc } from '@/lib/supabase';
 import { useAction, useAsync } from '@/lib/util';
 import { abrirPdf } from '@/api/entregas';
 import { ProcesoEstudiante } from './lieia/ProcesoEstudiante';
+import { estadoActividad, ExamenesEstudiante, type Actividad } from './ExamenesEstudiante';
 import { porcentajeAsistencia, textoAsistencia, tonoAsistencia, UMBRAL_ASISTENCIA } from '@/lib/asistencia';
 import { useDark } from '@/lib/tema';
 import { etiquetaSeccion, formatoDuracion } from '@/lib/tiempo';
@@ -20,13 +21,6 @@ import { Badge, Card, ErrorBox, PageTitle, Spinner, Tabs } from '@/components/ui
 import { COMO_SE_CALCULA, VistaDominio } from '../estudiante/Progreso';
 
 type Iso = string | null;
-interface Actividad {
-  id: string; clase: string; titulo: string; modo: 'practice' | 'exam'; abre: Iso; cierra: Iso; max_intentos: number | null; notas_publicadas: boolean;
-  items: number; intentos: number; entregados: number; mejor: number | null; mejor_pct: number | null; maximo: number | null; primer_inicio: Iso;
-  ultimo: { id: string; estado: string; inicio: string; entrega: Iso; puntaje: number | null; maximo: number | null; por_revisar: boolean; respondidos: number } | null;
-  tiempo_efectivo: number; lectura: { segundos: number; pausas: number; completada: Iso; minimo: number | null } | null;
-  registro: { categoria: string; puntos: number | null } | null;
-}
 interface Ficha {
   generado: string;
   perfil: { id: string; full_name: string; login_id: string | null; student_code: string | null; email: string | null; role: string; created_at: string; active: boolean; suspended_at: Iso; must_change_password: boolean; creado_por: string | null; ultimo_ingreso_auth: Iso };
@@ -65,7 +59,7 @@ interface Ficha {
   cuenta: { fecha: string; accion: string; por: string | null }[];
 }
 
-type Tab = 'resumen' | 'accesos' | 'estudio' | 'actividades' | 'respuestas' | 'proceso' | 'notas' | 'asistencia' | 'dominio' | 'comunicacion';
+type Tab = 'resumen' | 'accesos' | 'estudio' | 'examenes' | 'actividades' | 'respuestas' | 'proceso' | 'notas' | 'asistencia' | 'dominio' | 'comunicacion';
 
 const fecha = (iso: Iso) => (iso ? new Date(iso).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 const dia = (iso: string) => new Date(iso).toLocaleDateString('es-DO', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -111,16 +105,6 @@ function Fila({ k, v }: { k: string; v: React.ReactNode }) {
       <span className="text-gray-500">{k}</span><span className="text-right">{v ?? '—'}</span>
     </div>
   );
-}
-
-/** Estado de una actividad para el estudiante, en palabras. */
-function estadoActividad(a: Actividad): [string, 'green' | 'amber' | 'red' | 'gray' | 'blue'] {
-  const vencida = a.cierra !== null && new Date(a.cierra) < new Date();
-  const futura = a.abre !== null && new Date(a.abre) > new Date();
-  if (a.entregados > 0) return a.ultimo?.por_revisar ? ['entregada · por revisar', 'blue'] : ['entregada', 'green'];
-  if (a.intentos > 0) return vencida ? ['empezó y no entregó', 'red'] : ['en curso', 'amber'];
-  if (futura) return ['aún no abre', 'gray'];
-  return vencida ? ['no la intentó (cerrada)', 'red'] : ['no la ha intentado', 'amber'];
 }
 
 function Resumen({ f, x }: { f: Ficha; x: Extras | null }) {
@@ -585,12 +569,13 @@ export default function FichaEstudiante() {
       />
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
         { id: 'resumen', label: 'Resumen' }, { id: 'accesos', label: 'Accesos' }, { id: 'estudio', label: 'Estudio y sesiones' },
-        { id: 'actividades', label: 'Actividades' }, { id: 'respuestas', label: 'Respuestas y errores' }, { id: 'proceso', label: 'Proceso de respuesta' }, { id: 'notas', label: 'Calificaciones' }, { id: 'asistencia', label: 'Asistencia y entregas' },
+        { id: 'examenes', label: 'Exámenes' }, { id: 'actividades', label: 'Actividades' }, { id: 'respuestas', label: 'Respuestas y errores' }, { id: 'proceso', label: 'Proceso de respuesta' }, { id: 'notas', label: 'Calificaciones' }, { id: 'asistencia', label: 'Asistencia y entregas' },
         { id: 'dominio', label: 'Dominio' }, { id: 'comunicacion', label: 'Mensajes y cuenta' },
       ]} />
       {tab === 'resumen' && <Resumen f={f} x={x} />}
       {tab === 'accesos' && <Accesos f={f} />}
       {tab === 'estudio' && <Estudio f={f} />}
+      {tab === 'examenes' && <ExamenesEstudiante userId={f.perfil.id} actividades={f.actividades} />}
       {tab === 'actividades' && <Actividades f={f} />}
       {tab === 'respuestas' && <Respuestas f={f} />}
       {tab === 'notas' && <Calificaciones f={f} />}

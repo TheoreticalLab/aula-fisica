@@ -93,7 +93,6 @@ function ItemRevision({ item, index, onSaved }: { item: AttemptItem; index: numb
 export default function RevisionIntento() {
   const { attemptId = '' } = useParams();
   const st = useAsync(() => getAttempt(attemptId), [attemptId]);
-  const [verProceso, setVerProceso] = useState(false);
   if (st.loading && !st.data) return <Spinner />;
   if (st.error) return <ErrorBox error={st.error} />;
   const v = st.data!;
@@ -103,18 +102,42 @@ export default function RevisionIntento() {
       <PageTitle title={`Revisión: ${v.student?.full_name ?? ''}`}
         subtitle={<>{v.activity?.title ?? `Práctica libre: ${v.lesson?.title}`} · intento {v.attempt.attempt_number} · {v.attempt.status === 'submitted' ? `entregado ${fecha(v.attempt.submitted_at)}` : 'en curso'}</>}
         back={v.activity ? { to: `/docente/actividades/${v.activity.id}`, label: 'Actividad' } : undefined} />
+      <CuerpoRevision v={v} attemptId={attemptId} onSaved={st.reload} conCronologia />
+    </div>
+  );
+}
+
+/** Revisión de un intento dentro de otra página (la ficha del estudiante muestra la cronología aparte). */
+export function RevisionIntentoContenido({ attemptId }: { attemptId: string }) {
+  const st = useAsync(() => getAttempt(attemptId), [attemptId]);
+  if (st.loading && !st.data) return <Spinner />;
+  if (st.error) return <ErrorBox error={st.error} />;
+  const v = st.data!;
+  if (!v.flags.is_reviewer) return <ErrorBox error="No puede revisar este intento." />;
+  return <CuerpoRevision v={v} attemptId={attemptId} onSaved={st.reload} conCronologia={false} />;
+}
+
+type VistaIntento = Awaited<ReturnType<typeof getAttempt>>;
+
+/** Puntaje, cronología (opcional) y cada respuesta con su calificación manual. */
+function CuerpoRevision({ v, attemptId, onSaved, conCronologia }: { v: VistaIntento; attemptId: string; onSaved: () => void; conCronologia: boolean }) {
+  const [verProceso, setVerProceso] = useState(false);
+  return (
+    <>
       <Card className="mb-4">
         <p className="text-sm">Estudiante: <strong>{v.student?.full_name}</strong> {v.student?.student_code && `· ${v.student.student_code}`}</p>
         <p className="text-sm">Puntaje: <strong>{puntaje(v.attempt.score, v.attempt.max_score)}</strong> {v.attempt.needs_review && <Badge tone="red">Hay respuestas por revisar</Badge>}</p>
         {v.activity && !v.activity.grades_published && <p className="mt-1 text-xs text-gray-500">Las calificaciones de esta actividad aún no están publicadas: el estudiante no ve la nota ni los comentarios.</p>}
       </Card>
-      <details className="mb-4" open={verProceso} onToggle={(e) => setVerProceso((e.target as HTMLDetailsElement).open)}>
-        <summary className="cursor-pointer text-sm font-medium">⏱ Proceso de respuesta (cronología de la telemetría)</summary>
-        {verProceso && <div className="mt-2"><TarjetaCronologia attemptId={attemptId} /></div>}
-      </details>
+      {conCronologia && (
+        <details className="mb-4" open={verProceso} onToggle={(e) => setVerProceso((e.target as HTMLDetailsElement).open)}>
+          <summary className="cursor-pointer text-sm font-medium">⏱ Proceso de respuesta (cronología de la telemetría)</summary>
+          {verProceso && <div className="mt-2"><TarjetaCronologia attemptId={attemptId} /></div>}
+        </details>
+      )}
       <div className="space-y-4">
-        {v.items.map((it, i) => <ItemRevision key={it.exercise.id} item={it} index={i} onSaved={st.reload} />)}
+        {v.items.map((it, i) => <ItemRevision key={it.exercise.id} item={it} index={i} onSaved={onSaved} />)}
       </div>
-    </div>
+    </>
   );
 }

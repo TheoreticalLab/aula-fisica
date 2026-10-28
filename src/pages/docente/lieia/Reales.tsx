@@ -24,10 +24,10 @@ type AnalisisSerial = Omit<Analisis, 'rasch'> & { rasch: { theta: number[]; b: n
 interface Actividad { id: string; titulo: string; modo: string; cierra: string | null; entregados: number; con_tiempos: number; items: number }
 interface Nombre { seudonimo: string; user_id: string; full_name: string; student_code: string | null }
 
-const fmtP = (p: number | null | undefined) => (p === null || p === undefined ? '—' : p < 0.001 ? '< 0,001' : p.toFixed(3).replace('.', ','));
-const Q = 0.1;
+export const fmtP = (p: number | null | undefined) => (p === null || p === undefined ? '—' : p < 0.001 ? '< 0,001' : p.toFixed(3).replace('.', ','));
+export const Q = 0.1;
 
-function interpretacion(q1: number | null, q3: number | null, q2: number | null): string {
+export function interpretacion(q1: number | null, q3: number | null, q2: number | null): string {
   const s1 = q1 !== null && q1 < Q, s3 = q3 !== null && q3 < Q, s2 = q2 !== null && q2 < Q;
   if (s1 && s3) return 'Errores idénticos y respuestas sincronizadas, ambos improbables bajo independencia: compatible con intercambio de respuestas durante el examen.';
   if (s1) return 'Errores idénticos improbables bajo independencia, sin sincronía temporal: compatible con causa común (estudiar juntos, mismo material) o con copia diferida.';
