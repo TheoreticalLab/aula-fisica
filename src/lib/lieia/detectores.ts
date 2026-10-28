@@ -15,14 +15,16 @@
  *   D5  Aciertos en ítems difíciles para él resueltos inusualmente rápido. Bootstrap paramétrico.
  *   D6  Insensibilidad del tiempo a la exigencia del ítem (pendiente de log d frente a β): tarda lo mismo en todo.
  *   D7  Anomalía multivariante (distancia robusta sobre D4–D6, puntaje y pestaña oculta). Solo descriptiva.
+ *   D8  Inconsistencia entre versiones isomorfas: acierta una variante y falla su gemela más de lo que explica el
+ *       modelo (p. ej. conocía de antemano la respuesta de una pregunta concreta). Requiere grupos isomorfos.
  */
 import { crearAzar, derivarSemilla } from './azar';
 import { benjaminiHochberg, chiCuadradoCola, mediana, mezclaBetaUniforme, pearson, poissonBinomialCola } from './estadistica';
-import { ajustarRasch, ajustarTiempos, duraciones, type ModeloTiempos, type Rasch } from './modelos';
+import { ajustarRasch, ajustarTiempos, duraciones, posiciones, type ModeloTiempos, type Rasch } from './modelos';
 import type { ExamenObservado } from './tipos';
 
-export interface OpcionesAnalisis { semilla: number; permutaciones: number; bootstrap: number; binSegundos: number; retardoMax: number }
-export const OPCIONES_BASE: OpcionesAnalisis = { semilla: 20261027, permutaciones: 199, bootstrap: 199, binSegundos: 30, retardoMax: 4 };
+export interface OpcionesAnalisis { semilla: number; permutaciones: number; bootstrap: number; binSegundos: number; retardoMax: number; corregirPosicion: boolean }
+export const OPCIONES_BASE: OpcionesAnalisis = { semilla: 20261027, permutaciones: 199, bootstrap: 199, binSegundos: 30, retardoMax: 4, corregirPosicion: true };
 
 export interface ResultadoPareja {
   i: number; j: number;
@@ -37,9 +39,11 @@ export interface ResultadoEstudiante {
   d4: { lz: number; p: number } | null;
   d5: { rapidas: number; esperadas: number; p: number } | null;
   d6: { pendiente: number; p: number } | null;
+  d8: { discordancias: number; esperadas: number; pares: number; p: number } | null;
+  cambios: number;
   d7: { distancia: number; p: number } | null;
   oculto: number;
-  q4: number | null; q5: number | null; q6: number | null; q7: number | null;
+  q4: number | null; q5: number | null; q6: number | null; q7: number | null; q8: number | null;
 }
 export interface Analisis {
   parejas: ResultadoPareja[];
@@ -121,7 +125,7 @@ function d3Bootstrap(ex: ExamenObservado, tm: ModeloTiempos, o: OpcionesAnalisis
     sim.push(ordenes.map((ord, i) => {
       const t = new Float64Array(m).fill(NaN);
       let acc = ex.estudiantes[i].inicio;
-      for (const j of ord) { acc += Math.exp(tm.beta[j] - tm.tau[i] + tm.sigma[j] * az.normal()); t[j] = acc; }
+      for (const j of ord) { acc += Math.exp(tm.beta[j] - tm.tau[i] + tm.gamma * (tm.pc?.[i][j] ?? 0) + tm.sigma[j] * az.normal()); t[j] = acc; }
       return t;
     }));
   }
@@ -210,7 +214,9 @@ export function analizar(ex: ExamenObservado, opciones: Partial<OpcionesAnalisis
   const abstenciones: string[] = [];
   const x = ex.r.map((f) => f.map((r) => (r.respuesta === null ? null : r.correcta)));
   const rasch = ajustarRasch(x);
-  const tiempos = ex.conTiempos ? ajustarTiempos(duraciones(ex)) : null;
+  const posic = posiciones(ex);
+  const usarPos = o.corregirPosicion && posic.varia;
+  const tiempos = ex.conTiempos ? ajustarTiempos(duraciones(ex), 50, usarPos ? posic.pc : undefined) : null;
   if (!ex.conTiempos) abstenciones.push('Sin tiempos por pregunta registrados: los detectores temporales (D2, D3, D5, D6) se abstienen.');
   if (n < 10) abstenciones.push('Menos de 10 estudiantes: no se estima la popularidad de las respuestas incorrectas (D1 se abstiene).');
 
@@ -240,6 +246,8 @@ export function analizar(ex: ExamenObservado, opciones: Partial<OpcionesAnalisis
 
   // --- por estudiante ---
   const B = o.bootstrap;
+  const gruposIso = new Map<string, number[]>();
+  ex.items.forEach((it, j) => { if (it.grupo) gruposIso.set(it.grupo, [...(gruposIso.get(it.grupo) ?? []), j]); });
   const estudiantes: ResultadoEstudiante[] = ex.r.map((fila, i) => {
     const az = crearAzar(derivarSemilla(o.semilla, 4, i));
     const ps = fila.map((_, j) => rasch.p(i, j));
@@ -278,12 +286,37 @@ export function analizar(ex: ExamenObservado, opciones: Partial<OpcionesAnalisis
       const pObs = pend(tiempos.logd[i]);
       let menores = 0;
       for (let b = 0; b < B; b++) {
-        const sim = tiempos.logd[i].map((v, j) => (v === null ? null : tiempos.beta[j] - tiempos.tau[i] + tiempos.sigma[j] * az.normal()));
+        const sim = tiempos.logd[i].map((v, j) => (v === null ? null : tiempos.beta[j] - tiempos.tau[i] + tiempos.gamma * (tiempos.pc?.[i][j] ?? 0) + tiempos.sigma[j] * az.normal()));
         if (pend(sim) <= pObs) menores++;
       }
       r6 = { pendiente: pObs, p: (menores + 1) / (B + 1) };
     }
-    return { i, puntaje, respondidas, theta: rasch.theta[i], d4: r4, d5: r5, d6: r6, d7: null, oculto: ex.estudiantes[i].oculto, q4: null, q5: null, q6: null, q7: null };
+    // D8: inconsistencia entre versiones isomorfas. Por cada par de gemelas: 1 si acierta una y falla la otra, más el
+    // exceso de diferencia de tiempo residual (|z_a − z_b| − 1)₊ si hay tiempos. Nula: bootstrap paramétrico del
+    // modelo (aciertos ~ Rasch, residuos de tiempo ~ N(0,1) independientes).
+    let r8: ResultadoEstudiante['d8'] = null;
+    const pares: [number, number][] = [];
+    for (const js of gruposIso.values()) for (let x1 = 0; x1 < js.length; x1++) for (let x2 = x1 + 1; x2 < js.length; x2++) if (xi[js[x1]] !== null && xi[js[x2]] !== null) pares.push([js[x1], js[x2]]);
+    if (pares.length >= 3) {
+      const zi = tiempos?.z[i] ?? null;
+      const inc = (xs: (boolean | null)[], zs: (number | null)[] | null) => pares.reduce((s, [a, c]) => {
+        let v = xs[a] !== xs[c] ? 1 : 0;
+        if (zs && zs[a] !== null && zs[c] !== null) v += Math.max(0, Math.abs((zs[a] as number) - (zs[c] as number)) - 1);
+        return s + v;
+      }, 0);
+      const obs = inc(xi, zi);
+      let mayores = 0, suma = 0;
+      for (let b = 0; b < B; b++) {
+        const sim = xi.map((v, j) => (v === null ? null : az.u() < ps[j]));
+        const zs = zi ? zi.map((v) => (v === null ? null : az.normal())) : null;
+        const c = inc(sim, zs);
+        suma += c;
+        if (c >= obs) mayores++;
+      }
+      r8 = { discordancias: obs, esperadas: suma / B, pares: pares.length, p: (mayores + 1) / (B + 1) };
+    }
+    const cambios = fila.reduce((s, r) => s + Math.max(0, r.cambios - 1), 0);
+    return { i, puntaje, respondidas, theta: rasch.theta[i], d4: r4, d5: r5, d6: r6, d7: null, d8: r8, cambios, oculto: ex.estudiantes[i].oculto, q4: null, q5: null, q6: null, q7: null, q8: null };
   });
 
   // D7: distancia robusta (descriptiva)
@@ -300,7 +333,8 @@ export function analizar(ex: ExamenObservado, opciones: Partial<OpcionesAnalisis
   });
   const q4 = qs(estudiantes.map((e) => e.d4?.p ?? null)), q5 = qs(estudiantes.map((e) => e.d5?.p ?? null));
   const q6 = qs(estudiantes.map((e) => e.d6?.p ?? null)), q7 = qs(estudiantes.map((e) => e.d7?.p ?? null));
-  estudiantes.forEach((e, k) => { e.q4 = q4[k]; e.q5 = q5[k]; e.q6 = q6[k]; e.q7 = q7[k]; });
+  const q8 = qs(estudiantes.map((e) => e.d8?.p ?? null));
+  estudiantes.forEach((e, k) => { e.q4 = q4[k]; e.q5 = q5[k]; e.q6 = q6[k]; e.q7 = q7[k]; e.q8 = q8[k]; });
 
   return { parejas, estudiantes, rasch, tiempos, abstenciones, mezcla1: mez1 ? { pi0: mez1.pi0 } : null, mezcla2: mez2 ? { pi0: mez2.pi0 } : null };
 }

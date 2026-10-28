@@ -15,7 +15,7 @@ import { auc, calibracion, curvaRoc, wilson } from './estadistica';
 import { simular, type ParametrosSim } from './simulador';
 import { clavePareja } from './tipos';
 
-export type Detector = 'd1' | 'd2' | 'd3' | 'd4' | 'd5' | 'd6' | 'd7';
+export type Detector = 'd1' | 'd2' | 'd3' | 'd4' | 'd5' | 'd6' | 'd7' | 'd8';
 export const DETECTORES: Record<Detector, { nombre: string; unidad: 'pareja' | 'estudiante'; hipotesis: string }> = {
   d1: { nombre: 'Respuestas incorrectas idénticas', unidad: 'pareja', hipotesis: 'Colaboración / intercambio de respuestas' },
   d2: { nombre: 'Tiempos acoplados', unidad: 'pareja', hipotesis: 'Uno espera la respuesta del otro' },
@@ -24,6 +24,7 @@ export const DETECTORES: Record<Detector, { nombre: string; unidad: 'pareja' | '
   d5: { nombre: 'Aciertos difíciles demasiado rápidos', unidad: 'estudiante', hipotesis: 'Asistencia externa / IA' },
   d6: { nombre: 'Tiempo insensible a la dificultad', unidad: 'estudiante', hipotesis: 'Asistencia externa / IA' },
   d7: { nombre: 'Anomalía multivariante (descriptiva)', unidad: 'estudiante', hipotesis: 'Comportamiento atípico (sin hipótesis específica)' },
+  d8: { nombre: 'Inconsistencia entre versiones isomorfas', unidad: 'estudiante', hipotesis: 'Conocimiento específico de ciertas preguntas (filtración)' },
 };
 
 export interface ConfigExperimento { parametros: ParametrosSim; replicas: number; semilla: number; alfa: number; qUmbral: number; analisis: Partial<OpcionesAnalisis> }
@@ -98,8 +99,8 @@ export function ejecutarExperimento(cfg: ConfigExperimento, progreso?: (hechas: 
     }
 
     // --- estudiantes ---
-    for (const d of ['d4', 'd5', 'd6', 'd7'] as const) {
-      const qk = d === 'd4' ? 'q4' : d === 'd5' ? 'q5' : d === 'd6' ? 'q6' : 'q7';
+    for (const d of ['d4', 'd5', 'd6', 'd7', 'd8'] as const) {
+      const qk = d === 'd4' ? 'q4' : d === 'd5' ? 'q5' : d === 'd6' ? 'q6' : d === 'd7' ? 'q7' : 'q8';
       let descubiertos = 0, falsos = 0;
       for (const e of a.estudiantes) {
         const r = e[d];

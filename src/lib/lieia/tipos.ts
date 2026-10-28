@@ -2,10 +2,14 @@
  * LIEIA · Estructura común de un examen observado. La producen tanto el simulador (laboratorio, con verdad
  * conocida) como la consulta de datos reales (lieia_exam_data), para que los detectores sean exactamente los mismos.
  */
+export type RolItem = 'normal' | 'ancla' | 'isomorfa' | 'conceptual' | 'razonamiento';
+
 export interface ItemExamen {
   id: string;
   opciones: number | null; // nº de opciones si es de selección; null si es abierta/numérica
-  orden: number;           // posición en el examen
+  orden: number;           // posición en el examen (diseño base)
+  rol?: RolItem;           // papel en el diseño experimental
+  grupo?: string | null;   // grupo isomorfo (versiones equivalentes del mismo problema)
 }
 
 export interface RespuestaObservada {

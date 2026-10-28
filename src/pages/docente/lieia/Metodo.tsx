@@ -8,7 +8,9 @@ const HIPOTESIS: [string, string, string][] = [
   ['Fuente central de distribución', 'Nodo que responde primero en más conexiones (dirección temporal de D3).', 'Identificación moderada en el laboratorio; una fuente externa al aula no se observa directamente.'],
   ['Asistencia externa o IA', 'Tiempo insensible a la dificultad (D6): tarda lo mismo en todo.', 'Una asistencia que imite los tiempos de un estudiante real no se distingue con telemetría. Aciertos «demasiado buenos» se confunden con alta habilidad.'],
   ['Coincidencias naturales y falsos positivos', 'Controles negativos del laboratorio: examen fácil, mismo ritmo, inicio escalonado, orden aleatorio, misma confusión.', 'D1 no distingue copiar de una causa común (estudiar juntos, mismo material).'],
-  ['Cambios de comportamiento con la dificultad', 'Modelo de dificultad (Rasch) frente al de tiempos (lognormal): gráfico por ítem y D6 por estudiante.', 'Pocos ítems o pocos estudiantes vuelven inestables las estimaciones.'],
+  ['Conocimiento previo de preguntas concretas (filtración)', 'Con pares isomorfos en el examen: inconsistencia entre gemelas (acierta y responde rápido una, no la otra) más allá del modelo (D8).', 'Sin grupos isomorfos no es identificable. Una filtración que incluya todas las variantes tampoco.'],
+  ['Efectos del diseño (orden, fatiga, aprendizaje)', 'Con orden aleatorio o contrabalanceado, el modelo de tiempos separa la posición (fatiga) del ítem; los experimentos de diseño miden qué características aportan o engañan.', 'Con orden fijo, posición e ítem están confundidos (se absorben juntos).'],
+  ['Cambios de comportamiento con la dificultad','Modelo de dificultad (Rasch) frente al de tiempos (lognormal): gráfico por ítem y D6 por estudiante.', 'Pocos ítems o pocos estudiantes vuelven inestables las estimaciones.'],
 ];
 
 export function Metodo() {
@@ -37,6 +39,8 @@ export function Metodo() {
           <li><strong>Tiempos:</strong> modelo lognormal (exigencia de tiempo de cada ítem, velocidad de cada estudiante); los residuos quitan el orden común, la dificultad y el ritmo.</li>
           <li><strong>D1</strong> prueba binomial generalizada exacta (Poisson-binomial) sobre errores idénticos, con la popularidad de cada error estimada sin la pareja. <strong>D2</strong> correlación de residuos con prueba de permutación. <strong>D3</strong> sincronía con nula por bootstrap paramétrico del modelo de tiempos (respeta orden, velocidad e inicio). <strong>D4</strong> l_z, <strong>D5</strong> y <strong>D6</strong> con bootstrap paramétrico. <strong>D7</strong> distancia robusta (descriptiva).</li>
           <li><strong>Comparaciones múltiples:</strong> Benjamini–Hochberg (valores q). <strong>Posterior:</strong> mezcla beta-uniforme sobre los valores p, evaluada con diagramas de fiabilidad y ECE.</li>
+          <li><strong>Calibración de preguntas:</strong> TRI de 2 parámetros por máxima verosimilitud marginal (EM con cuadratura), validada por recuperación de parámetros conocidos (cobertura de los intervalos ≈ 95 %). Estados: calibrado, provisional o no calibrado (a priori explícito).</li>
+          <li><strong>Diseño del examen:</strong> información del test y su incertidumbre, tiempo esperado y riesgo de no terminar (equidad), equivalencia de versiones, selección óptima con cobertura de conceptos como restricción, y prueba experimental previa con el laboratorio.</li>
           <li><strong>Supervivencia:</strong> Kaplan–Meier del tiempo hasta completar el examen (censura = entregó con preguntas en blanco).</li>
         </ul>
       </Card>

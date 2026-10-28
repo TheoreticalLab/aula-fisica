@@ -23,6 +23,7 @@ import { Badge, Card, Empty, ErrorBox, Field, Notice, PageTitle, Spinner, Tabs }
 import { EditorMarkdown } from '@/components/EditorMarkdown';
 import { analizarTexto, formatoTiempo, MAX_SEGUNDOS, MIN_SEGUNDOS, segundosSugeridos } from '@/lib/lectura';
 import { CODIGO_ERROR } from '@/lib/codigos';
+import { DisenoExamen } from './lieia/DisenoExamen';
 
 /** Lectura cronometrada previa a los ejercicios: texto y tiempo mínimo (con sugerencia según el texto). */
 function LecturaEditor({ draft, set }: { draft: Activity; set: (p: Partial<Activity>) => void }) {
@@ -59,9 +60,10 @@ function LecturaEditor({ draft, set }: { draft: Activity; set: (p: Partial<Activ
   );
 }
 
-type Tab = 'config' | 'ejercicios' | 'resultados';
+type Tab = 'config' | 'ejercicios' | 'diseno' | 'resultados';
 
 const CODE_LABEL = CODIGO_ERROR;
+const pruebaHecha = (id: string) => { try { return !!sessionStorage.getItem(`lieia-prueba-${id}`); } catch { return false; } };
 
 export default function ActividadEditor() {
   const { activityId = '' } = useParams();
@@ -109,7 +111,7 @@ export default function ActividadEditor() {
         <Link to={`/docente/actividades/${activityId}/vista-previa`} className="btn-secundario">👁 Vista previa como estudiante</Link>
         {dirty && <span className="text-xs text-amber-700 dark:text-amber-300">Guarde los cambios para verlos en la vista previa.</span>}
       </div>
-      <Tabs<Tab> value={tab} onChange={setTab} tabs={[{ id: 'config', label: 'Configuración' }, { id: 'ejercicios', label: `Ejercicios (${st.data!.items.length})` }, { id: 'resultados', label: 'Resultados y estadísticas' }]} />
+      <Tabs<Tab> value={tab} onChange={setTab} tabs={[{ id: 'config', label: 'Configuración' }, { id: 'ejercicios', label: `Ejercicios (${st.data!.items.length})` }, { id: 'diseno', label: '🔬 Diseño LIEIA' }, { id: 'resultados', label: 'Resultados y estadísticas' }]} />
       <ErrorBox error={action.error} />
       {tab === 'config' && (
         <Card>
@@ -175,6 +177,9 @@ export default function ActividadEditor() {
             <label className="flex items-center gap-2"><input type="checkbox" checked={draft.published} onChange={(e) => set({ published: e.target.checked })} /> Visible para los estudiantes</label>
             <label className="flex items-center gap-2"><input type="checkbox" checked={draft.grades_published} onChange={(e) => set({ grades_published: e.target.checked })} /> Calificaciones publicadas</label>
           </div>
+          {draft.mode === 'exam' && draft.published && !act.published && !pruebaHecha(activityId) && (
+            <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">Antes de publicar esta evaluación puede ejecutar su prueba experimental (pestaña «🔬 Diseño LIEIA»): estima tiempos, equidad y qué podría analizarse después. Es recomendable, no obligatoria.</p>
+          )}
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <button className="btn-primario" disabled={!dirty || action.busy} onClick={guardar}>Guardar</button>
             {saved && !dirty && <span className="text-sm text-emerald-700">Guardado ✓</span>}
@@ -187,6 +192,7 @@ export default function ActividadEditor() {
       )}
       {tab === 'config' && <CopiarASecciones activityId={activityId} courseId={cls.course_id} classId={cls.id} />}
       {tab === 'ejercicios' && <TabEjercicios activityId={activityId} courseId={cls.course_id} lessons={lessons} initial={st.data!.items} initialExercises={st.data!.exercises} onSaved={st.reload} />}
+      {tab === 'diseno' && <DisenoExamen activityId={activityId} courseId={cls.course_id} estudiantesSeccion={0} />}
       {tab === 'resultados' && <TabResultados act={act} classId={cls.id} />}
     </div>
   );

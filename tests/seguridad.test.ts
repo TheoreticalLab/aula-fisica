@@ -75,7 +75,8 @@ describe('migraciones', () => {
     }
   });
   it('las funciones svc_* y bootstrap_admin no se conceden a usuarios', () => {
-    const grants = [...sql.matchAll(/grant execute on function([\s\S]*?)to (\w+);/g)];
+    // \bto: que «into r;» del SQL no cuente como el final de una concesión
+    const grants = [...sql.matchAll(/grant execute on function([\s\S]*?)\bto (\w+);/g)];
     for (const [, list, role] of grants) {
       if (role !== 'service_role') {
         expect(list).not.toMatch(/svc_|bootstrap_admin|save_response_for|recompute_attempt/);

@@ -17,7 +17,7 @@ export interface Validacion {
 export const VALIDACION = datos as unknown as Validacion;
 export const TONO_ESTADO: Record<Estado, 'green' | 'amber' | 'gray' | 'red'> = { validado: 'green', validado_limitado: 'amber', sin_potencia: 'gray', no_validado: 'red' };
 /** ¿Se puede mostrar este detector como evidencia sobre datos reales? */
-export const habilitado = (d: Detector) => ['validado', 'validado_limitado'].includes(VALIDACION.veredictos[d].estado);
+export const habilitado = (d: Detector) => ['validado', 'validado_limitado'].includes(VALIDACION.veredictos[d]?.estado ?? 'no_validado');
 export const posteriorHabilitada = (d: 'd1' | 'd2') => VALIDACION.posterior[d].calibrada && VALIDACION.posterior[d].informativa;
 
 const pct = (x: number | null | undefined) => (x === null || x === undefined ? '—' : `${(100 * x).toFixed(1)} %`);

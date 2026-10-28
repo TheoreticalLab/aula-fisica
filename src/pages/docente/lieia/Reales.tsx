@@ -161,7 +161,7 @@ export function Reales() {
               <table className="w-full text-sm">
                 <thead><tr className="border-b text-left text-xs dark:border-white/10">
                   <th className="py-1">Estudiante</th><th className="text-right">Aciertos</th><th className="text-right">Habilidad (θ)</th>
-                  <th className="text-right">D6 tiempo insensible p / q</th><th className="text-right text-gray-400">D4 l_z</th><th className="text-right text-gray-400">D5 rápidas difíciles</th><th className="text-right">Pestaña oculta</th><th className="text-right text-gray-400">D7 atipicidad</th>
+                  <th className="text-right">D6 tiempo insensible p / q</th><th className="text-right">D8 isomorfas p / q</th><th className="text-right">Cambios de respuesta</th><th className="text-right text-gray-400">D4 l_z</th><th className="text-right text-gray-400">D5 rápidas difíciles</th><th className="text-right">Pestaña oculta</th><th className="text-right text-gray-400">D7 atipicidad</th>
                 </tr></thead>
                 <tbody>{[...res.estudiantes].sort((a, b) => (a.d6?.p ?? 1) - (b.d6?.p ?? 1)).map((e) => {
                   const n = nombres?.find((x) => x.seudonimo === examen.estudiantes[e.i].id);
@@ -171,6 +171,8 @@ export function Reales() {
                       <td className="text-right tabular-nums">{e.puntaje}/{e.respondidas}</td>
                       <td className="text-right tabular-nums">{e.theta.toFixed(2)}</td>
                       <td className={`text-right tabular-nums ${habilitado('d6') && e.q6 !== null && e.q6 < Q ? 'font-semibold' : ''}`}>{habilitado('d6') && e.d6 ? `${fmtP(e.d6.p)} / ${fmtP(e.q6)} (pend. ${e.d6.pendiente.toFixed(2)})` : '—'}</td>
+                      <td className={`text-right tabular-nums ${habilitado('d8') && e.q8 !== null && e.q8 < Q ? 'font-semibold' : ''}`}>{habilitado('d8') && e.d8 ? `${fmtP(e.d8.p)} / ${fmtP(e.q8)}` : e.d8 ? <span className="text-gray-400">no validado</span> : '—'}</td>
+                      <td className="text-right tabular-nums">{e.cambios}</td>
                       <td className="text-right tabular-nums text-gray-400">{e.d4 ? e.d4.lz.toFixed(2) : '—'}</td>
                       <td className="text-right tabular-nums text-gray-400">{e.d5 ? `${e.d5.rapidas} (esp. ${e.d5.esperadas.toFixed(1)})` : '—'}</td>
                       <td className="text-right tabular-nums">{e.oculto ? `${Math.round(e.oculto / 60)} min` : '—'}</td>
@@ -180,7 +182,7 @@ export function Reales() {
                 })}</tbody>
               </table>
             </div>
-            <p className="mt-2 text-xs text-gray-500">En gris, indicadores no validados (sin potencia demostrada o con falsos positivos no controlados): solo descriptivos. Pestaña oculta = tiempo con el aula en segundo plano durante el intento; puede deberse a consultar otra fuente o a causas inocentes (no se infiere nada de ello). La pendiente esperada del tiempo frente a la exigencia de cada ítem es ≈ 1; cerca de 0 = tarda lo mismo en todo.</p>
+            <p className="mt-2 text-xs text-gray-500">En gris, indicadores no validados (sin potencia demostrada o con falsos positivos no controlados): solo descriptivos. Pestaña oculta = tiempo con el aula en segundo plano durante el intento; puede deberse a consultar otra fuente o a causas inocentes (no se infiere nada de ello). La pendiente esperada del tiempo frente a la exigencia de cada ítem es ≈ 1; cerca de 0 = tarda lo mismo en todo. D8 solo existe si el examen tiene grupos isomorfos y el estudiante vio al menos 3 pares. «Cambios de respuesta» es descriptivo (cuántas veces corrigió una respuesta ya dada): no se infiere nada de él.</p>
           </Card>
 
           <div className="grid gap-4 lg:grid-cols-2">

@@ -19,7 +19,7 @@ import { wilson } from './estadistica';
 export const NEGATIVOS: Escenario[] = ['independiente', 'facil', 'mismo_ritmo', 'inicio_escalonado', 'orden_aleatorio', 'misma_confusion'];
 export const OBJETIVO: Record<Detector, Escenario[]> = {
   d1: ['parejas', 'red'], d2: ['parejas', 'red'], d3: ['parejas', 'red'],
-  d4: ['asistencia_ia'], d5: ['asistencia_ia'], d6: ['asistencia_ia'], d7: ['asistencia_ia'],
+  d4: ['asistencia_ia'], d5: ['asistencia_ia'], d6: ['asistencia_ia'], d7: ['asistencia_ia'], d8: ['filtracion'],
 };
 export const FPR_MAX = 0.075;
 
