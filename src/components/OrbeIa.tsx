@@ -3,7 +3,7 @@
  *  · Solo en lecciones (nunca en actividades ni intentos), con la pestaña visible, sin otro aviso en pantalla y
  *    cuando el estudiante no está escribiendo. El servidor decide el resto (intervalo, actividad, evaluaciones).
  *  · Tarjeta discreta: no quita el foco, se cierra al instante, se retira sola a los 20 s y cede el sitio a los
- *    avisos del profesor. «No mostrar más» desactiva Orbe IA para el estudiante (reversible en su perfil).
+ *    avisos del profesor. El estudiante no tiene que activar nada: lo decide el panel del profesor.
  *  · No envía nada personal: la lección, la subsección y, en la teoría, el encabezado que tiene delante.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -44,13 +44,12 @@ export function OrbeIa() {
   const visibleRef = useRef<{ id: string; texto: string } | null>(null);
   visibleRef.current = chiste;
 
-  const cerrar = useCallback((accion: 'cerrado' | 'no_mostrar_mas' | 'caducado') => {
+  const cerrar = useCallback((accion: 'cerrado' | 'caducado') => {
     const c = visibleRef.current;
     if (!c) return;
     visibleRef.current = null;
     setChiste(null);
     orbeCerrar(c.id, accion).catch(() => undefined);
-    if (accion === 'no_mostrar_mas') st.current.apagadoHasta = Date.now() + 24 * 3600_000;
   }, []);
 
   // teclas: para no interrumpir a quien escribe una respuesta
@@ -69,14 +68,8 @@ export function OrbeIa() {
   useEffect(() => {
     if (!activo) return;
     const f = (e: Event) => { st.current.evento = (e as CustomEvent<EventoOrbe>).detail ?? null; };
-    // el estudiante volvió a activarlos en su perfil
-    const g = () => { st.current.apagadoHasta = 0; st.current.proximo = Date.now() + 60_000; };
     window.addEventListener('orbe-ia:evento', f);
-    window.addEventListener('orbe-ia:reactivar', g);
-    return () => {
-      window.removeEventListener('orbe-ia:evento', f);
-      window.removeEventListener('orbe-ia:reactivar', g);
-    };
+    return () => window.removeEventListener('orbe-ia:evento', f);
   }, [activo]);
 
   // cede el sitio a cualquier aviso del profesor
@@ -133,9 +126,6 @@ export function OrbeIa() {
         <button className="btn-texto -mr-1 -mt-1 px-2" aria-label="Cerrar" onClick={() => cerrar('cerrado')}>✕</button>
       </div>
       <p className="mt-1 text-sm leading-relaxed">{chiste.texto}</p>
-      <div className="mt-2 text-right">
-        <button className="btn-texto text-xs text-gray-500" onClick={() => cerrar('no_mostrar_mas')}>No mostrar más</button>
-      </div>
     </TarjetaEmergente>
   );
 }

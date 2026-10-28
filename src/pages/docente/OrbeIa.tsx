@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { costoLote, leccionesAGenerar, MOTIVOS_PARA_DETENER } from '@/lib/orbeIa';
 import {
-  MODELOS_ORBE, orbeAccionChiste, orbeAgregarChiste, orbeChistes, orbeEstadoClave, orbeGenerar, orbeGuardarConfig, orbeGuardarCurso,
+  MODELOS_ORBE, orbeAccionChiste, orbeAgregarChiste, orbeChistes, orbeCopiarBanco, orbeEstadoClave, type ResultadoCopia, orbeGenerar, orbeGuardarConfig, orbeGuardarCurso,
   orbeLecciones, orbePanel, type ChisteOrbe, type ConfigOrbe, type CursoOrbe, type LeccionOrbe, type PanelOrbe, type ResultadoGeneracion,
 } from '@/api/orbeIa';
 import { useAction, useAsync } from '@/lib/util';
@@ -311,6 +311,63 @@ function Generador({ leccion, onDone }: { leccion: LeccionOrbe; onDone: () => vo
   );
 }
 
+/** Copia el banco de una asignatura a otra con el mismo contenido (p. ej. Física General 1 → 1-A). Primero muestra qué haría. */
+function CopiarBanco({ cursos, origenInicial, onDone }: { cursos: CursoOrbe[]; origenInicial: string; onDone: () => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const [origen, setOrigen] = useState(origenInicial);
+  const [destino, setDestino] = useState('');
+  const [pendientes, setPendientes] = useState(false);
+  const [simulados, setSimulados] = useState(false);
+  const [vista, setVista] = useState<ResultadoCopia | null>(null);
+  const [hecho, setHecho] = useState<ResultadoCopia | null>(null);
+  const accion = useAction();
+  const nombre = (id: string) => cursos.find((x) => x.course_id === id)?.titulo ?? '';
+  const reiniciar = () => { setVista(null); setHecho(null); };
+  const resumen = (r: ResultadoCopia) => [
+    `${r.copiados} ${r.prueba ? 'se copiarían' : 'copiados'}`,
+    r.duplicados ? `${r.duplicados} ya estaban en el destino` : '',
+    r.sin_leccion ? `${r.sin_leccion} sin lección equivalente` : '',
+    r.sin_apartado ? `${r.sin_apartado} pasan a la subsección (ese apartado no existe en el destino)` : '',
+  ].filter(Boolean).join(' · ');
+  if (!abierto) {
+    return <button className="btn-secundario text-sm" onClick={() => setAbierto(true)}>⇄ Copiar el banco a otra asignatura</button>;
+  }
+  return (
+    <Card title="⇄ Copiar el banco a otra asignatura" actions={<button className="btn-texto text-xs" onClick={() => setAbierto(false)}>Cerrar</button>}>
+      <p className="mb-2 text-xs text-gray-500">Para asignaturas con el mismo contenido (por ejemplo, Física General 1 y 1-A): cada chiste va a la lección equivalente, aunque le haya cambiado el título. No duplica ni vuelve a traer los que eliminó en el destino. Los aprobados llegan aprobados.</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="text-sm">Desde
+          <select className="campo mt-1" value={origen} onChange={(e) => { setOrigen(e.target.value); reiniciar(); }}>
+            {cursos.map((x) => <option key={x.course_id} value={x.course_id}>{x.titulo} ({x.aprobados} aprobados)</option>)}
+          </select>
+        </label>
+        <label className="text-sm">Hacia
+          <select className="campo mt-1" value={destino} onChange={(e) => { setDestino(e.target.value); reiniciar(); }}>
+            <option value="">Elija…</option>
+            {cursos.filter((x) => x.course_id !== origen).map((x) => <option key={x.course_id} value={x.course_id}>{x.titulo}</option>)}
+          </select>
+        </label>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-4 text-sm">
+        <label className="flex items-center gap-2"><input type="checkbox" checked={pendientes} onChange={(e) => { setPendientes(e.target.checked); reiniciar(); }} /> Incluir los «por revisar»</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={simulados} onChange={(e) => { setSimulados(e.target.checked); reiniciar(); }} /> Incluir los del simulador</label>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button className="btn-secundario text-sm" disabled={!destino || accion.busy}
+          onClick={() => void accion.run(async () => { setHecho(null); setVista(await orbeCopiarBanco(origen, destino, pendientes, simulados, true)); })}>1. Ver qué se copiaría</button>
+        <button className="btn-primario text-sm" disabled={!vista || vista.copiados === 0 || accion.busy}
+          onClick={() => void accion.run(async () => {
+            if (!window.confirm(`Copiar ${vista!.copiados} chiste(s) de «${nombre(origen)}» a «${nombre(destino)}»?`)) return;
+            setHecho(await orbeCopiarBanco(origen, destino, pendientes, simulados, false)); setVista(null); onDone();
+          })}>2. Copiar</button>
+      </div>
+      {vista && <p className="mt-2 text-sm">Vista previa: {resumen(vista)}.</p>}
+      {hecho && <p className="mt-2 text-sm text-emerald-700">Listo: {resumen(hecho)}.</p>}
+      <ErrorBox error={accion.error} />
+    </Card>
+  );
+}
+
 function Chistes({ cursos, onChange }: { cursos: CursoOrbe[]; onChange: () => void }) {
   const visibles = cursos.filter((x) => !x.archivada);
   const [curso, setCurso] = useState(visibles.find((x) => x.pendientes > 0)?.course_id ?? visibles[0]?.course_id ?? '');
@@ -329,6 +386,7 @@ function Chistes({ cursos, onChange }: { cursos: CursoOrbe[]; onChange: () => vo
   const pendientes = (lista.data ?? []).filter((j) => j.status === 'pendiente');
   return (
     <div className="space-y-3">
+      <CopiarBanco cursos={visibles} origenInicial={curso} onDone={recargar} />
       <Card>
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="text-sm">Asignatura
@@ -424,9 +482,7 @@ function Consumo({ p }: { p: PanelOrbe }) {
         <Dato k="Mostrados" v={e.mostrados} sub={`${e.mostrados_7d} en 7 días · ${e.estudiantes_alcanzados} estudiantes`} />
       </div>
       <div className="grid gap-2 sm:grid-cols-3">
-        <Dato k="Cerrados en menos de 3 s" v={e.cerrados_al_instante} sub="señal de que molestan" />
-        <Dato k="«No mostrar más»" v={e.no_mostrar_mas} />
-        <Dato k="Estudiantes que los desactivaron" v={e.estudiantes_desactivados} />
+        <Dato k="Cerrados en menos de 3 s" v={e.cerrados_al_instante} sub="señal de que molestan: suba el intervalo si crece" />
       </div>
       <Card title={`Últimas llamadas · ${p.consumo.length}`}>
         {!p.consumo.length ? <p className="text-sm text-gray-500">Aún no se ha generado nada.</p> : (

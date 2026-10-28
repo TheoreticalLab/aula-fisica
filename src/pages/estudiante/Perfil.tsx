@@ -6,9 +6,7 @@ import { useAction, useAsync } from '@/lib/util';
 import { Card, ErrorBox, Field, Notice, PageTitle } from '@/components/ui';
 import { AVISO_PRIVACIDAD } from '@/lib/tiempo';
 import { rpc, supabase } from '@/lib/supabase';
-import { describirNavegador } from '@/lib/sesiones';
-import { orbeGuardarPreferencia, orbeMiPreferencia } from '@/api/orbeIa';
-import { Spinner } from '@/components/ui';
+import { describirNavegador } from '@/lib/sesiones';import { Spinner } from '@/components/ui';
 
 interface SesionAbierta {
   id: string;
@@ -125,32 +123,6 @@ export default function Perfil() {
           <p className="text-sm text-gray-500">Sin clases.</p>
         )}
       </Card>
-      {profile?.role === 'student' && <PreferenciaOrbe />}
     </div>
-  );
-}
-
-/** El estudiante decide si quiere ver los mensajes de humor de Orbe IA (solo aparece si el profesor los activó). */
-function PreferenciaOrbe() {
-  const pref = useAsync(orbeMiPreferencia, []);
-  const guardar = useAction();
-  if (!pref.data?.disponible) return null;
-  return (
-    <Card title="🤖 Orbe IA">
-      <label className="flex items-start gap-2 text-sm">
-        <input type="checkbox" className="mt-1" checked={!pref.data.disabled} disabled={guardar.busy}
-          onChange={(e) => {
-            const mostrar = e.target.checked;
-            void guardar.run(async () => {
-              await orbeGuardarPreferencia(!mostrar);
-              if (mostrar) window.dispatchEvent(new Event('orbe-ia:reactivar'));
-              await pref.reload();
-            });
-          }} />
-        <span>Mostrarme de vez en cuando un chiste de física relacionado con la lección que estoy estudiando. Nunca aparece
-          durante una evaluación ni mientras escribo una respuesta.</span>
-      </label>
-      <ErrorBox error={guardar.error} />
-    </Card>
   );
 }

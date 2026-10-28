@@ -370,6 +370,38 @@ describe('Orbe IA · seguridad (estática)', () => {
     expect(sql).toContain("regexp_replace(lower(t), '[^[:alnum:]]+', '', 'g')");
   });
 
+  it('copiar el banco: solo el administrador, empareja por slug y no toca otras tablas', () => {
+    const copiar = readFileSync(join(ROOT, 'supabase/migrations/20261029000031_orbe_ia_copiar.sql'), 'utf8');
+    expect(copiar).toMatch(/perform public\.orbe_ia_assert_admin\(\)/);
+    expect(copiar).toMatch(/l\.course_id = p_destino and l\.slug = r\.lesson_slug/);
+    expect(copiar).toMatch(/p_probar boolean default true/);               // por defecto solo vista previa
+    expect(copiar).not.toMatch(/to anon|create policy|drop |delete from|update public\./i);
+    expect(copiar.replace(/--[^\n]*/g, '').match(/insert into public\.(\w+)/g)).toEqual(['insert into public.orbe_ia_jokes']);
+  });
+
+  it('sin activación del estudiante: ninguna pantalla le pregunta ni le deja desactivarlo', () => {
+    for (const f of archivos(join(ROOT, 'src'), /\.(ts|tsx)$/).filter((x) => !x.includes(`${join('pages', 'docente')}`))) {
+      const s = readFileSync(f, 'utf8');
+      expect(s, relative(ROOT, f)).not.toMatch(/No mostrar más|orbe_ia_set_pref|orbe_ia_my_pref|PreferenciaOrbe|Mostrarme de vez en cuando|no_mostrar_mas/);
+    }
+    const comp = readFileSync(join(ROOT, 'src/components/OrbeIa.tsx'), 'utf8');
+    expect(comp).not.toMatch(/localStorage|sessionStorage|Notification|requestPermission/);   // ningún estado de «aceptación» guardado
+    // solo se pide generar (Claude) si el profesor activó la reposición automática y no quedan chistes
+    expect(comp).toMatch(/r\.motivo === 'sin_chistes' && r\.reponer/);
+    expect(comp.match(/orbeReponer\(/g)?.length).toBe(1);
+  });
+
+  it('migración 32: el servidor ya no consulta la preferencia del estudiante ni la puede cambiar', () => {
+    const m = readFileSync(join(ROOT, 'supabase/migrations/20261029000032_orbe_ia_sin_activacion.sql'), 'utf8').replace(/--[^\n]*/g, '');
+    expect(m).not.toMatch(/v_pref\.disabled|\.disabled\b|disabled\s*=|insert into public\.orbe_ia_prefs \(user_id, disabled/);
+    expect(m).not.toMatch(/perform public\.orbe_ia_set_pref/);
+    expect(m).not.toMatch(/insert into public\.orbe_ia_usage|svc_orbe_ia_reservar/);   // pedir un chiste nunca llama a Claude
+    expect(m).toMatch(/not coalesce\(c\.enabled, false\) or not c\.students_enabled/);
+    expect(m).toMatch(/j\.status = 'aprobado'/);
+    expect(m).toMatch(/t\.status = 'in_progress' and t\.mode = 'exam'/);
+    expect(m).not.toMatch(/drop |delete from|to anon/i);
+  });
+
   it('Orbe IA no toca calificaciones, usuarios ni permisos', () => {
     const cuerpo = sql.replace(/--[^\n]*/g, '');
     expect(cuerpo).not.toMatch(/(insert into|update|delete from)\s+public\.(attempts|responses|response_events|profiles|enrollments|grade\w*|class_\w+|course_staff)\b/i);

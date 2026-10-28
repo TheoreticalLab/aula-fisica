@@ -26,7 +26,7 @@ export interface PanelOrbe {
   cursos: CursoOrbe[];
   estadisticas: {
     chistes: Record<string, number>; mostrados: number; mostrados_7d: number; estudiantes_alcanzados: number; cerrados_al_instante: number;
-    no_mostrar_mas: number; estudiantes_desactivados: number; gasto_mes_usd: number; tokens_mes: { entrada: number; salida: number };
+    gasto_mes_usd: number; tokens_mes: { entrada: number; salida: number };
     llamadas_hoy: number; llamadas_reales_mes: number; errores_mes: number;
   };
   consumo: ConsumoOrbe[];
@@ -42,9 +42,8 @@ export interface ResultadoGeneracion { ok: boolean; motivo?: string; simulado?: 
 // --- estudiante -----------------------------------------------------------------------------------------
 export const orbeSiguiente = (lesson: string, section: string, apartado: string | null, evento: EventoOrbe | null = null) =>
   rpc<RespuestaOrbe>('orbe_ia_next', { p_lesson: lesson, p_section: section, p_apartado: apartado, p_evento: evento });
-export const orbeCerrar = (joke: string, accion: 'cerrado' | 'no_mostrar_mas' | 'caducado') => rpc<void>('orbe_ia_cerrar', { p_joke: joke, p_action: accion });
-export const orbeMiPreferencia = () => rpc<{ disabled: boolean; disponible: boolean }>('orbe_ia_my_pref');
-export const orbeGuardarPreferencia = (disabled: boolean) => rpc<{ disabled: boolean }>('orbe_ia_set_pref', { p_disabled: disabled });
+// El estudiante no activa ni desactiva Orbe IA: eso lo decide solo el panel del profesor (migración 32).
+export const orbeCerrar = (joke: string, accion: 'cerrado' | 'caducado') => rpc<void>('orbe_ia_cerrar', { p_joke: joke, p_action: accion });
 export const orbeReponer = (lesson: string, section: string | null, apartado: string | null, evento: EventoOrbe | null) =>
   invocar<ResultadoGeneracion>('orbe-ia', { action: 'reponer', lesson_id: lesson, section: evento ? null : section, apartado, evento });
 
@@ -62,4 +61,8 @@ export const orbeAgregarChiste = (lesson: string, section: string | null, texto:
   rpc<string>('orbe_ia_admin_add', { p_lesson: lesson, p_section: section ?? '', p_text: texto });
 export const orbeGenerar = (lesson: string, section: string | null, apartado: string | null, evento: EventoOrbe | null = null) =>
   invocar<ResultadoGeneracion>('orbe-ia', { action: 'generar', lesson_id: lesson, section: evento ? null : section, apartado, evento });
+export interface ResultadoCopia { revisados: number; copiados: number; duplicados: number; sin_leccion: number; sin_apartado: number; prueba: boolean }
+/** Copia el banco de una asignatura a otra (lecciones emparejadas por slug). Con probar = true solo cuenta. */
+export const orbeCopiarBanco = (origen: string, destino: string, pendientes: boolean, simulados: boolean, probar: boolean) =>
+  rpc<ResultadoCopia>('orbe_ia_admin_copiar', { p_origen: origen, p_destino: destino, p_pendientes: pendientes, p_simulados: simulados, p_probar: probar });
 export const orbeEstadoClave = () => invocar<{ clave_configurada: boolean }>('orbe-ia', { action: 'estado' });

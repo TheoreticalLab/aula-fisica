@@ -22,11 +22,22 @@ insert into public.enrollments (class_id, user_id) values
   ('d9100000-0000-4000-8000-000000000051', 'd9100000-0000-4000-8000-000000000011'),
   ('d9100000-0000-4000-8000-000000000051', 'd9100000-0000-4000-8000-000000000012');
 
--- 0) todo nace apagado
-do $$ declare c public.orbe_ia_config; begin
-  select * into c from public.orbe_ia_config where id = 1;
-  if c.enabled or c.students_enabled or c.api_real or c.auto_approve or c.auto_generate or c.events_enabled then raise exception 'FALLO: algo nace encendido'; end if;
-  if c.interval_minutes <> 10 or c.min_activity_seconds <> 180 then raise exception 'FALLO: valores iniciales'; end if;
+-- 0) todo nace apagado. Los datos de producción restaurados pueden traer Orbe IA ya configurado por el profesor:
+--    se comprueban los valores por defecto en la definición de la tabla y la fila se deja en un estado conocido
+--    (con límite diario holgado, porque hoy pudo haber muchas llamadas reales o simuladas). Todo se deshace al final.
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'orbe_ia_config'
+             and column_name in ('enabled', 'students_enabled', 'api_real', 'auto_approve', 'auto_generate', 'events_enabled')
+             and column_default is distinct from 'false') then
+    raise exception 'FALLO: algo nace encendido'; end if;
+  if (select column_default from information_schema.columns where table_schema = 'public' and table_name = 'orbe_ia_config' and column_name = 'interval_minutes') <> '10'
+     or (select column_default from information_schema.columns where table_schema = 'public' and table_name = 'orbe_ia_config' and column_name = 'min_activity_seconds') <> '180' then
+    raise exception 'FALLO: valores iniciales'; end if;
+end $$;
+update public.orbe_ia_config set enabled = false, students_enabled = false, api_real = false, auto_approve = false, auto_generate = false,
+  events_enabled = false, interval_minutes = 10, min_activity_seconds = 180, model = 'claude-opus-5-5', max_output_tokens = 3000,
+  jokes_per_batch = 10, monthly_budget_usd = 2, daily_max_calls = 1000, price_input_per_mtok = 4, price_output_per_mtok = 20 where id = 1;
+do $$ begin
   if public.orbe_ia_apartados('d9100000-0000-4000-8000-000000000041') <> array['Flujo **eléctrico**', 'Superficies gaussianas'] then
     raise exception 'FALLO: apartados %', public.orbe_ia_apartados('d9100000-0000-4000-8000-000000000041'); end if;
 end $$;
@@ -177,12 +188,12 @@ do $$ declare r jsonb; begin
   if r ->> 'motivo' <> 'evaluacion' or r -> 'chiste' is not null then raise exception 'FALLO: apareció durante una evaluación (%)', r; end if;
 end $$;
 
--- 8) el estudiante los desactiva («No mostrar más»); su preferencia no afecta a otros
+-- 8) desde la migración 32 el estudiante no puede desactivar Orbe IA: lo decide solo el panel del profesor
 do $$ declare r jsonb; begin
-  perform public.orbe_ia_cerrar(current_setting('prueba.primero')::uuid, 'no_mostrar_mas');
+  perform public.orbe_ia_cerrar(current_setting('prueba.primero')::uuid, 'no_mostrar_mas');   -- página antigua en caché
+  perform public.orbe_ia_set_pref(true);
   r := public.orbe_ia_next('d9100000-0000-4000-8000-000000000041', 'teoria', null, null);
-  if (r ->> 'activo')::boolean then raise exception 'FALLO: siguió activo tras desactivarlo (%)', r; end if;
-  if not (public.orbe_ia_my_pref() ->> 'disabled')::boolean then raise exception 'FALLO: preferencia'; end if;
+  if not (r ->> 'activo')::boolean then raise exception 'FALLO: el estudiante pudo desactivar Orbe IA (%)', r; end if;
 end $$;
 
 -- 9) límites de gasto en el servidor: presupuesto mensual y llamadas diarias
@@ -202,7 +213,7 @@ do $$ declare r jsonb; begin
 end $$;
 -- coste de una llamada real: 1000 de entrada y 2000 de salida con Opus 5.5 = 0,004 + 0,04
 reset role;
-update public.orbe_ia_config set daily_max_calls = 10 where id = 1;
+update public.orbe_ia_config set daily_max_calls = 1000 where id = 1;
 set local role service_role;
 do $$ declare r jsonb; begin
   r := public.svc_orbe_ia_reservar('d9100000-0000-4000-8000-000000000001', 'profesor', 'd9100000-0000-4000-8000-000000000041', null);
