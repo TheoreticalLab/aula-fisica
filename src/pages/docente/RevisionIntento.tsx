@@ -7,6 +7,7 @@ import { CATEGORIA, DIFICULTAD, fecha, porcentaje, puntaje, useAction, useAsync 
 import { Badge, Card, ErrorBox, PageTitle, Spinner, StatusBadge } from '@/components/ui';
 import { EnunciadoEjercicio, EntradaRespuesta, SolucionBox } from '@/components/Ejercicio';
 import { Markdown } from '@/components/Markdown';
+import { TarjetaCronologia } from './lieia/Cronologia';
 
 function Eventos({ responseId }: { responseId: string }) {
   const ev = useAsync(() => responseEvents(responseId), [responseId]);
@@ -92,6 +93,7 @@ function ItemRevision({ item, index, onSaved }: { item: AttemptItem; index: numb
 export default function RevisionIntento() {
   const { attemptId = '' } = useParams();
   const st = useAsync(() => getAttempt(attemptId), [attemptId]);
+  const [verProceso, setVerProceso] = useState(false);
   if (st.loading && !st.data) return <Spinner />;
   if (st.error) return <ErrorBox error={st.error} />;
   const v = st.data!;
@@ -106,6 +108,10 @@ export default function RevisionIntento() {
         <p className="text-sm">Puntaje: <strong>{puntaje(v.attempt.score, v.attempt.max_score)}</strong> {v.attempt.needs_review && <Badge tone="red">Hay respuestas por revisar</Badge>}</p>
         {v.activity && !v.activity.grades_published && <p className="mt-1 text-xs text-gray-500">Las calificaciones de esta actividad aún no están publicadas: el estudiante no ve la nota ni los comentarios.</p>}
       </Card>
+      <details className="mb-4" open={verProceso} onToggle={(e) => setVerProceso((e.target as HTMLDetailsElement).open)}>
+        <summary className="cursor-pointer text-sm font-medium">⏱ Proceso de respuesta (cronología de la telemetría)</summary>
+        {verProceso && <div className="mt-2"><TarjetaCronologia attemptId={attemptId} /></div>}
+      </details>
       <div className="space-y-4">
         {v.items.map((it, i) => <ItemRevision key={it.exercise.id} item={it} index={i} onSaved={st.reload} />)}
       </div>

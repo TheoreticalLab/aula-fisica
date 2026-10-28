@@ -7,6 +7,13 @@ import { Badge, ErrorBox, Notice, PageTitle, Spinner } from '@/components/ui';
 import { Ejercicio } from '@/components/Ejercicio';
 import { Markdown } from '@/components/Markdown';
 import { REVEAL_TEXT } from './Actividad';
+import { AvisoTelemetria, TelemetriaProvider, useTelemetria } from '@/components/Telemetria';
+
+/** Botón de entrega con los eventos de envío (solicitado → recibido por el servidor, o error). */
+function BotonEntregar({ entregar, ocupado }: { entregar: (tel: ReturnType<typeof useTelemetria>) => void; ocupado: boolean }) {
+  const tel = useTelemetria();
+  return <button className="btn-acento" onClick={() => entregar(tel)} disabled={ocupado}>{ocupado ? 'Entregando…' : 'Entregar'}</button>;
+}
 
 export default function Intento() {
   const { attemptId = '' } = useParams();
@@ -28,14 +35,16 @@ export default function Intento() {
   }).length;
   const vencido = activity?.closes_at && new Date(activity.closes_at).getTime() <= Date.now();
 
-  async function entregar() {
+  async function entregar(tel: ReturnType<typeof useTelemetria>) {
     const msg = sinResponder
       ? `Quedan ${sinResponder} ejercicios sin responder. Si entrega ahora, contarán como incorrectos. ¿Entregar?`
       : '¿Entregar el intento? Después no podrá modificar sus respuestas.';
     if (!window.confirm(msg)) return;
+    tel?.envio('solicitado');
     // pequeña espera para que se guarden los últimos borradores
     await new Promise((r) => setTimeout(r, 1300));
     const r = await action.run(() => submitAttempt(attempt.id));
+    tel?.envio(r ? 'recibido' : 'error');
     if (r) {
       setJustSubmitted(true);
       await st.reload();
@@ -43,6 +52,7 @@ export default function Intento() {
   }
 
   return (
+    <TelemetriaProvider attemptId={attempt.id} activo={flags.is_owner && attempt.status === 'in_progress'}>
     <div className="mx-auto max-w-3xl">
       <PageTitle
         title={activity?.title ?? view.lesson?.title ?? 'Intento'}
@@ -85,9 +95,11 @@ export default function Intento() {
       {attempt.status === 'in_progress' && flags.is_owner && activity && (
         <div className="sticky bottom-20 z-30 mt-6 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-white/10 dark:bg-primario-950/95 md:bottom-4">
           <span className="text-sm">{sinResponder ? `${sinResponder} sin responder` : 'Todo respondido'}</span>
-          <button className="btn-acento" onClick={entregar} disabled={action.busy}>{action.busy ? 'Entregando…' : 'Entregar'}</button>
+          <BotonEntregar entregar={(tel) => void entregar(tel)} ocupado={action.busy} />
         </div>
       )}
+      {flags.is_owner && attempt.status === 'in_progress' && <div className="mt-3"><AvisoTelemetria /></div>}
     </div>
+    </TelemetriaProvider>
   );
 }

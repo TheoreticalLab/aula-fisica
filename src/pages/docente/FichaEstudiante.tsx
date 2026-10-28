@@ -9,6 +9,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { rpc } from '@/lib/supabase';
 import { useAction, useAsync } from '@/lib/util';
 import { abrirPdf } from '@/api/entregas';
+import { ProcesoEstudiante } from './lieia/ProcesoEstudiante';
 import { porcentajeAsistencia, textoAsistencia, tonoAsistencia, UMBRAL_ASISTENCIA } from '@/lib/asistencia';
 import { useDark } from '@/lib/tema';
 import { etiquetaSeccion, formatoDuracion } from '@/lib/tiempo';
@@ -64,7 +65,7 @@ interface Ficha {
   cuenta: { fecha: string; accion: string; por: string | null }[];
 }
 
-type Tab = 'resumen' | 'accesos' | 'estudio' | 'actividades' | 'respuestas' | 'notas' | 'asistencia' | 'dominio' | 'comunicacion';
+type Tab = 'resumen' | 'accesos' | 'estudio' | 'actividades' | 'respuestas' | 'proceso' | 'notas' | 'asistencia' | 'dominio' | 'comunicacion';
 
 const fecha = (iso: Iso) => (iso ? new Date(iso).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 const dia = (iso: string) => new Date(iso).toLocaleDateString('es-DO', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -584,7 +585,7 @@ export default function FichaEstudiante() {
       />
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
         { id: 'resumen', label: 'Resumen' }, { id: 'accesos', label: 'Accesos' }, { id: 'estudio', label: 'Estudio y sesiones' },
-        { id: 'actividades', label: 'Actividades' }, { id: 'respuestas', label: 'Respuestas y errores' }, { id: 'notas', label: 'Calificaciones' }, { id: 'asistencia', label: 'Asistencia y entregas' },
+        { id: 'actividades', label: 'Actividades' }, { id: 'respuestas', label: 'Respuestas y errores' }, { id: 'proceso', label: 'Proceso de respuesta' }, { id: 'notas', label: 'Calificaciones' }, { id: 'asistencia', label: 'Asistencia y entregas' },
         { id: 'dominio', label: 'Dominio' }, { id: 'comunicacion', label: 'Mensajes y cuenta' },
       ]} />
       {tab === 'resumen' && <Resumen f={f} x={x} />}
@@ -593,7 +594,8 @@ export default function FichaEstudiante() {
       {tab === 'actividades' && <Actividades f={f} />}
       {tab === 'respuestas' && <Respuestas f={f} />}
       {tab === 'notas' && <Calificaciones f={f} />}
-      {tab === 'asistencia' && (x ? <AsistenciaEntregas x={x} /> : <ErrorBox error="No se pudo cargar la asistencia." onRetry={st.reload} />)}
+      {tab === 'proceso' && <ProcesoEstudiante userId={f.perfil.id} />}
+      {tab === 'asistencia' && (x ?<AsistenciaEntregas x={x} /> : <ErrorBox error="No se pudo cargar la asistencia." onRetry={st.reload} />)}
       {tab === 'dominio' &&<Dominio f={f} userId={f.perfil.id} />}
       {tab === 'comunicacion' && <Comunicacion f={f} />}
       <p className="text-xs text-gray-500">Datos al {fecha(f.generado)}. Cada consulta de esta ficha queda registrada. Solo se muestran las secciones a su cargo.</p>

@@ -18,6 +18,7 @@ import { Badge, Card, ErrorBox, Notice, Spinner } from '@/components/ui';
 import { CurvaSupervivencia, Dispersion, GrafoDependencias, MatrizParejas, useTema } from './graficos';
 import { habilitado, posteriorHabilitada, TONO_ESTADO, VALIDACION } from './Validacion';
 import { ESTADO_TEXTO } from '@/lib/lieia/validacion';
+import { ProcesoExamen } from './ProcesoExamen';
 
 type AnalisisSerial = Omit<Analisis, 'rasch'> & { rasch: { theta: number[]; b: number[] } };
 interface Actividad { id: string; titulo: string; modo: string; cierra: string | null; entregados: number; con_tiempos: number; items: number }
@@ -42,6 +43,7 @@ export function Reales() {
   const acts = useAsync(() => (clase ? rpc<Actividad[]>('lieia_activities', { p_class: clase }) : Promise.resolve([])), [clase]);
   const [act, setAct] = useState<Actividad | null>(null);
   const [examen, setExamen] = useState<ExamenObservado | null>(null);
+  const [itemsIds, setItemsIds] = useState<string[]>([]);
   const [res, setRes] = useState<AnalisisSerial | null>(null);
   const [nombres, setNombres] = useState<Nombre[] | null>(null);
   const [progreso, setProgreso] = useState(false);
@@ -53,6 +55,7 @@ export function Reales() {
       setProgreso(true);
       const d = await rpc<DatosRealesExamen>('lieia_exam_data', { p_activity: a.id });
       const ex = aExamen(d);
+      setItemsIds([...d.items].sort((x, y) => x.posicion - y.posicion).map((x) => x.exercise_id));
       setExamen(ex);
       if (ex.estudiantes.length < 3) throw new Error('Hay menos de 3 entregas: no hay nada que comparar.');
       const r = await enTrabajador<AnalisisSerial>({ tipo: 'analizar', examen: ex, opciones: { permutaciones: 199, bootstrap: 199 } }).promesa;
@@ -184,6 +187,9 @@ export function Reales() {
             </div>
             <p className="mt-2 text-xs text-gray-500">En gris, indicadores no validados (sin potencia demostrada o con falsos positivos no controlados): solo descriptivos. Pestaña oculta = tiempo con el aula en segundo plano durante el intento; puede deberse a consultar otra fuente o a causas inocentes (no se infiere nada de ello). La pendiente esperada del tiempo frente a la exigencia de cada ítem es ≈ 1; cerca de 0 = tarda lo mismo en todo. D8 solo existe si el examen tiene grupos isomorfos y el estudiante vio al menos 3 pares. «Cambios de respuesta» es descriptivo (cuántas veces corrigió una respuesta ya dada): no se infiere nada de él.</p>
           </Card>
+
+          <ProcesoExamen activityId={act.id} items={itemsIds} b={res.rasch.b}
+            etiqueta={(s) => { const k = examen.estudiantes.findIndex((e) => e.id === s); return k >= 0 ? etiqueta(k) : s; }} />
 
           <div className="grid gap-4 lg:grid-cols-2">
             {res.tiempos && (

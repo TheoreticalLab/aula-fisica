@@ -17,6 +17,8 @@ import { Badge, ErrorBox, StatusBadge } from './ui';
 import { InlineMd, Markdown } from './Markdown';
 import { Figura } from './Grafica';
 import { Simulador } from '@/sims/Simulador';
+import { useTelemetria } from './Telemetria';
+import { describirRespuesta } from '@/lib/telemetria/rastreador';
 
 const LETRAS = 'abcdefghijklmnopqrstuvwxyz';
 
@@ -184,9 +186,23 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
   const [saved, setSaved] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [similares, setSimilares] = useState<{ exercise_id: string; lesson_id: string }[] | null>(null);
   const dirty = useRef(false);
+  const tel = useTelemetria();
+  const tarjeta = useRef<HTMLElement>(null);
 
   const locked = item.locked || !view.flags.editable;
   const status = response?.status ?? null;
+
+  // telemetría: respuesta de partida y visibilidad de la pregunta en pantalla (≥ 50 %)
+  useEffect(() => {
+    if (!tel) return;
+    tel.conocer(ex.id, describirRespuesta(response?.answer));
+    const el = tarjeta.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const obs = new IntersectionObserver(([e]) => tel.vista(ex.id, e.isIntersecting), { threshold: 0.5 });
+    obs.observe(el);
+    return () => { obs.disconnect(); tel.vista(ex.id, false); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tel, ex.id]);
 
   // guardado automático de borradores
   useEffect(() => {
@@ -195,9 +211,11 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
       setSaved('saving');
       try {
         await acciones.guardar(view.attempt.id, ex.id, answer);
+        tel?.guardado(ex.id, true);
         setSaved('saved');
         if (!practice) onChange({ ...item, response: { ...(response ?? emptyResponse()), answer, status: 'draft' } });
       } catch (e) {
+        tel?.guardado(ex.id, false);
         setSaved('idle');
         setError(e instanceof Error ? e.message : String(e));
       }
@@ -208,6 +226,7 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
 
   const change = (a: StudentAnswer) => {
     dirty.current = true;
+    tel?.cambio(ex.id, describirRespuesta(a));
     setSaved('idle');
     setAnswer(a);
     setResult(null);
@@ -218,8 +237,10 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
     setError(null);
     // señal para el medidor de tiempo efectivo (no lleva el contenido de la respuesta)
     window.dispatchEvent(new CustomEvent('aula:respuesta'));
+    tel?.comprobacion(ex.id, 'solicitada');
     try {
       const r = await acciones.comprobar(view.attempt.id, ex.id, answer);
+      tel?.comprobacion(ex.id, 'recibida');
       setResult(r.result);
       dirty.current = false;
       if (r.recorded && r.state) {
@@ -241,6 +262,7 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
         }
       }
     } catch (e) {
+      tel?.comprobacion(ex.id, 'error');
       setError(e instanceof Error ? e.message : String(e));
       onReload?.();
     } finally {
@@ -295,7 +317,7 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
   const resultStatus = result?.status ?? (view.flags.correctness_visible ? status : null);
 
   return (
-    <article className="tarjeta" id={`ej-${ex.id}`}>
+    <article className="tarjeta" id={`ej-${ex.id}`} ref={tarjeta} onPointerDownCapture={() => tel?.interaccion(ex.id)} onFocusCapture={() => tel?.interaccion(ex.id)}>
       <header className="mb-2 flex flex-wrap items-center gap-2">
         <h3 className="font-serif text-lg font-semibold">Ejercicio {index + 1}</h3>
         <Badge tone={ex.difficulty === 'basico' ? 'green' : ex.difficulty === 'intermedio' ? 'amber' : 'red'}>{DIFICULTAD[ex.difficulty]}</Badge>

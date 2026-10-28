@@ -9,6 +9,7 @@ import { Markdown, Tex } from '@/components/Markdown';
 import { Badge, Card, Empty, ErrorBox, PageTitle, ProgressBar, Spinner, Tabs } from '@/components/ui';
 import { Ejercicio } from '@/components/Ejercicio';
 import { Simulador } from '@/sims/Simulador';
+import { AvisoTelemetria, TelemetriaProvider } from '@/components/Telemetria';
 import { Autoevaluacion, Conexiones, ErroresFrecuentes, Objetivos, PreguntasConceptuales, tieneComprension } from '@/components/Estudio';
 
 type Seccion = 'teoria' | 'formulas' | 'ejemplos' | 'simulacion' | 'comprension' | 'practica';
@@ -123,6 +124,7 @@ function PracticaLeccion({ lesson }: { lesson: Lesson }) {
   }
   if (!view.items.length) return <Empty>Esta lección todavía no tiene ejercicios de práctica.</Empty>;
   return (
+    <TelemetriaProvider attemptId={view.attempt.id} activo={view.flags.is_owner && view.attempt.status === 'in_progress'}>
     <div className="space-y-4">
       <div className="tarjeta">
         <ProgressBar value={cerrados / view.items.length} label={`Ejercicios cerrados: ${cerrados} de ${view.items.length} · correctos: ${correctos}`} />
@@ -137,7 +139,9 @@ function PracticaLeccion({ lesson }: { lesson: Lesson }) {
       {view.items.map((it, i) => (
         <Ejercicio key={it.exercise.id} index={i} item={it} view={view} onChange={update(i)} onReload={st.reload} />
       ))}
+      {view.flags.is_owner && <AvisoTelemetria />}
     </div>
+    </TelemetriaProvider>
   );
 }
 
