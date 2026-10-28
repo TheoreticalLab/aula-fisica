@@ -39,6 +39,7 @@ export default function InicioDocente() {
           <Link to="/docente/ejercicios" className="btn-secundario">Banco de ejercicios</Link>
           <Link to="/" className="btn-secundario">👁 Vista de estudiante</Link>
           <Link to="/docente/analitica" className="btn-secundario">⏱ Analítica de tiempo</Link>
+          <Link to="/docente/lieia" className="btn-secundario">🔬 Laboratorio LIEIA</Link>
           <Link to="/docente/comunicacion" className="btn-secundario">📢 Comunicación en vivo</Link>
           <a href={`${import.meta.env.BASE_URL}control/`} className="btn-secundario">📱 Orbe Control</a>
           {isAdmin && <Link to="/docente/cuentas" className="btn-secundario">Cuentas</Link>}

@@ -36,6 +36,7 @@ const VistaPrevia = lazy(() => import('@/pages/docente/VistaPrevia'));
 const VistaPanel = lazy(() => import('@/pages/docente/VistaPanel'));
 const RevisionIntento = lazy(() => import('@/pages/docente/RevisionIntento'));
 const FichaEstudiante = lazy(() => import('@/pages/docente/FichaEstudiante'));
+const Lieia = lazy(() => import('@/pages/docente/lieia/Lieia'));
 const Cuentas = lazy(() => import('@/pages/docente/Cuentas'));
 const Analitica = lazy(() => import('@/pages/docente/Analitica'));
 const Comunicacion = lazy(() => import('@/pages/docente/Comunicacion'));
@@ -108,6 +109,7 @@ export default function App() {
               <Route path="docente/intentos/:attemptId" element={teacher(<RevisionIntento />)} />
               <Route path="docente/clases/:classId/estudiantes/:userId" element={teacher(<FichaEstudiante />)} />
               <Route path="docente/estudiantes/:userId" element={teacher(<FichaEstudiante />)} />
+              <Route path="docente/lieia" element={teacher(<Lieia />)} />
               <Route path="docente/cuentas" element={teacher(<Cuentas />)} />
               <Route path="docente/analitica" element={teacher(<Analitica />)} />
               <Route path="docente/comunicacion" element={teacher(<Comunicacion />)} />
