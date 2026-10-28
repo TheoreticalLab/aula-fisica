@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { misAsistenciasAbiertas, type AsistenciaAbiertaMia } from '@/api/asistencia';
+import { useEmergente } from '@/lib/emergentes';
 
 export function AvisoAsistencia() {
   const [pendientes, setPendientes] = useState<AsistenciaAbiertaMia[]>([]);
@@ -23,7 +24,9 @@ export function AvisoAsistencia() {
     document.addEventListener('visibilitychange', cargar);
     return () => { vivo = false; window.clearInterval(t); document.removeEventListener('visibilitychange', cargar); };
   }, [pathname]);
-  if (!pendientes.length || pathname === '/asistencia' || pathname === '/') return null;
+  const visible = pendientes.length > 0 && pathname !== '/asistencia' && pathname !== '/';
+  useEmergente('aviso-asistencia', visible);
+  if (!visible) return null;
   return (
     <Link to="/asistencia" className="fixed inset-x-3 top-3 z-50 mx-auto block max-w-lg rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950 shadow-lg dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
       <p className="font-semibold">📋 El profesor abrió la asistencia</p>

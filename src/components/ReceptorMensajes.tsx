@@ -12,6 +12,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/auth/AuthContext';
 import { rpc, supabase, supabaseConfigured } from '@/lib/supabase';
 import { ETIQUETA_TIPO, fusionarCola, porMarcarRecibidos, type MensajeVivo } from '@/lib/mensajes';
+import { useEmergente } from '@/lib/emergentes';
+import { TarjetaEmergente } from './Emergente';
 
 const RESPONDIDOS = 'aula-mensajes-respondidos';
 const ACKS = 'aula-mensajes-acks';
@@ -122,6 +124,7 @@ export function ReceptorMensajes() {
   }, []);
 
   const actual = cola[0];
+  useEmergente('mensajes-profesor', activo && !!actual);
 
   // los informativos se retiran solos a los 20 s (sin contar como leídos)
   useEffect(() => {
@@ -144,7 +147,7 @@ export function ReceptorMensajes() {
 
   if (actual.kind === 'informativo') {
     return (
-      <div role="status" aria-live="polite" className="fixed bottom-20 right-3 z-[60] w-[min(24rem,calc(100vw-1.5rem))] rounded-xl border border-primario-200 bg-white p-4 shadow-xl dark:border-white/15 dark:bg-primario-950 md:bottom-6">
+      <TarjetaEmergente etiqueta="Mensaje del profesor">
         <div className="flex items-start justify-between gap-2">
           <div className="text-primario-900 dark:text-primario-100">{cabecera}</div>
           <button className="btn-texto" aria-label="Cerrar" onClick={() => responder(actual, 'descartado')}>✕</button>
@@ -154,7 +157,7 @@ export function ReceptorMensajes() {
           <span className="text-xs text-gray-500">{quedan > 0 ? `${quedan} mensaje(s) más` : ''}</span>
           <button className="btn-primario !py-1 text-sm" onClick={() => responder(actual, 'leido')}>Entendido</button>
         </div>
-      </div>
+      </TarjetaEmergente>
     );
   }
 

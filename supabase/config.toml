@@ -10,3 +10,7 @@ verify_jwt = false
 [functions.entregas]
 # Igual que «calificar»: verifica la sesión con auth.getUser() (supabase/functions/entregas/index.ts).
 verify_jwt = false
+
+[functions.orbe-ia]
+# Igual que «calificar»: verifica la sesión con auth.getUser() (supabase/functions/orbe-ia/index.ts).
+verify_jwt = false

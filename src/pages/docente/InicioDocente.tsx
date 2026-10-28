@@ -42,6 +42,7 @@ export default function InicioDocente() {
           <Link to="/docente/lieia" className="btn-secundario">🔬 Laboratorio LIEIA</Link>
           <Link to="/docente/comunicacion" className="btn-secundario">📢 Comunicación en vivo</Link>
           <a href={`${import.meta.env.BASE_URL}control/`} className="btn-secundario">📱 Orbe Control</a>
+          {isAdmin && <Link to="/docente/orbe-ia" className="btn-secundario">🤖 Orbe IA</Link>}
           {isAdmin && <Link to="/docente/cuentas" className="btn-secundario">Cuentas</Link>}
         </>} />
       {!courses.length && <Notice tone="warn">No hay ninguna asignatura. Cargue la semilla del curso inicial o cree una en «Asignaturas y contenido».</Notice>}

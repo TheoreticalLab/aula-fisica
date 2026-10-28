@@ -257,6 +257,8 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
             messages: r.result.messages,
           },
         });
+        // Orbe IA (nivel C): solo en práctica; el componente decide si toca y cuándo (nunca en evaluaciones)
+        if (r.state.status === 'correct' && practice) window.dispatchEvent(new CustomEvent('orbe-ia:evento', { detail: 'ejercicio_correcto' }));
         if (r.state.status !== 'correct' && ex.format !== 'open') {
           acciones.refuerzo(ex.id).then(setSimilares).catch(() => setSimilares([]));
         }

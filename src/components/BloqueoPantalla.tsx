@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/auth/AuthContext';
 import { rpc, supabase, supabaseConfigured } from '@/lib/supabase';
+import { useEmergente } from '@/lib/emergentes';
 
 interface Bloqueo { id: string; body: string; sender_name: string; created_at: string; locked_until: string | null }
 
@@ -89,6 +90,7 @@ export function BloqueoPantalla() {
     }
   }
 
+  useEmergente('bloqueo-pantalla', activo && !!bloqueo);
   if (!activo || !bloqueo) return null;
   return createPortal(
     <div role="alertdialog" aria-modal="true" aria-label="Pantalla bloqueada por el profesor"

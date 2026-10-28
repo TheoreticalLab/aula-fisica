@@ -43,6 +43,14 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
     ],
     pendiente: ['Personalización del aprendizaje y análisis pedagógico avanzado (etapa 3).'],
   },
+  {
+    area: 'Orbe IA (humor contextual)',
+    hecho: [
+      'Preparado, sin activar: chistes de física por lección, subsección y apartado de la teoría, generados con Claude (o un simulador sin coste), revisados por el profesor y reutilizados con todos los estudiantes. A la IA solo le llega el contenido académico, nunca datos personales.',
+      'Reglas en el servidor: un mensaje como máximo cada 10 minutos (configurable), solo tras actividad reciente comprobada, nunca durante una evaluación ni mientras el estudiante escribe, sin repetir chistes; presupuesto mensual y límite diario de llamadas.',
+    ],
+    pendiente: ['Activación: aplicar la migración 30 y la función «orbe-ia», guardar la clave de la API como secreto del servidor y encender el módulo desde el panel.', 'Eventos académicos: hoy solo «ejercicio de práctica resuelto»; terminar lección, resolver tras varios intentos y fin de sesión están previstos.'],
+  },
 ];
 
 export default function Acerca() {
