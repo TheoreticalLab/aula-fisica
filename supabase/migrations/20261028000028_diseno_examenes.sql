@@ -151,8 +151,8 @@ begin
     updated_by = excluded.updated_by, updated_at = now();
   delete from public.exam_design_items where activity_id = p_activity;
   insert into public.exam_design_items (activity_id, exercise_id, rol, grupo, bloque)
-    select p_activity, (x ->> 'exercise_id')::uuid, coalesce(x ->> 'rol', 'normal'), nullif(btrim(x ->> 'grupo'), ''), (x ->> 'bloque')::integer
-    from jsonb_array_elements(coalesce(p_items, '[]'::jsonb)) x;
+    select p_activity, (it.v ->> 'exercise_id')::uuid, coalesce(it.v ->> 'rol', 'normal'), nullif(btrim(it.v ->> 'grupo'), ''), (it.v ->> 'bloque')::integer
+    from jsonb_array_elements(coalesce(p_items, '[]'::jsonb)) as it(v);
   if coalesce(p_versiones, false) then
     if not exists (select 1 from public.exam_design_items where activity_id = p_activity and grupo is not null) then
       raise exception 'Para usar versiones defina al menos un grupo isomorfo' using errcode = '22023';
