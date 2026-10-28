@@ -3,7 +3,8 @@
  * dónde funciona, con qué frecuencia, qué chistes se muestran (modo revisión), qué modelo y cuánto se puede gastar.
  * Las comprobaciones de permisos y límites se repiten en el servidor (orbe_ia_admin_* y la Edge Function).
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { costoLote, leccionesAGenerar, MOTIVOS_PARA_DETENER } from '@/lib/orbeIa';
 import {
   MODELOS_ORBE, orbeAccionChiste, orbeAgregarChiste, orbeChistes, orbeEstadoClave, orbeGenerar, orbeGuardarConfig, orbeGuardarCurso,
   orbeLecciones, orbePanel, type ChisteOrbe, type ConfigOrbe, type CursoOrbe, type LeccionOrbe, type PanelOrbe, type ResultadoGeneracion,
@@ -51,7 +52,7 @@ export default function OrbeIaPanel() {
         { id: 'chistes', label: `Chistes${p.estadisticas.chistes.pendiente ? ` (${p.estadisticas.chistes.pendiente} por revisar)` : ''}` }, { id: 'consumo', label: 'Estadísticas y consumo' },
       ]} />
       {tab === 'estado' && <Configuracion c={c} clave={clave.data?.clave_configurada ?? null} onSaved={panel.reload} />}
-      {tab === 'cursos' && <Cursos cursos={p.cursos} onSaved={panel.reload} />}
+      {tab === 'cursos' && <Cursos p={p} onSaved={panel.reload} />}
       {tab === 'chistes' && <Chistes cursos={p.cursos} onChange={panel.reload} />}
       {tab === 'consumo' && <Consumo p={p} />}
     </div>
@@ -144,19 +145,94 @@ function Configuracion({ c, clave, onSaved }: { c: ConfigOrbe; clave: boolean | 
   );
 }
 
-function Cursos({ cursos, onSaved }: { cursos: CursoOrbe[]; onSaved: () => void }) {
+function Cursos({ p, onSaved }: { p: PanelOrbe; onSaved: () => void }) {
   const [abierto, setAbierto] = useState<string | null>(null);
   return (
     <div className="space-y-3">
-      <p className="text-sm text-gray-600 dark:text-gray-400">Active Orbe IA por asignatura y elija las lecciones. Desde cada lección puede generar chistes (con el simulador mientras no active las llamadas reales).</p>
-      {cursos.filter((x) => !x.archivada).map((co) => (
-        <CursoFila key={co.course_id} co={co} abierto={abierto === co.course_id} onToggle={() => setAbierto(abierto === co.course_id ? null : co.course_id)} onSaved={onSaved} />
+      <p className="text-sm text-gray-600 dark:text-gray-400">Active Orbe IA por asignatura y elija las lecciones. Con «Generar para todo el curso» se crea un lote en cada lección activa; también puede generar lección por lección (con el simulador mientras no active las llamadas reales).</p>
+      {p.cursos.filter((x) => !x.archivada).map((co) => (
+        <CursoFila key={co.course_id} co={co} config={p.config} llamadasHoy={p.estadisticas.llamadas_hoy} abierto={abierto === co.course_id}
+          onToggle={() => setAbierto(abierto === co.course_id ? null : co.course_id)} onSaved={onSaved} />
       ))}
     </div>
   );
 }
 
-function CursoFila({ co, abierto, onToggle, onSaved }: { co: CursoOrbe; abierto: boolean; onToggle: () => void; onSaved: () => void }) {
+/** Genera un lote en cada lección activa del curso, una tras otra, con progreso y posibilidad de detenerse. */
+function GenerarCurso({ co, config, llamadasHoy, deshabilitado, onDone }: { co: CursoOrbe; config: ConfigOrbe; llamadasHoy: number; deshabilitado: string | null; onDone: () => void }) {
+  const [prog, setProg] = useState<{ hechas: number; total: number; actual: string; generados: number; errores: number; fin: string | null } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const detener = useRef(false);
+  const corriendo = !!prog && prog.fin === null;
+
+  async function iniciar() {
+    setError(null);
+    try {
+      const lecciones = await orbeLecciones(co.course_id);
+      const { objetivo, yaTienen, ocultas } = leccionesAGenerar(lecciones, co, config.jokes_per_batch);
+      if (!objetivo.length) {
+        setProg({ hechas: 0, total: 0, actual: '', generados: 0, errores: 0, fin: yaTienen ? `Todas las lecciones activas ya tienen al menos ${config.jokes_per_batch} chistes.` : 'No hay lecciones activas: marque «En todas sus lecciones» o elija lecciones y guarde.' });
+        return;
+      }
+      const quedanHoy = Math.max(0, config.daily_max_calls - llamadasHoy);
+      const lineas = [
+        `Se generará un lote de ${config.jokes_per_batch} chistes en ${objetivo.length} lección(es)${yaTienen ? ` (se saltan ${yaTienen} que ya tienen chistes)` : ''}${ocultas ? ` y ${ocultas} oculta(s)` : ''}.`,
+        config.api_real ? `Coste estimado: ≈ ${usd(objetivo.length * costoLote(config).tipico)} con ${config.model} (presupuesto mensual: ${usd(config.monthly_budget_usd)}).` : 'Modo simulador: sin coste.',
+        objetivo.length > quedanHoy ? `Atención: hoy solo quedan ${quedanHoy} llamada(s) del límite diario; se detendrá al llegar. Puede subir el límite en «Configuración».` : '',
+        config.auto_approve ? 'Modo revisión DESACTIVADO: los chistes válidos se publicarán directamente.' : 'Quedarán «por revisar» hasta que los apruebe.',
+        'Mantenga esta página abierta mientras termina.',
+      ].filter(Boolean);
+      if (!window.confirm(lineas.join('\n\n'))) return;
+      detener.current = false;
+      const titulo = new Map(lecciones.map((l) => [l.lesson_id, l.titulo]));
+      let generados = 0, errores = 0, fin: string | null = null;
+      for (let k = 0; k < objetivo.length; k++) {
+        if (detener.current) { fin = 'Detenido por usted.'; break; }
+        setProg({ hechas: k, total: objetivo.length, actual: titulo.get(objetivo[k]) ?? '', generados, errores, fin: null });
+        const r = await orbeGenerar(objetivo[k], null, null).catch((e: unknown) => ({ ok: false, motivo: e instanceof Error ? e.message : 'error' }) as ResultadoGeneracion);
+        if (r.ok) generados += r.generados ?? 0;
+        else {
+          errores++;
+          if (MOTIVOS_PARA_DETENER.has(r.motivo ?? '')) { fin = `Se detuvo: ${MOTIVOS[r.motivo ?? ''] ?? r.motivo}`; setProg({ hechas: k, total: objetivo.length, actual: '', generados, errores, fin }); break; }
+        }
+        if (k === objetivo.length - 1) fin = 'Terminado.';
+        setProg({ hechas: k + 1, total: objetivo.length, actual: '', generados, errores, fin });
+      }
+      if (fin === 'Detenido por usted.') setProg((x) => (x ? { ...x, fin } : x));
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-lg bg-violet-50 p-3 text-sm dark:bg-white/5">
+      <div className="flex flex-wrap items-center gap-2">
+        <button className="btn-primario !py-1 text-xs" disabled={corriendo || !!deshabilitado} onClick={() => void iniciar()}>🤖 Generar para todo el curso</button>
+        {corriendo && <button className="btn-secundario !py-1 text-xs" onClick={() => { detener.current = true; }}>Detener</button>}
+        {deshabilitado && <span className="text-xs text-gray-500">{deshabilitado}</span>}
+      </div>
+      {prog && (
+        <div className="mt-2">
+          {prog.total > 0 && (
+            <div className="h-2 w-full overflow-hidden rounded bg-gray-200 dark:bg-white/10">
+              <div className="h-2 bg-violet-500 transition-all" style={{ width: `${Math.round((100 * prog.hechas) / prog.total)}%` }} />
+            </div>
+          )}
+          <p className="mt-1 text-xs">
+            {prog.total > 0 && `${prog.hechas} de ${prog.total} lecciones · ${prog.generados} chistes nuevos${prog.errores ? ` · ${prog.errores} con error` : ''}`}
+            {corriendo && prog.actual && ` · generando «${prog.actual}»…`}
+            {prog.fin && <strong className="ml-1">{prog.fin}</strong>}
+          </p>
+          {prog.fin && prog.generados > 0 && !config.auto_approve && <p className="text-xs text-gray-500">Revíselos en la pestaña «Chistes» (Lección: Todas · Estado: Por revisar), donde puede aprobarlos todos de una vez.</p>}
+        </div>
+      )}
+      <ErrorBox error={error} />
+    </div>
+  );
+}
+
+function CursoFila({ co, config, llamadasHoy, abierto, onToggle, onSaved }: { co: CursoOrbe; config: ConfigOrbe; llamadasHoy: number; abierto: boolean; onToggle: () => void; onSaved: () => void }) {
   const [enabled, setEnabled] = useState(co.enabled);
   const [todas, setTodas] = useState(co.all_lessons);
   const [sel, setSel] = useState<Set<string>>(new Set(co.lessons));
@@ -180,6 +256,8 @@ function CursoFila({ co, abierto, onToggle, onSaved }: { co: CursoOrbe; abierto:
         {ok && !cambiado && <span className="text-xs text-emerald-700">Guardado ✓</span>}
       </div>
       <ErrorBox error={accion.error} />
+      <GenerarCurso co={co} config={config} llamadasHoy={llamadasHoy} onDone={() => { void lecciones.reload(); onSaved(); }}
+        deshabilitado={!config.enabled ? 'Primero encienda Orbe IA en «Configuración».' : cambiado ? 'Guarde los cambios de esta asignatura primero.' : null} />
       {abierto && (lecciones.loading ? <Spinner /> : (
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-sm">
@@ -272,7 +350,7 @@ function Chistes({ cursos, onChange }: { cursos: CursoOrbe[]; onChange: () => vo
         </div>
         {pendientes.length > 1 && (
           <button className="btn-secundario mt-3 text-sm" disabled={accion.busy} onClick={() => void accion.run(async () => { for (const j of pendientes) await orbeAccionChiste(j.id, 'aprobado'); recargar(); })}>
-            Aprobar los {pendientes.length} que se ven
+            ✓ Aprobar los {pendientes.length} por revisar {leccion ? 'de esta lección' : 'de toda la asignatura'}
           </button>
         )}
         <ErrorBox error={accion.error || lista.error} />

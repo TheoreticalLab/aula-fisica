@@ -5,7 +5,10 @@ import {
   atender, codigoError, construirPeticion, HttpError, LIMITE_CHISTE, procesarSalida, simular, validarChiste,
   type Contexto, type Deps, type Peticion, type RespuestaModelo,
 } from '../supabase/functions/orbe-ia/handler.ts';
-import { apartadoVisible, debePreguntar, escribiendoAhora, normalizarApartado, siguienteIntento, type EstadoCliente, type RespuestaOrbe } from '../src/lib/orbeIa';
+import {
+  apartadoVisible, costoLote, debePreguntar, escribiendoAhora, leccionesAGenerar, MOTIVOS_PARA_DETENER, normalizarApartado, siguienteIntento,
+  type EstadoCliente, type RespuestaOrbe,
+} from '../src/lib/orbeIa';
 import { contextoDeRuta } from '../src/lib/tiempo';
 import { hayEmergente, marcarEmergente, suscribirEmergentes } from '../src/lib/emergentes';
 
@@ -265,6 +268,26 @@ describe('Orbe IA · reglas de aparición en el navegador', () => {
     expect(chistes).toBeLessThanOrEqual(6);
     expect(chistes).toBeGreaterThanOrEqual(5);
     expect(consultas).toBeLessThan(20);
+  });
+});
+
+describe('Orbe IA · generar para todo el curso', () => {
+  const L = (id: string, aprobados = 0, pendientes = 0, oculta = false) => ({ lesson_id: id, oculta, aprobados, pendientes });
+  const lecciones = [L('a'), L('b', 10), L('c', 3, 4), L('d', 0, 0, true), L('e', 9, 1)];
+
+  it('con «todas las lecciones»: las visibles sin un lote completo; salta las que ya tienen y las ocultas', () => {
+    expect(leccionesAGenerar(lecciones, { all_lessons: true, lessons: [] }, 10)).toEqual({ objetivo: ['a', 'c'], yaTienen: 2, ocultas: 1 });
+  });
+  it('con lecciones elegidas: solo esas', () => {
+    expect(leccionesAGenerar(lecciones, { all_lessons: false, lessons: ['b', 'c', 'd'] }, 10)).toEqual({ objetivo: ['c'], yaTienen: 1, ocultas: 1 });
+    expect(leccionesAGenerar(lecciones, { all_lessons: false, lessons: [] }, 10).objetivo).toEqual([]);
+  });
+  it('estima el coste por lote y se detiene ante límites o presupuesto', () => {
+    const c = costoLote({ price_input_per_mtok: 4, price_output_per_mtok: 20, max_output_tokens: 3000 });
+    expect(c.tipico).toBeCloseTo(0.0324, 6);
+    expect(c.maximo).toBeCloseTo(0.076, 6);
+    for (const m of ['limite_diario', 'presupuesto', 'apagado', 'sin_clave', 'autenticacion']) expect(MOTIVOS_PARA_DETENER.has(m)).toBe(true);
+    expect(MOTIVOS_PARA_DETENER.has('formato')).toBe(false); // un fallo puntual no detiene el resto
   });
 });
 

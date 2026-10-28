@@ -68,6 +68,32 @@ export function siguienteIntento(r: RespuestaOrbe | null, ahora: number): { prox
   }
 }
 
+/**
+ * «Generar para todo el curso»: lecciones activas de la asignatura (todas o las elegidas), visibles para los
+ * estudiantes y que aún no tienen un lote completo. Las demás se saltan para no gastar de más.
+ */
+export function leccionesAGenerar(
+  lecciones: { lesson_id: string; oculta: boolean; aprobados: number; pendientes: number }[],
+  curso: { all_lessons: boolean; lessons: string[] },
+  porLote: number,
+): { objetivo: string[]; yaTienen: number; ocultas: number } {
+  const activas = lecciones.filter((l) => curso.all_lessons || curso.lessons.includes(l.lesson_id));
+  const visibles = activas.filter((l) => !l.oculta);
+  const objetivo = visibles.filter((l) => l.aprobados + l.pendientes < porLote).map((l) => l.lesson_id);
+  return { objetivo, yaTienen: visibles.length - objetivo.length, ocultas: activas.length - visibles.length };
+}
+
+/** Coste estimado de una llamada (US$): típico (≈600 tokens de entrada y 1500 de salida) y máximo reservado. */
+export function costoLote(c: { price_input_per_mtok: number; price_output_per_mtok: number; max_output_tokens: number }): { tipico: number; maximo: number } {
+  return {
+    tipico: (600 * c.price_input_per_mtok + 1500 * c.price_output_per_mtok) / 1e6,
+    maximo: (4000 * c.price_input_per_mtok + c.max_output_tokens * c.price_output_per_mtok) / 1e6,
+  };
+}
+
+/** Motivos por los que no tiene sentido seguir generando el resto de lecciones. */
+export const MOTIVOS_PARA_DETENER = new Set(['apagado', 'limite_diario', 'presupuesto', 'sin_clave', 'autenticacion', 'permiso']);
+
 /** Misma normalización que orbe_ia_norm() en el servidor. */
 export function normalizarApartado(s: string): string {
   return s.replace(/[$*_`#\\{}]/g, '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 160);
