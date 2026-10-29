@@ -46,10 +46,12 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
   {
     area: 'Orbe IA (humor contextual)',
     hecho: [
-      'Preparado, sin activar: chistes de física por lección, subsección y apartado de la teoría, generados con Claude (o un simulador sin coste), revisados por el profesor y reutilizados con todos los estudiantes. A la IA solo le llega el contenido académico, nunca datos personales.',
+      'En funcionamiento: chistes de física por lección, subsección y apartado de la teoría, generados con Claude, revisados por el profesor y reutilizados con todos los estudiantes. A la IA solo le llega el contenido académico, nunca datos personales. Se activa solo desde el panel del profesor.',
       'Reglas en el servidor: un mensaje como máximo cada 10 minutos (configurable), solo tras actividad reciente comprobada, nunca durante una evaluación ni mientras el estudiante escribe, sin repetir chistes; presupuesto mensual y límite diario de llamadas.',
+      'Copiar el banco de chistes entre asignaturas con el mismo contenido (por ejemplo, Física General 1 y 1-A).',
+      'Orbe Control con Claude: redactar mensajes (el nombre lo pone el teléfono, Claude no lo ve), pulso de la clase y pregunta relámpago con resultados en vivo y bloqueo de pantalla a quien salga sin responder.',
     ],
-    pendiente: ['Activación: aplicar la migración 30 y la función «orbe-ia», guardar la clave de la API como secreto del servidor y encender el módulo desde el panel.', 'Eventos académicos: hoy solo «ejercicio de práctica resuelto»; terminar lección, resolver tras varios intentos y fin de sesión están previstos.'],
+    pendiente: ['Probar la pregunta relámpago en teléfonos reales (apagar la pantalla del móvil cuenta como salir).', 'Eventos académicos: hoy solo «ejercicio de práctica resuelto»; terminar lección, resolver tras varios intentos y fin de sesión están previstos.'],
   },
 ];
 

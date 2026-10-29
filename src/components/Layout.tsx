@@ -9,6 +9,7 @@ import { ConexionEnVivo } from '@/components/ConexionEnVivo';
 import { BloqueoPantalla } from '@/components/BloqueoPantalla';
 import { AvisoAsistencia } from '@/components/AvisoAsistencia';
 import { OrbeIa } from '@/components/OrbeIa';
+import { PreguntaRelampago } from '@/components/PreguntaRelampago';
 import { AVISO_PRIVACIDAD } from '@/lib/tiempo';
 import { useTema } from '@/lib/tema';
 import { Spinner } from './ui';
@@ -144,6 +145,7 @@ export function Layout() {
       <ReceptorMensajes />
       {session && !isTeacher && <AvisoAsistencia />}
       {session && !isTeacher && <OrbeIa />}
+      {session && !isTeacher && <PreguntaRelampago />}
       {session && <BottomNav docente={docente && isTeacher} />}
     </div>
   );

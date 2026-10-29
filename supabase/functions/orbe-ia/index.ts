@@ -65,7 +65,8 @@ Deno.serve(async (req) => {
     if (userError || !userData.user) throw new HttpError(401, 'Sesión no válida');
 
     const raw = await req.text();
-    if (raw.length > 4_000) throw new HttpError(413, 'Solicitud demasiado grande');
+    // (el pulso de la clase trae cifras agregadas; el resto, unos cientos de caracteres)
+    if (raw.length > 16_000) throw new HttpError(413, 'Solicitud demasiado grande');
     const admin = createClient(url, service, { auth: { persistSession: false } });
     const deps: Deps = {
       rpc: async (fn, args) => {

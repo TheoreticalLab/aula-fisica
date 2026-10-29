@@ -6,7 +6,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import type { Session } from '@supabase/supabase-js';
 import { configurado, ingresar, rpc, supabase } from './supabase';
 import { Asistencia } from './Asistencia';
-import { agrupar, combinarTodos, edadSenal, estadoSync, filtrar, haceTexto, unicos, type Alumno, type EnLinea, type Fila } from './logica';
+import { agrupar, combinarTodos, edadSenal, estadoSync, filtrar, haceTexto, personalizar, primerNombre, unicos, type Alumno, type EnLinea, type Fila } from './logica';
+import { pedirIA } from './ia';
+import { Pulso } from './Pulso';
+import { Pregunta } from './Pregunta';
 
 type Tipo = 'informativo' | 'importante' | 'urgente' | 'bloqueo';
 interface Bloqueo { id: string; full_name: string; student_code: string | null; body: string; created_at: string; failed_attempts: number }
@@ -55,7 +58,46 @@ function Login() {
   );
 }
 
-function Redactar({ destino, onCerrar, onEnviado }: { destino: Destino; onCerrar: () => void; onEnviado: (msg: string) => void }) {
+/** Redactar con Claude: el profesor escribe lo esencial y recibe el mensaje bien redactado (sin nombres: usa {nombre}). */
+function AyudaIA({ tipo, onTexto }: { tipo: Tipo; onTexto: (t: string) => void }) {
+  const [abierta, setAbierta] = useState(false);
+  const [notas, setNotas] = useState('');
+  const [nombre, setNombre] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  if (tipo === 'bloqueo') return null;
+  if (!abierta) return <button className="boton secundario pequeno" onClick={() => setAbierta(true)}>✨ Redactar con IA</button>;
+  async function redactar() {
+    setBusy(true); setError(null); setInfo(null);
+    try {
+      const r = await pedirIA<string>({ action: 'redactar', notas, tono: tipo, personalizar: nombre });
+      onTexto(r.resultado);
+      setInfo(r.simulado ? 'Simulador: active las llamadas reales en el panel de Orbe IA para un texto de verdad.' : 'Revise el mensaje antes de enviarlo.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="tarjeta ia">
+      <label>Qué quiere decir (lo esencial; sin nombres de estudiantes)
+        <textarea rows={2} maxLength={800} value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Ej.: parcial jueves 8 am, temas 3 y 4, traer calculadora" />
+      </label>
+      <label className="casilla"><input type="checkbox" checked={nombre} onChange={(e) => setNombre(e.target.checked)} /> Personalizar con el nombre de cada estudiante</label>
+      <div className="fila">
+        <button className="boton pequeno" disabled={busy || notas.trim().length < 3} onClick={() => void redactar()}>{busy ? 'Redactando…' : '✨ Redactar'}</button>
+      </div>
+      {info && <p className="tenue pequeno">{info}</p>}
+      {error && <p className="error">{error}</p>}
+    </div>
+  );
+}
+
+function Redactar({ destino, onCerrar, onEnviado, destinatarios }: {
+  destino: Destino; onCerrar: () => void; onEnviado: (msg: string) => void; destinatarios: (d: Destino) => Promise<{ user_id: string; full_name: string }[]>;
+}) {
   const [texto, setTexto] = useState('');
   const [tipo, setTipo] = useState<Tipo>('importante');
   const [codigo, setCodigo] = useState('');
@@ -63,11 +105,26 @@ function Redactar({ destino, onCerrar, onEnviado }: { destino: Destino; onCerrar
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const colectivo = destino.tipo !== 'uno';
+  const conNombre = texto.includes('{nombre}');
   async function enviar() {
+    if (conNombre && tipo === 'bloqueo') return setError('El bloqueo de pantalla no admite {nombre}.');
     if ((colectivo || tipo === 'bloqueo') && !confirmar) return setConfirmar(true);
     setBusy(true);
     setError(null);
     try {
+      // mensaje personalizado: cada estudiante recibe su copia con su nombre (Claude no lo vio)
+      if (conNombre) {
+        const lista = destino.tipo === 'uno' ? [{ user_id: destino.alumno.user_id, full_name: destino.alumno.full_name }] : await destinatarios(destino);
+        if (!lista.length) throw new Error('No hay destinatarios.');
+        let n = 0;
+        for (const a of lista) {
+          await rpc('send_live_message', { p_kind: tipo, p_body: personalizar(texto, primerNombre(a.full_name)), p_mode: 'seleccion', p_users: [a.user_id], p_class: null,
+            p_expires_minutes: destino.tipo !== 'uno' && destino.alcance === 'todos' ? 10080 : 1440 });
+          n++;
+        }
+        onEnviado(`Mensaje personalizado guardado para ${n} estudiante(s).`);
+        return;
+      }
       if (tipo === 'bloqueo') {
         const b = await rpc<{ locked: number }>('send_screen_lock', {
           p_body: texto,
@@ -117,7 +174,9 @@ function Redactar({ destino, onCerrar, onEnviado }: { destino: Destino; onCerrar
             <option value="bloqueo">🔒 Bloqueo con código</option>
           </select>
         </label>
+        <AyudaIA tipo={tipo} onTexto={(t) => { setTexto(t); setConfirmar(false); }} />
         <label>Mensaje<textarea rows={4} maxLength={tipo === 'bloqueo' ? 1000 : 2000} autoFocus value={texto} onChange={(e) => { setTexto(e.target.value); setConfirmar(false); }} /></label>
+        {conNombre && tipo !== 'bloqueo' && <p className="tenue pequeno">{'{nombre}'} se sustituirá por el nombre de cada estudiante (cada uno recibe su copia).</p>}
         {tipo === 'bloqueo' && (
           <label>Código de desbloqueo (anótelo: se guarda cifrado)
             <input maxLength={32} autoComplete="off" value={codigo} onChange={(e) => { setCodigo(e.target.value); setConfirmar(false); }} />
@@ -153,7 +212,7 @@ function Panel({ nombre }: { nombre: string }) {
   const [destino, setDestino] = useState<Destino | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [historial, setHistorial] = useState<Historial[]>([]);
-  const [vista, setVista] = useState<'conectados' | 'todos' | 'asistencia'>('conectados');
+  const [vista, setVista] = useState<'conectados' | 'todos' | 'asistencia' | 'pulso' | 'pregunta'>('conectados');
   // alertas de seguridad graves (solo administrador: para cualquier otro, el servidor rechaza y no se muestra nada)
   const [alertas, setAlertas] = useState<{ regla: string; sujeto: string; severidad: string }[]>([]);
   useEffect(() => {
@@ -248,6 +307,14 @@ function Panel({ nombre }: { nombre: string }) {
     };
   }, [cargar, cargarHistorial, pronto]);
 
+  // destinatarios de un mensaje personalizado ({nombre}): los conectados ahora o todos los de la sección
+  const destinatarios = useCallback(async (d: Destino) => {
+    if (d.tipo === 'uno') return [{ user_id: d.alumno.user_id, full_name: d.alumno.full_name }];
+    const base = d.alcance === 'conectados' ? filtrar(lista, '', '', offset) : await rpc<Alumno[]>('my_messageable_students');
+    const unicosPorId = new Map<string, { user_id: string; full_name: string }>();
+    for (const a of base) if (d.tipo === 'todos' || a.class_id === d.class_id) unicosPorId.set(a.user_id, { user_id: a.user_id, full_name: a.full_name });
+    return [...unicosPorId.values()];
+  }, [lista, offset]);
   const estado = estadoSync(ultimaOk, red);
   const secciones = useMemo(() => {
     const m = new Map<string, string>();
@@ -294,8 +361,10 @@ function Panel({ nombre }: { nombre: string }) {
         <button role="tab" aria-selected={vista === 'conectados'} className={vista === 'conectados' ? 'activa' : ''} onClick={() => setVista('conectados')}>🟢 Conectados ({total})</button>
         <button role="tab" aria-selected={vista === 'todos'} className={vista === 'todos' ? 'activa' : ''} onClick={() => setVista('todos')}>👥 Todos{totalTodos ? ` (${totalTodos})` : ''}</button>
         <button role="tab" aria-selected={vista === 'asistencia'} className={vista === 'asistencia' ? 'activa' : ''} onClick={() => setVista('asistencia')}>📋 Asistencia</button>
+        <button role="tab" aria-selected={vista === 'pulso'} className={vista === 'pulso' ? 'activa' : ''} onClick={() => setVista('pulso')}>📊 Pulso</button>
+        <button role="tab" aria-selected={vista === 'pregunta'} className={vista === 'pregunta' ? 'activa' : ''} onClick={() => setVista('pregunta')}>❓ Pregunta</button>
       </div>
-      {vista === 'asistencia' ? <Asistencia /> : <>
+      {vista === 'pulso' ? <Pulso secciones={secciones} /> : vista === 'pregunta' ? <Pregunta secciones={secciones} conectados={total} onCambio={() => void cargarHistorial()} /> : vista === 'asistencia' ? <Asistencia /> : <>
       <div className="filtros">
         <select aria-label="Filtrar por sección" value={seccion} onChange={(e) => setSeccion(e.target.value)}>
           <option value="">Todas las secciones</option>
@@ -377,7 +446,7 @@ function Panel({ nombre }: { nombre: string }) {
         </section>
       )}
       <p className="tenue pie">{nombre} · Conectado ≠ atento: solo indica que el aula está abierta.</p>
-      {destino && <Redactar destino={destino} onCerrar={() => setDestino(null)} onEnviado={(m) => { setDestino(null); setAviso(m); void cargarHistorial(); }} />}
+      {destino && <Redactar destino={destino} destinatarios={destinatarios} onCerrar={() => setDestino(null)} onEnviado={(m) => { setDestino(null); setAviso(m); void cargarHistorial(); }} />}
     </main>
   );
 }
