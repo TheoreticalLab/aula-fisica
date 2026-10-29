@@ -41,8 +41,13 @@ describe('frontend', () => {
     }
   });
   it('no lee la tabla exercise_keys como estudiante (solo en el panel docente)', () => {
-    for (const f of files.filter((x) => !x.includes(join('pages', 'docente')) && !x.endsWith(join('api', 'docente.ts')))) {
+    // el catálogo del Centro de Datos solo NOMBRA la tabla para el diccionario; la lee el servidor (export_page),
+    // únicamente para el administrador que lo pide (migración 34)
+    for (const f of files.filter((x) => !x.includes(join('pages', 'docente')) && !x.endsWith(join('api', 'docente.ts')) && !x.endsWith(join('lib', 'exportacion', 'catalogo.ts')))) {
       expect(readFileSync(f, 'utf8'), relative(ROOT, f)).not.toMatch(/exercise_keys/);
+    }
+    for (const f of files.filter((x) => !x.includes(join('pages', 'docente')) && !x.endsWith(join('api', 'docente.ts')))) {
+      expect(readFileSync(f, 'utf8'), relative(ROOT, f)).not.toMatch(/from\(\s*['"]exercise_keys['"]\s*\)/);
     }
   });
   it('no inserta HTML sin sanear', () => {

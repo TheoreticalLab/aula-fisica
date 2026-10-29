@@ -72,6 +72,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--acento); ou
 .opcion-resultado .barra { width: 100%; margin: 0.15rem 0 0; height: 8px; }
 .opcion-resultado .barra > div { transition: width 0.5s ease-out; }
 .cifra-pequena { font-size: 1.6rem; font-weight: 700; }
+/* Centro de Datos */
+.lista-eleccion { max-height: 14rem; overflow-y: auto; display: grid; gap: 0.35rem; padding: 0.4rem; border: 1px solid var(--borde); border-radius: 10px; }
+.fila-fechas { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.vista-previa { display: grid; gap: 0.3rem; text-align: left; }
+.ok a { color: inherit; font-weight: 700; }
 .asistencia { display: grid; gap: 0.8rem; }
 .codigo { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: clamp(3rem, 16vw, 5.5rem); font-weight: 800; letter-spacing: 0.12em; line-height: 1.05; }
 .codigo.vencido { color: #475569; text-decoration: line-through; }
