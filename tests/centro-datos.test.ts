@@ -246,8 +246,16 @@ describe('Centro de Datos · motor de exportación', () => {
       if (k === 'estudiantes') { g.id = seud(g.id); delete g.full_name; }
       return g;
     })]));
-    const r = await exportar({ rpc: servidor(inv).rpc, alcance: { tipo: 'estudiante', ids: [U1] }, modo: 'investigacion', contenido: ['telemetria'], formatos: ['csv', 'json'] });
-    const todo = txt(unir(r.partes));
+    const r = await exportar({ rpc: servidor(inv).rpc, alcance: { tipo: 'estudiante', ids: [U1] }, modo: 'investigacion', contenido: ['telemetria'], formatos: ['csv', 'json', 'excel', 'sqlite'] });
+    // se descomprime (con Node 20 el ZIP va comprimido) y se revisa el contenido real de cada archivo, también dentro del .xlsx
+    const archivos = await leerZip(unir(r.partes));
+    const textos: string[] = [];
+    for (const [ruta, datos] of archivos) {
+      textos.push(ruta);
+      if (ruta.endsWith('.xlsx')) for (const [r2, d2] of await leerZip(datos)) textos.push(r2, txt(d2));
+      else textos.push(txt(datos));
+    }
+    const todo = textos.join('\n');
     expect(r.nombre).not.toMatch(/Ana|Luis|aaaaaaaa/);
     expect(JSON.stringify(r.manifiesto)).not.toMatch(/Ana|Luis|aaaaaaaa-0000/);
     expect(todo).not.toMatch(/Ana Pérez|Luis Gómez|aaaaaaaa-0000-4000-8000-00000000000[12]/);
