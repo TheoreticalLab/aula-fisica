@@ -140,6 +140,12 @@ export const removeStudent = (classId: string, userId: string) =>
 // --- actividades ------------------------------------------------------------------------------
 export const listActivities = (classId: string) =>
   q<Activity[]>(supabase.from('activities').select('*').eq('class_id', classId).order('created_at', { ascending: false }));
+/** Actividades publicadas de varias secciones que cierran desde ahora (para «Próximos cierres» del panel). */
+export const upcomingActivities = (classIds: string[], limit = 8) =>
+  classIds.length
+    ? q<Activity[]>(supabase.from('activities').select('*').in('class_id', classIds).eq('published', true)
+        .gte('closes_at', new Date().toISOString()).order('closes_at').limit(limit))
+    : Promise.resolve([] as Activity[]);
 export const getActivity = (id: string) => q<Activity>(supabase.from('activities').select('*').eq('id', id).single());
 export const createActivity = (a: Partial<Activity> & { class_id: string; title: string }) =>
   q<Activity>(supabase.from('activities').insert(a).select().single());
