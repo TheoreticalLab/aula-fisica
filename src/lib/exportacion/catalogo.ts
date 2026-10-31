@@ -96,6 +96,7 @@ export const DERIVADAS: Derivada[] = [
   { nombre: 'metricas_pregunta', carpeta: 'metricas', descripcion: 'Una fila por intento y pregunta: cronología (primera vista, primera interacción, primera respuesta, edición, revisitas) y resultado.', clave: ['attempt_id', 'exercise_id'], relaciones: { attempt_id: 'intentos.id', exercise_id: 'ejercicios.id' } },
   { nombre: 'metricas_intento', carpeta: 'metricas', descripcion: 'Una fila por intento: duración, tiempo activo, oculto, inactivo, sin conexión, espera final, puntaje y calidad.', clave: ['attempt_id'], relaciones: { attempt_id: 'intentos.id' } },
   { nombre: 'metricas_estudiante', carpeta: 'metricas', descripcion: 'Una fila por estudiante: intentos, respuestas, aciertos, tiempo de estudio y telemetría disponible.', clave: ['user_id'], relaciones: { user_id: 'estudiantes.id' } },
+  { nombre: 'tiempos_examen', carpeta: 'metricas', descripcion: 'Motor de examen: una fila por intento y pregunta con el tiempo por categoría (trabajo, inactividad, pausa, oculta, desconexión, desconocido), visitas y tiempo observable reconstruido; diario conciliado con los eventos del servidor.', clave: ['attempt_id', 'exercise_id'], relaciones: { attempt_id: 'intentos.id', exercise_id: 'ejercicios.id' } },
   { nombre: 'resumen_colectivo', carpeta: 'metricas', descripcion: 'Una fila por actividad (o práctica libre de una lección): estudiantes, intentos, puntajes y tiempos.', clave: ['clave_grupo'] },
 ];
 
@@ -153,6 +154,11 @@ export const VARIABLES: Record<string, Variable> = {
   'metricas_pregunta.activo_s': { descripcion: 'Tiempo activo atribuido a la pregunta (excluye oculto, inactivo y sin conexión).', unidad: 's', naturaleza: 'calculado' },
   'metricas_intento.activo_s': { descripcion: 'Tiempo cronológico menos la unión de oculto, inactivo y sin conexión.', unidad: 's', naturaleza: 'calculado' },
   'metricas_intento.espera_final_s': { descripcion: 'Última modificación → envío.', unidad: 's', naturaleza: 'calculado' },
+  'tiempos_examen.trabajo_s': { descripcion: 'Segundos con la pregunta activa, visible y con interacción (o pensando, sin superar el umbral de inactividad).', unidad: 's', naturaleza: 'calculado', calculo: 'suma de tramos «trabajo» de la pregunta, tras conciliar con el servidor' },
+  'tiempos_examen.desconocido_s': { descripcion: 'Segundos sin información fiable o que contradecían los eventos del servidor (reclasificados).', unidad: 's', naturaleza: 'calculado' },
+  'tiempos_examen.tiempo_observable_s': { descripcion: 'Tiempo de trabajo observable reconstruido (trabajo + inactividad hasta 5 min); vacío si no se pudo reconstruir con fiabilidad.', unidad: 's', naturaleza: 'inferido', calculo: 'reconstruirTiempo() sobre los intervalos de la pregunta', limitaciones: 'Describe el proceso; no es un indicador de conducta.' },
+  'tiempos_examen.estado_tiempo': { descripcion: 'valido · aproximado (ambigüedad ≤ 10 %) · no_reconstruible · sin_datos.', naturaleza: 'calculado' },
+  'tiempos_examen.prorroga_s': { descripcion: 'Segundos de prórroga concedidos por el profesor a ese intento.', unidad: 's', naturaleza: 'registrado_por_el_sistema' },
   'intervalos_estado.tipo': { descripcion: 'oculta = página en segundo plano o sin registro; inactiva = sin actividad; sin_conexion = sin red. Pueden superponerse.', naturaleza: 'inferido', limitaciones: 'La ausencia de eventos no se considera inactividad por sí sola.' },
 };
 
@@ -162,4 +168,4 @@ export function variable(tabla: string, columna: string): Variable | undefined {
 }
 
 export const VERSION_ESQUEMA = '1.0';
-export const VERSION_METRICAS = 'metricas-1.0 (reconstruir() de LIEIA, src/lib/lieia/proceso.ts)';
+export const VERSION_METRICAS = 'metricas-1.1 (reconstruir() de LIEIA, src/lib/lieia/proceso.ts; tiempos_examen: conciliar() y resumirTiempos() de src/lib/examen/intervalos.ts)';

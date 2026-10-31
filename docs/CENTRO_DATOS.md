@@ -49,6 +49,7 @@ código en `src/lib/exportacion/` y `orbe-control/src/Datos.tsx`; pruebas en `te
 | En pantalla | Se reproduce con |
 |---|---|
 | Cronología por pregunta, tiempo activo, oculto, inactivo, sin conexión, espera final, calidad (LIEIA) | **Incluido**: `metricas_pregunta`, `metricas_intento`, `intervalos_estado`, `calidad_datos` (misma función `reconstruir()`) |
+| Motor de examen: tiempo por pregunta y categoría (trabajo, inactividad, pausa, oculta, desconexión, desconocido), visitas, tiempo observable y prórroga | **Incluido** (métricas 1.1): `tiempos_examen`, calculada con `conciliar()` y `resumirTiempos()` a partir de `examen_tramos` y `examen_eventos` |
 | Detectores LIEIA (D1–D8, P1–P3), calibración 2PL | Funciones de `src/lib/lieia/` sobre `eventos_originales`, `eventos_pregunta`, `respuestas` y `ejercicios` exportados |
 | Sesiones de estudio de la ficha | `visitas` (agrupar por estudiante con la pausa configurada) |
 | Dominio por concepto | `respuestas` + `ejercicios.concepts` |

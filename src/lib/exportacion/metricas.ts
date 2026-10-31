@@ -6,6 +6,9 @@
  */
 import { reconstruir, type EventoCrudo, type ProcesoIntento } from '../lieia/proceso';
 import type { Fila } from './formato';
+import { conciliar, intervalosDePregunta, resumirTiempos, type EventoServidor } from '../examen/intervalos';
+import type { Tramo } from '../examen/motor';
+import { reconstruirTiempo } from '../lieia/d6';
 
 const seg = (iso: unknown) => (typeof iso === 'string' && iso ? Date.parse(iso) / 1000 : null);
 const iso = (s: number | null) => (s === null || !Number.isFinite(s) ? null : new Date(s * 1000).toISOString());
@@ -50,7 +53,45 @@ export const COLUMNAS_DERIVADAS: Record<string, string[]> = {
     'dias_activos', 'eventos_telemetria', 'intentos_con_telemetria'],
   resumen_colectivo: ['clave_grupo', 'activity_id', 'lesson_id', 'mode', 'estudiantes', 'intentos', 'entregados', 'porcentaje_medio', 'porcentaje_mediana',
     'duracion_mediana_s', 'intentos_con_telemetria', 'eventos_telemetria'],
+  tiempos_examen: ['attempt_id', 'user_id', 'exercise_id', 'posicion', 'trabajo_s', 'inactividad_s', 'pausa_s', 'oculta_s', 'desconexion_s', 'desconocido_s',
+    'visitas', 'tiempo_observable_s', 'estado_tiempo', 'discrepancias_intento', 'prorroga_s'],
 };
+
+/** Tiempos del motor de examen por intento y pregunta: diario de tramos conciliado con los eventos oficiales. */
+function tiemposExamen(d: Record<string, Fila[]>): Fila[] {
+  const ms = (v: unknown) => (typeof v === 'string' ? Date.parse(v) : typeof v === 'number' ? v : NaN);
+  const tramosPorIntento = agrupar(d.examen_tramos ?? [], 'attempt_id');
+  const eventosPorIntento = agrupar(d.examen_eventos ?? [], 'attempt_id');
+  const sesion = new Map((d.examen_sesiones ?? []).map((s) => [String(s.attempt_id), s]));
+  const ordenPorIntento = agrupar(d.orden_items ?? [], 'attempt_id');
+  const intento = new Map((d.intentos ?? []).map((a) => [String(a.id), a]));
+  const itemsPorAct = agrupar(d.actividad_items ?? [], 'activity_id');
+  const out: Fila[] = [];
+  for (const [aid, filas] of tramosPorIntento) {
+    const tramos: Tramo[] = filas.map((f) => ({ inicio: ms(f.inicio), fin: ms(f.fin), tipo: f.tipo as Tramo['tipo'], exercise_id: (f.exercise_id as string | null) ?? null }))
+      .filter((t) => Number.isFinite(t.inicio) && Number.isFinite(t.fin));
+    const eventos: EventoServidor[] = (eventosPorIntento.get(aid) ?? []).filter((e) => ['apertura', 'ir_a', 'pausa', 'reanudacion', 'entrega'].includes(String(e.tipo)))
+      .map((e) => ({ t: ms(e.t), tipo: e.tipo as EventoServidor['tipo'], exercise_id: (e.exercise_id as string | null) ?? null }));
+    const c = conciliar(tramos, eventos);
+    const r = resumirTiempos(c.tramos);
+    const a = intento.get(aid);
+    const orden = ordenPorIntento.get(aid)?.length ? [...ordenPorIntento.get(aid)!].sort((x, y) => (num(x.position) ?? 0) - (num(y.position) ?? 0)).map((x) => String(x.exercise_id))
+      : a?.activity_id ? [...(itemsPorAct.get(String(a.activity_id)) ?? [])].sort((x, y) => (num(x.position) ?? 0) - (num(y.position) ?? 0)).map((x) => String(x.exercise_id))
+      : Object.keys(r.por_pregunta);
+    const s = (x: number | undefined) => r3((x ?? 0) / 1000);
+    orden.forEach((q, k) => {
+      const t = r.por_pregunta[q];
+      const rec = reconstruirTiempo(intervalosDePregunta(c.tramos, q));
+      out.push({
+        attempt_id: aid, user_id: filas[0].user_id ?? null, exercise_id: q, posicion: k + 1,
+        trabajo_s: s(t?.trabajo), inactividad_s: s(t?.inactividad), pausa_s: s(t?.pausa_declarada), oculta_s: s(t?.oculta), desconexion_s: s(t?.desconexion), desconocido_s: s(t?.desconocido),
+        visitas: r.visitas[q] ?? 0, tiempo_observable_s: rec.t === null ? null : r3(rec.t), estado_tiempo: rec.estado,
+        discrepancias_intento: c.discrepancias.length, prorroga_s: num(sesion.get(aid)?.extra_s) ?? 0,
+      });
+    });
+  }
+  return out;
+}
 
 /** Orden de las preguntas de un intento: el presentado (si se barajó), el de la actividad, o el de aparición. */
 function itemsDelIntento(a: Fila, orden: Fila[] | undefined, itemsAct: Fila[] | undefined, resp: Fila[] | undefined, tel: Fila[] | undefined): string[] {
@@ -250,5 +291,6 @@ export function calcularDerivados(d: Record<string, Fila[]>): Derivados {
     };
   });
 
-  return { eventos_normalizados, sesiones_telemetria, intervalos_estado, modificaciones, calidad_datos, metricas_pregunta, metricas_intento, metricas_estudiante, resumen_colectivo };
+  return { eventos_normalizados, sesiones_telemetria, intervalos_estado, modificaciones, calidad_datos, metricas_pregunta, metricas_intento, metricas_estudiante, resumen_colectivo,
+    tiempos_examen: tiemposExamen(d) };
 }
