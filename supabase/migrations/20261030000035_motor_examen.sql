@@ -440,9 +440,10 @@ declare s public.exam_sessions; v_dejada timestamptz;
 begin
   select * into s from public.exam_sessions where attempt_id = p_attempt;
   if not found or s.activa is null or s.activa = p_exercise then return; end if;
-  select max(e.t) into v_dejada from public.exam_events e
+  -- momento en que la dejó: la PRIMERA salida posterior a la última llegada (por orden de registro, que no empata)
+  select min(e.t) into v_dejada from public.exam_events e
     where e.attempt_id = p_attempt and e.tipo = 'ir_a' and e.exercise_id <> p_exercise
-      and e.t > coalesce((select max(e2.t) from public.exam_events e2 where e2.attempt_id = p_attempt and e2.tipo in ('apertura', 'ir_a') and e2.exercise_id = p_exercise), '-infinity');
+      and e.id > coalesce((select max(e2.id) from public.exam_events e2 where e2.attempt_id = p_attempt and e2.tipo in ('apertura', 'ir_a') and e2.exercise_id = p_exercise), 0);
   if s.navegacion = 'solo_adelante' and (v_dejada is null or now() > v_dejada + interval '10 seconds') then
     raise exception 'En este examen no se puede modificar una pregunta anterior' using errcode = 'P0001';
   end if;

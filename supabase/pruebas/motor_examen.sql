@@ -45,7 +45,6 @@ do $$ declare r jsonb; begin
   r := public.exam_settings_save('de350000-0000-4000-8000-0000000000a2', '{"presentacion":"una_a_la_vez","navegacion":"libre","duracion_s":3600,"pausas":{"permitidas":true,"max_numero":1,"max_total_s":120,"detienen_reloj":true}}');
   if (r -> 'pausas' ->> 'max_numero')::int <> 1 then raise exception 'FALLO: guardar configuración %', r; end if;
   perform public.exam_settings_save('de350000-0000-4000-8000-0000000000a3', '{"presentacion":"una_a_la_vez","navegacion":"solo_adelante","duracion_s":60,"pausas":{"permitidas":false,"max_numero":5}}');
-  if (select pausas_max from public.exam_settings where activity_id = 'de350000-0000-4000-8000-0000000000a3') is not null then null; end if;
   begin perform public.exam_settings_save('de350000-0000-4000-8000-0000000000a4', '{}'); raise exception 'FALLO: configuró una práctica';
   exception when invalid_parameter_value then null; end;
   begin perform public.exam_settings_save('de350000-0000-4000-8000-0000000000a2', '{"duracion_s":10}'); raise exception 'FALLO: aceptó 10 s';
@@ -96,7 +95,7 @@ do $$ declare r jsonb; begin
   r := public.exam_open(current_setting('prueba.t2')::uuid);
   if r ->> 'activa' <> 'de350000-0000-4000-8000-0000000000e1' then raise exception 'FALLO: pregunta activa inicial %', r; end if;
   if r ->> 'estado' <> 'en_curso' or jsonb_array_length(r -> 'orden') <> 3 then raise exception 'FALLO: estado inicial %', r; end if;
-  if (r ->> 'limite_ms')::bigint <> public.exam_ms(now() - interval '10 minutes') + 3600000 then raise exception 'FALLO: límite oficial %', r; end if;
+  if (r ->> 'limite_ms')::bigint <> (extract(epoch from now() - interval '10 minutes') * 1000)::bigint + 3600000 then raise exception 'FALLO: límite oficial %', r; end if;
   -- reabrir no duplica la sesión
   r := public.exam_open(current_setting('prueba.t2')::uuid);
 end $$;
@@ -143,13 +142,13 @@ do $$ declare r jsonb; begin
 end $$;
 
 -- 6) diario de tramos: validación, idempotencia y rechazos registrados
-do $$ declare r jsonb; v0 bigint := public.exam_ms(now() - interval '10 minutes'); begin
+do $$ declare r jsonb; v0 bigint := (extract(epoch from now() - interval '10 minutes') * 1000)::bigint; begin
   r := public.exam_journal(current_setting('prueba.t2')::uuid, jsonb_build_array(
     jsonb_build_object('seq', 1, 'tipo', 'trabajo', 'exercise_id', 'de350000-0000-4000-8000-0000000000e1', 'inicio_ms', v0, 'fin_ms', v0 + 30000),
     jsonb_build_object('seq', 2, 'tipo', 'oculta', 'exercise_id', 'de350000-0000-4000-8000-0000000000e1', 'inicio_ms', v0 + 30000, 'fin_ms', v0 + 45000),
     jsonb_build_object('seq', 3, 'tipo', 'trabajo', 'exercise_id', 'de350000-0000-4000-8000-0000000000e1', 'inicio_ms', v0 + 10000, 'fin_ms', v0 + 50000),   -- solapa
     jsonb_build_object('seq', 4, 'tipo', 'trabajo', 'exercise_id', 'de350000-0000-4000-8000-0000000000e9', 'inicio_ms', v0 + 45000, 'fin_ms', v0 + 50000),   -- ajena
-    jsonb_build_object('seq', 5, 'tipo', 'trabajo', 'exercise_id', 'de350000-0000-4000-8000-0000000000e2', 'inicio_ms', v0 + 45000, 'fin_ms', public.exam_ms(now()) + 600000), -- futuro
+    jsonb_build_object('seq', 5, 'tipo', 'trabajo', 'exercise_id', 'de350000-0000-4000-8000-0000000000e2', 'inicio_ms', v0 + 45000, 'fin_ms', (extract(epoch from now()) * 1000)::bigint + 600000), -- futuro
     jsonb_build_object('seq', 6, 'tipo', 'teletransporte', 'inicio_ms', v0 + 50000, 'fin_ms', v0 + 60000),
     jsonb_build_object('seq', 7, 'tipo', 'trabajo', 'exercise_id', 'de350000-0000-4000-8000-0000000000e2', 'inicio_ms', v0 + 45000, 'fin_ms', v0 + 90000)));
   if (r ->> 'aceptados')::int <> 3 or (r ->> 'rechazados')::int <> 4 then raise exception 'FALLO: validación del diario %', r; end if;
@@ -238,9 +237,9 @@ do $$ begin
   if not exists (select 1 from public.exam_events where attempt_id = current_setting('prueba.t2')::uuid and tipo = 'entrega') then raise exception 'FALLO: sin evento de entrega'; end if;
 end $$;
 set local role authenticated;
-do $$ declare r jsonb; v0 bigint := public.exam_ms(now() - interval '10 minutes'); begin
+do $$ declare r jsonb; v0 bigint := (extract(epoch from now() - interval '10 minutes') * 1000)::bigint; begin
   r := public.exam_journal(current_setting('prueba.t2')::uuid, jsonb_build_array(
-    jsonb_build_object('seq', 8, 'tipo', 'trabajo', 'exercise_id', 'de350000-0000-4000-8000-0000000000e2', 'inicio_ms', v0 + 90000, 'fin_ms', public.exam_ms(now()))));
+    jsonb_build_object('seq', 8, 'tipo', 'trabajo', 'exercise_id', 'de350000-0000-4000-8000-0000000000e2', 'inicio_ms', v0 + 90000, 'fin_ms', (extract(epoch from now()) * 1000)::bigint)));
   if (r ->> 'aceptados')::int <> 1 then raise exception 'FALLO: último tramo tras entregar %', r; end if;
   begin perform public.exam_goto(current_setting('prueba.t2')::uuid, 'de350000-0000-4000-8000-0000000000e2'); raise exception 'FALLO: navegó tras entregar';
   exception when raise_exception then null; end;
