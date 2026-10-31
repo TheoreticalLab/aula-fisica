@@ -24,6 +24,7 @@ import { EditorMarkdown } from '@/components/EditorMarkdown';
 import { analizarTexto, formatoTiempo, MAX_SEGUNDOS, MIN_SEGUNDOS, segundosSugeridos } from '@/lib/lectura';
 import { CODIGO_ERROR } from '@/lib/codigos';
 import { DisenoExamen } from './lieia/DisenoExamen';
+import { ModoExamen } from './ModoExamen';
 
 /** Lectura cronometrada previa a los ejercicios: texto y tiempo mínimo (con sugerencia según el texto). */
 function LecturaEditor({ draft, set }: { draft: Activity; set: (p: Partial<Activity>) => void }) {
@@ -190,6 +191,7 @@ export default function ActividadEditor() {
           </div>
         </Card>
       )}
+      {tab === 'config' && act.mode === 'exam' && <ModoExamen activityId={activityId} />}
       {tab === 'config' && <CopiarASecciones activityId={activityId} courseId={cls.course_id} classId={cls.id} />}
       {tab === 'ejercicios' && <TabEjercicios activityId={activityId} courseId={cls.course_id} lessons={lessons} initial={st.data!.items} initialExercises={st.data!.exercises} onSaved={st.reload} />}
       {tab === 'diseno' && <DisenoExamen activityId={activityId} courseId={cls.course_id} estudiantesSeccion={0} />}

@@ -8,6 +8,7 @@ import { Badge, Card, ErrorBox, PageTitle, Spinner, StatusBadge } from '@/compon
 import { EnunciadoEjercicio, EntradaRespuesta, SolucionBox } from '@/components/Ejercicio';
 import { Markdown } from '@/components/Markdown';
 import { TarjetaCronologia } from './lieia/Cronologia';
+import { TiemposExamen } from './TiemposExamen';
 
 function Eventos({ responseId }: { responseId: string }) {
   const ev = useAsync(() => responseEvents(responseId), [responseId]);
@@ -129,6 +130,7 @@ function CuerpoRevision({ v, attemptId, onSaved, conCronologia }: { v: VistaInte
         <p className="text-sm">Puntaje: <strong>{puntaje(v.attempt.score, v.attempt.max_score)}</strong> {v.attempt.needs_review && <Badge tone="red">Hay respuestas por revisar</Badge>}</p>
         {v.activity && !v.activity.grades_published && <p className="mt-1 text-xs text-gray-500">Las calificaciones de esta actividad aún no están publicadas: el estudiante no ve la nota ni los comentarios.</p>}
       </Card>
+      {v.attempt.mode === 'exam' && <TiemposExamen attemptId={attemptId} etiquetas={Object.fromEntries(v.items.map((it) => [it.exercise.id, it.exercise.slug]))} />}
       {conCronologia && (
         <details className="mb-4" open={verProceso} onToggle={(e) => setVerProceso((e.target as HTMLDetailsElement).open)}>
           <summary className="cursor-pointer text-sm font-medium">⏱ Proceso de respuesta (cronología de la telemetría)</summary>

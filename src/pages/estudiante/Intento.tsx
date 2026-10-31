@@ -8,6 +8,8 @@ import { Ejercicio } from '@/components/Ejercicio';
 import { Markdown } from '@/components/Markdown';
 import { REVEAL_TEXT } from './Actividad';
 import { AvisoTelemetria, TelemetriaProvider, useTelemetria } from '@/components/Telemetria';
+import { examOpen, type AperturaExamen } from '@/api/examen';
+import { ExamenUnaALaVez } from './ExamenUnaALaVez';
 
 /** Botón de entrega con los eventos de envío (solicitado → recibido por el servidor, o error). */
 function BotonEntregar({ entregar, ocupado }: { entregar: (tel: ReturnType<typeof useTelemetria>) => void; ocupado: boolean }) {
@@ -20,10 +22,27 @@ export default function Intento() {
   const st = useAsync(() => getAttempt(attemptId), [attemptId]);
   const action = useAction();
   const [justSubmitted, setJustSubmitted] = useState(false);
-  if (st.loading && !st.data) return <Spinner />;
+  // motor de examen: solo para evaluaciones en curso del propio estudiante; si no está configurado, interfaz clásica
+  const usaMotor = !!st.data && st.data.flags.is_owner && st.data.attempt.mode === 'exam' && st.data.attempt.status === 'in_progress';
+  const apertura = useAsync(() => (usaMotor ? examOpen(attemptId) : Promise.resolve({ modo: 'clasico' } as AperturaExamen)), [attemptId, usaMotor]);
+  if ((st.loading && !st.data) || (usaMotor && apertura.loading && !apertura.data)) return <Spinner />;
   if (st.error) return <ErrorBox error={st.error} onRetry={st.reload} />;
   const view = st.data!;
   const { attempt, activity, flags } = view;
+  if (usaMotor && apertura.error) return <ErrorBox error={apertura.error} onRetry={apertura.reload} />;
+  if (usaMotor && apertura.data?.modo === 'una_a_la_vez') {
+    const servidor = apertura.data;
+    return (
+      <TelemetriaProvider attemptId={attempt.id} activo>
+        <PageTitle title={activity?.title ?? 'Evaluación'} subtitle={<Badge tone="purple">Evaluación · una pregunta a la vez</Badge>}
+          back={activity ? { to: `/actividad/${activity.id}`, label: 'Actividad' } : undefined} />
+        {servidor.estado === 'vencido' && <Notice tone="warn">El tiempo oficial terminó. Ya no puede cambiar respuestas; se entregará lo guardado.</Notice>}
+        <ExamenUnaALaVez view={view} servidor={servidor}
+          onItems={(items) => st.setData({ ...view, items })}
+          onEntregado={() => { setJustSubmitted(true); void st.reload(); }} />
+      </TelemetriaProvider>
+    );
+  }
   const update = (i: number) => (it: AttemptItem) => {
     const items = [...view.items];
     items[i] = it;
