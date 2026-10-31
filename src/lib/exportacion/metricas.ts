@@ -10,6 +10,29 @@ import { conciliar, intervalosDePregunta, resumirTiempos, type EventoServidor } 
 import type { Tramo } from '../examen/motor';
 import { reconstruirTiempo } from '../lieia/d6';
 import { compararRespuestas, reflexionPresentada, type Paso } from '../asistida';
+import { auditarRespuestas, reconstruirPaquete } from '../telemetria/v2/fuente';
+import { filas as filasV2 } from '../telemetria/v2/exportar';
+import { reconstruir as reconstruirV2 } from '../telemetria/v2/reconstruir';
+import { paquetesDesdeExportacion } from '../telemetria/v2/paquetes';
+
+// Telemetría V2: las columnas salen de la MISMA función de exportación que usa la vista del intento (niveles A y B)
+const RECONSTRUCCION_VACIA = reconstruirV2({ intento: { inicio: 0, fin: 1000 }, preguntas: ['x'], eventos: [], modalidad: 'practica', atribucion: 'ambigua', origen: 'v2' });
+const COLUMNAS_V2_INTENTO = ['user_id', ...Object.keys(filasV2('A', RECONSTRUCCION_VACIA, { attempt_id: '', fuente: 'ninguna' })[0])];
+const COLUMNAS_V2_PREGUNTA = ['user_id', ...Object.keys(filasV2('B', RECONSTRUCCION_VACIA, { attempt_id: '', fuente: 'ninguna' })[0])];
+
+/** Telemetría V2: reconstrucción por intervalos de cada intento (mismo motor que la vista del profesor). */
+function telemetriaV2(d: Record<string, Fila[]>): { telemetria_v2_intentos: Fila[]; telemetria_v2_preguntas: Fila[] } {
+  const intentos: Fila[] = [], preguntas: Fila[] = [];
+  for (const { user_id, paquete } of paquetesDesdeExportacion(d)) {
+    const { reconstruccion: rec, fuente } = reconstruirPaquete(paquete);
+    if (!rec) continue;
+    const ctx = { attempt_id: paquete.intento.id, fuente };
+    const audit = auditarRespuestas(paquete, rec);
+    for (const f of filasV2('A', rec, ctx, audit)) intentos.push({ user_id, ...f } as Fila);
+    for (const f of filasV2('B', rec, ctx, audit)) preguntas.push({ user_id, ...f } as Fila);
+  }
+  return { telemetria_v2_intentos: intentos, telemetria_v2_preguntas: preguntas };
+}
 
 const seg = (iso: unknown) => (typeof iso === 'string' && iso ? Date.parse(iso) / 1000 : null);
 const iso = (s: number | null) => (s === null || !Number.isFinite(s) ? null : new Date(s * 1000).toISOString());
@@ -59,6 +82,8 @@ export const COLUMNAS_DERIVADAS: Record<string, string[]> = {
   aprendizaje_asistido: ['attempt_id', 'user_id', 'activity_id', 'exercise_id', 'inicial_respuesta', 'inicial_no_se', 'declaracion', 'inicial_estado', 'inicial_momento_utc',
     'correcciones', 'final_respuesta', 'final_estado', 'final_credito', 'cambio', 'procedimiento_cambio', 'reflexion_presentada', 'fuentes',
     'transferencia_ejercicio', 'transferencia_estado', 'transferencia_credito', 'fase_alcanzada'],
+  telemetria_v2_intentos: COLUMNAS_V2_INTENTO,
+  telemetria_v2_preguntas: COLUMNAS_V2_PREGUNTA,
 };
 
 /** Práctica asistida: una fila por intento y ejercicio con el proceso INTENTA → CORRIGE → EXPLICA → DEMUESTRA. */
@@ -336,5 +361,5 @@ export function calcularDerivados(d: Record<string, Fila[]>): Derivados {
   });
 
   return { eventos_normalizados, sesiones_telemetria, intervalos_estado, modificaciones, calidad_datos, metricas_pregunta, metricas_intento, metricas_estudiante, resumen_colectivo,
-    tiempos_examen: tiemposExamen(d), aprendizaje_asistido: aprendizajeAsistido(d) };
+    tiempos_examen: tiemposExamen(d), aprendizaje_asistido: aprendizajeAsistido(d), ...telemetriaV2(d) };
 }

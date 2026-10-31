@@ -23,7 +23,7 @@ export const GRUPOS: Record<Fuente['grupo'], string> = {
   respuestas: 'Respuestas y su historial de comprobaciones y entregas',
   telemetria: 'Telemetría del proceso de respuesta y orden de las preguntas',
   estudio: 'Tiempo de estudio por página y lecturas cronometradas',
-  asistencia: 'Asistencia con código',
+  asistencia: 'Asistencia (con código y por quórum de proximidad)',
   calificaciones: 'Registro de calificaciones',
   comunicacion: 'Mensajes, preguntas relámpago, bloqueos, Orbe IA y entregas en PDF',
   diseno: 'Diseño experimental de exámenes y calibración de ítems (LIEIA)',
@@ -82,6 +82,11 @@ export const FUENTES: Fuente[] = [
   P('asistida_config', 'diseno', 'diseno', 'assisted_settings', 'Práctica con aprendizaje asistido: transferencia activada, pesos de cada fase y verificación posterior.', ['activity_id'], { activity_id: 'actividades.id', verificacion_actividad: 'actividades.id' }),
   P('asistida_transferencias', 'diseno', 'diseno', 'assisted_transfer', 'Ejercicio de transferencia elegido por el profesor para cada ejercicio de la práctica asistida.', ['activity_id', 'exercise_id'], { activity_id: 'actividades.id', exercise_id: 'ejercicios.id', transfer_exercise_id: 'ejercicios.id' }),
   P('asistida_pasos', 'respuestas', 'academico', 'assisted_steps', 'PASOS ORIGINALES de la práctica asistida (una fila por versión; nada se sobrescribe): primer intento con su declaración, correcciones, reflexión con fuentes y transferencia, con el resultado del motor.', ['id'], { attempt_id: 'intentos.id', exercise_id: 'ejercicios.id', user_id: 'estudiantes.id', transfer_exercise_id: 'ejercicios.id' }),
+  P('telemetria_v2', 'telemetria', 'telemetria', 'telemetry_v2_events', 'EVENTOS ORIGINALES de la Telemetría V2 (sobre versionado, declarados por el navegador): sesión, secuencia, reloj monotónico, pregunta activa, visibilidad, conexión, muestras de reloj, guardados; sin teclas ni contenido.', ['id'], { attempt_id: 'intentos.id', user_id: 'estudiantes.id', question_id: 'ejercicios.id' }),
+  P('revisiones_respuesta', 'respuestas', 'academico', 'response_revisions', 'Historial de los GUARDADOS de cada respuesta (servidor): revisión 1 = primera respuesta no vacía; guardados seguidos en menos de 20 s consolidados con contador.', ['id'], { attempt_id: 'intentos.id', exercise_id: 'ejercicios.id', user_id: 'estudiantes.id' }),
+  P('instantaneas_entrega', 'respuestas', 'academico', 'attempt_snapshots', 'Instantánea inmutable de la entrega: qué revisión de cada respuesta se entregó.', ['attempt_id'], { attempt_id: 'intentos.id', user_id: 'estudiantes.id' }),
+  P('asistencia_horarios', 'asistencia', 'asistencia', 'class_schedules', 'Horario semanal de cada sección (hora de America/Santo_Domingo) para la asistencia por quórum.', ['id'], { class_id: 'secciones.id' }),
+  P('asistencia_quorum_eventos', 'asistencia', 'asistencia', 'attendance_quorum_events', 'Incidencias de la asistencia por quórum: activación, validaciones inconclusas, fuera de zona, renovaciones (distancias redondeadas, sin coordenadas).', ['id'], { class_id: 'secciones.id', session_id: 'asistencia_sesiones.id', user_id: 'estudiantes.id' }),
   P('examen_tramos', 'telemetria', 'telemetria', 'exam_intervals', 'Diario de TRAMOS del tiempo del intento (trabajo, inactividad, pausa, oculta, desconexión, desconocido, revisión), en hora del servidor.', ['id'], { attempt_id: 'intentos.id', user_id: 'estudiantes.id', exercise_id: 'ejercicios.id' }),
 ];
 
@@ -103,6 +108,8 @@ export const DERIVADAS: Derivada[] = [
   { nombre: 'metricas_estudiante', carpeta: 'metricas', descripcion: 'Una fila por estudiante: intentos, respuestas, aciertos, tiempo de estudio y telemetría disponible.', clave: ['user_id'], relaciones: { user_id: 'estudiantes.id' } },
   { nombre: 'aprendizaje_asistido', carpeta: 'metricas', descripcion: 'Práctica asistida: una fila por intento y ejercicio con el primer intento y su declaración, la respuesta final, qué cambió, si presentó explicación, ayudas declaradas y transferencia.', clave: ['attempt_id', 'exercise_id'], relaciones: { attempt_id: 'intentos.id', exercise_id: 'ejercicios.id', activity_id: 'actividades.id' } },
   { nombre: 'tiempos_examen', carpeta: 'metricas', descripcion: 'Motor de examen: una fila por intento y pregunta con el tiempo por categoría (trabajo, inactividad, pausa, oculta, desconexión, desconocido), visitas y tiempo observable reconstruido; diario conciliado con los eventos del servidor.', clave: ['attempt_id', 'exercise_id'], relaciones: { attempt_id: 'intentos.id', exercise_id: 'ejercicios.id' } },
+  { nombre: 'telemetria_v2_intentos', carpeta: 'metricas', descripcion: 'Telemetría V2 · una fila por intento: partición del tiempo (activa, inactiva, sin foco, oculta, pausa, desconocido, simultánea, sin observación), sesiones, eventos tardíos o perdidos, invariantes. Mismo motor que la vista del profesor (nivel A).', clave: ['attempt_id'], relaciones: { attempt_id: 'intentos.id', user_id: 'estudiantes.id' } },
+  { nombre: 'telemetria_v2_preguntas', carpeta: 'metricas', descripcion: 'Telemetría V2 · una fila por intento y pregunta: tiempos con su ESTADO (observado, reconstruido, estimado, no identificable…), visitas, calidad por dimensión, revisiones y diagnóstico de la respuesta (nivel B). Un valor no identificable va vacío, nunca 0.', clave: ['attempt_id', 'exercise_id'], relaciones: { attempt_id: 'intentos.id', exercise_id: 'ejercicios.id', user_id: 'estudiantes.id' } },
   { nombre: 'resumen_colectivo', carpeta: 'metricas', descripcion: 'Una fila por actividad (o práctica libre de una lección): estudiantes, intentos, puntajes y tiempos.', clave: ['clave_grupo'] },
 ];
 
@@ -172,6 +179,15 @@ export const VARIABLES: Record<string, Variable> = {
   'tiempos_examen.tiempo_observable_s': { descripcion: 'Tiempo de trabajo observable reconstruido (trabajo + inactividad hasta 5 min); vacío si no se pudo reconstruir con fiabilidad.', unidad: 's', naturaleza: 'inferido', calculo: 'reconstruirTiempo() sobre los intervalos de la pregunta', limitaciones: 'Describe el proceso; no es un indicador de conducta.' },
   'tiempos_examen.estado_tiempo': { descripcion: 'valido · aproximado (ambigüedad ≤ 10 %) · no_reconstruible · sin_datos.', naturaleza: 'calculado' },
   'tiempos_examen.prorroga_s': { descripcion: 'Segundos de prórroga concedidos por el profesor a ese intento.', unidad: 's', naturaleza: 'registrado_por_el_sistema' },
+  'telemetria_v2.event_type': { descripcion: 'Tipo de evento V2 (ver docs/TELEMETRIA_V2.md §5): sesión, reloj, latido, visibilidad, foco, inactividad, conexión, exposición, pregunta activa, cambio de respuesta, guardado, comprobación, entrega.', naturaleza: 'observado', limitaciones: 'Declarado por el navegador: puede perderse, retrasarse o alterarse.' },
+  'telemetria_v2.t_mono': { descripcion: 'Reloj monotónico del navegador: ms desde el inicio de la sesión.', unidad: 'ms', naturaleza: 'observado' },
+  'telemetria_v2.payload': { descripcion: 'Detalles en lista blanca (huella y longitud de la respuesta, tipo de cambio, muestras de reloj, cola pendiente…). Nunca texto, teclas ni portapapeles.', naturaleza: 'observado' },
+  'revisiones_respuesta.answer': { descripcion: 'Contenido guardado de la respuesta en esa revisión.', naturaleza: 'observado', limitaciones: 'Puede contener datos personales escritos por el estudiante, también en modo investigación.' },
+  'revisiones_respuesta.consolidados': { descripcion: 'Guardados seguidos (menos de 20 s) fusionados en esta revisión; la revisión 1 nunca se consolida.', unidad: 'guardados', naturaleza: 'registrado_por_el_sistema' },
+  'telemetria_v2_preguntas.T_focus_ms': { descripcion: 'Tiempo con la pregunta activa y la página visible con foco o inactiva; vacío si no es identificable (varias preguntas en pantalla sin pregunta activa).', unidad: 'ms', naturaleza: 'inferido', calculo: 'reconstruir() de src/lib/telemetria/v2', limitaciones: 'Tiempo observable, no tiempo de pensamiento.' },
+  'telemetria_v2_preguntas.T_candidate_work_ms': { descripcion: 'Foco menos inactividad: estimación operativa del tiempo observable dedicado a la pregunta.', unidad: 'ms', naturaleza: 'inferido', limitaciones: 'No es tiempo cognitivo.' },
+  'telemetria_v2_preguntas.diagnostico_respuesta': { descripcion: 'nunca_escrita · escrita_sin_guardar · guardada_y_vaciada · guardada · sin_historial (intento anterior al historial de revisiones).', naturaleza: 'calculado' },
+  'asistencia_quorum_eventos.detalle': { descripcion: 'Detalle de la incidencia: motivo, distancias al centro y al admitido más cercano (m, redondeadas), precisión declarada. Sin coordenadas.', naturaleza: 'calculado_y_almacenado', limitaciones: 'La ubicación y su precisión las informa el dispositivo.' },
   'intervalos_estado.tipo': { descripcion: 'oculta = página en segundo plano o sin registro; inactiva = sin actividad; sin_conexion = sin red. Pueden superponerse.', naturaleza: 'inferido', limitaciones: 'La ausencia de eventos no se considera inactividad por sí sola.' },
 };
 
@@ -181,4 +197,4 @@ export function variable(tabla: string, columna: string): Variable | undefined {
 }
 
 export const VERSION_ESQUEMA = '1.0';
-export const VERSION_METRICAS = 'metricas-1.1 (reconstruir() de LIEIA, src/lib/lieia/proceso.ts; tiempos_examen: conciliar() y resumirTiempos() de src/lib/examen/intervalos.ts)';
+export const VERSION_METRICAS = 'metricas-1.2 (reconstruir() de LIEIA, src/lib/lieia/proceso.ts; tiempos_examen: conciliar() y resumirTiempos() de src/lib/examen/intervalos.ts; telemetria_v2_*: telemetria-v2/reconstruccion@1.0.0)';

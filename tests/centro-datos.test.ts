@@ -293,9 +293,9 @@ describe('Centro de Datos · coherencia con el servidor', () => {
     .map((f) => readFileSync(join(ROOT, 'supabase/migrations', f), 'utf8')).filter((t) => /create or replace function public\.export_fuente\(/.test(t)).pop()!;
 
   it('cada fuente del catálogo existe en la lista blanca vigente del servidor (y viceversa), también en export_begin', () => {
-    const servidorFuentes = [...vigente.matchAll(/when '([a-z_]+)' then grupo := '([a-z]+)'/g)].map((m) => [m[1], m[2]] as [string, string]);
+    const servidorFuentes = [...vigente.matchAll(/when '([a-z0-9_]+)' then grupo := '([a-z]+)'/g)].map((m) => [m[1], m[2]] as [string, string]);
     expect(new Map(servidorFuentes)).toEqual(new Map(FUENTES.map((f) => [f.nombre, f.grupo])));
-    const todas = [...(vigente.match(/todas constant text\[\] := array\[([^\]]+)\]/)?.[1] ?? '').matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    const todas = [...(vigente.match(/todas constant text\[\] := array\[([^\]]+)\]/)?.[1] ?? '').matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]);
     expect(new Set(todas)).toEqual(new Set(FUENTES.map((f) => f.nombre)));
   });
 
