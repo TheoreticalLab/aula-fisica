@@ -40,6 +40,8 @@ const CrearActividad = lazy(() => import('@/pages/docente/CrearActividad'));
 const VistaPrevia = lazy(() => import('@/pages/docente/VistaPrevia'));
 const VistaPanel = lazy(() => import('@/pages/docente/VistaPanel'));
 const RevisionIntento = lazy(() => import('@/pages/docente/RevisionIntento'));
+const TelemetriaIntento = lazy(() => import('@/pages/docente/TelemetriaIntento'));
+const TelemetriaPanel = lazy(() => import('@/pages/docente/TelemetriaPanel'));
 const FichaEstudiante = lazy(() => import('@/pages/docente/FichaEstudiante'));
 const Lieia = lazy(() => import('@/pages/docente/lieia/Lieia'));
 const Cuentas = lazy(() => import('@/pages/docente/Cuentas'));
@@ -118,6 +120,8 @@ export default function App() {
               <Route path="docente/actividades/:activityId/vista-previa" element={teacher(<VistaPrevia />)} />
               <Route path="docente/clases/:classId/vista-estudiante" element={teacher(<VistaPanel />)} />
               <Route path="docente/intentos/:attemptId" element={teacher(<RevisionIntento />)} />
+              <Route path="docente/intentos/:attemptId/telemetria" element={teacher(<TelemetriaIntento />)} />
+              <Route path="docente/telemetria" element={teacher(<TelemetriaPanel />)} />
               <Route path="docente/clases/:classId/estudiantes/:userId" element={teacher(<FichaEstudiante />)} />
               <Route path="docente/estudiantes/:userId" element={teacher(<FichaEstudiante />)} />
               <Route path="docente/lieia" element={teacher(<Lieia />)} />

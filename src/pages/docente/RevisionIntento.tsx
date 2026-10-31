@@ -130,6 +130,7 @@ function CuerpoRevision({ v, attemptId, onSaved, conCronologia }: { v: VistaInte
         <p className="text-sm">Puntaje: <strong>{puntaje(v.attempt.score, v.attempt.max_score)}</strong> {v.attempt.needs_review && <Badge tone="red">Hay respuestas por revisar</Badge>}</p>
         {v.activity && !v.activity.grades_published && <p className="mt-1 text-xs text-gray-500">Las calificaciones de esta actividad aún no están publicadas: el estudiante no ve la nota ni los comentarios.</p>}
       </Card>
+      <p className="mb-4"><Link className="btn-secundario py-1 text-sm" to={`/docente/intentos/${attemptId}/telemetria`}>⏱ Telemetría V2 — Reconstrucción del intento</Link></p>
       {v.attempt.mode === 'exam' && <TiemposExamen attemptId={attemptId} etiquetas={Object.fromEntries(v.items.map((it) => [it.exercise.id, it.exercise.slug]))} />}
       {conCronologia && (
         <details className="mb-4" open={verProceso} onToggle={(e) => setVerProceso((e.target as HTMLDetailsElement).open)}>

@@ -289,6 +289,7 @@ export function reconstruir(entrada: Entrada): Reconstruccion {
         respuesta, sincronizacion: { guardados_ok: confirmaciones.length, guardados_fallidos: fallidos },
       },
       advertencias: a,
+      intervalos: { exposicion, foco: ambigua ? [] : foco, edicion: edicionIvs, interaccion },
     };
   });
 

@@ -173,6 +173,7 @@ export default function InicioDocente() {
           <Herramienta to="/docente/comunicacion" icono="📢" titulo="Comunicación en vivo" texto="Mensajes a la sección o a un estudiante." />
           <Herramienta href={`${import.meta.env.BASE_URL}control/`} icono="📱" titulo="Orbe Control" texto="El aula desde el teléfono: pulso, preguntas y datos." />
           <Herramienta to="/docente/analitica" icono="⏱" titulo="Analítica de tiempo" texto="Tiempo efectivo de estudio por estudiante." />
+          <Herramienta to="/docente/telemetria" icono="🔭" titulo="Telemetría" texto="Activar la Telemetría V2 por asignatura y vigilar su calidad. La reconstrucción de cada intento está en su revisión." />
           <Herramienta to="/ayuda" icono="❓" titulo="Ayuda" texto="Guía breve: crear exámenes, prórrogas, revisar y seguimiento." />
           <Herramienta to="/" icono="👁" titulo="Vista de estudiante" texto="Vea la plataforma como la ve un estudiante." />
           <Herramienta to="/docente/lieia" icono="🔬" titulo="Laboratorio LIEIA" texto="Investigación de integridad (indicadores experimentales: no son pruebas)." />

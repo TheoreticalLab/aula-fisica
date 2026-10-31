@@ -125,6 +125,8 @@ export interface ResultadoPregunta {
   ultimo_guardado_confirmado: number | null;
   calidad: CalidadPregunta;
   advertencias: string[];
+  /** Intervalos que sustentan las métricas (para la cronología y la exportación; mismo cálculo). */
+  intervalos: { exposicion: { inicio: number; fin: number }[]; foco: { inicio: number; fin: number }[]; edicion: { inicio: number; fin: number }[]; interaccion: { inicio: number; fin: number }[] };
 }
 
 export interface EventoReconstruido {

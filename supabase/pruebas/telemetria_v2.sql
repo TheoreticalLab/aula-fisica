@@ -100,6 +100,8 @@ do $$ declare r jsonb; begin
   exception when insufficient_privilege then null; end;
   begin perform public.telemetry_v2_set('7e420000-0000-4000-8000-000000000021', true); raise exception 'FALLO: el estudiante encendió la bandera';
   exception when insufficient_privilege then null; end;
+  begin perform public.telemetry_v2_flag('7e420000-0000-4000-8000-000000000021'); raise exception 'FALLO: el estudiante leyó la bandera';
+  exception when insufficient_privilege then null; end;
 end $$;
 
 -- profesor ajeno: no; profesor de la sección: sí, con todo lo necesario para reconstruir
@@ -114,6 +116,7 @@ end $$;
 select set_config('request.jwt.claims', '{"sub":"7e420000-0000-4000-8000-000000000001","role":"authenticated"}', true);
 select set_config('request.jwt.claim.sub', '7e420000-0000-4000-8000-000000000001', true);
 do $$ declare r jsonb; begin
+  if public.telemetry_v2_flag('7e420000-0000-4000-8000-000000000021') then raise exception 'FALLO: lectura de la bandera (está apagada)'; end if;
   r := public.telemetria_v2_intento(current_setting('prueba.t')::uuid);
   if jsonb_array_length(r -> 'revisiones') <> 2 or jsonb_array_length(r -> 'v2') <> 2 or jsonb_array_length(r -> 'items') <> 1 or r -> 'instantanea' is null then
     raise exception 'FALLO: reconstrucción incompleta %', jsonb_build_object('rev', jsonb_array_length(r -> 'revisiones'), 'v2', jsonb_array_length(r -> 'v2'), 'items', jsonb_array_length(r -> 'items'));

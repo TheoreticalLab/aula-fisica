@@ -170,6 +170,16 @@ begin
 end;
 $$;
 
+create or replace function public.telemetry_v2_flag(p_course uuid)
+returns boolean
+language plpgsql stable security definer set search_path = ''
+as $$
+begin
+  if not public.can_view_keys(p_course) then raise exception 'Solo el profesorado de la asignatura' using errcode = '42501'; end if;
+  return coalesce((select f.activo from public.telemetry_v2_flags f where f.course_id = p_course), false);
+end;
+$$;
+
 -- 3 · historial de guardados de las respuestas ------------------------------------------------------------------------
 create table if not exists public.response_revisions (
   id bigint generated always as identity primary key,
@@ -337,7 +347,7 @@ $$;
 do $$ begin
   execute 'revoke all on table public.telemetry_v2_events, public.telemetry_v2_flags, public.telemetry_v2_ingest_log, public.response_revisions, public.attempt_snapshots from anon, authenticated, public';
   execute 'revoke all on function public.registrar_revision(), public.instantanea_entrega() from public, anon, authenticated';
-  execute 'revoke all on function public.telemetry_v2_sync(uuid), public.telemetry_v2_ingest(jsonb), public.telemetry_v2_set(uuid, boolean), public.telemetria_v2_intento(uuid), public.telemetry_v2_monitor(integer) from public, anon';
-  execute 'grant execute on function public.telemetry_v2_sync(uuid), public.telemetry_v2_ingest(jsonb), public.telemetry_v2_set(uuid, boolean), public.telemetria_v2_intento(uuid), public.telemetry_v2_monitor(integer) to authenticated';
+  execute 'revoke all on function public.telemetry_v2_sync(uuid), public.telemetry_v2_ingest(jsonb), public.telemetry_v2_set(uuid, boolean), public.telemetry_v2_flag(uuid), public.telemetria_v2_intento(uuid), public.telemetry_v2_monitor(integer) from public, anon';
+  execute 'grant execute on function public.telemetry_v2_sync(uuid), public.telemetry_v2_ingest(jsonb), public.telemetry_v2_set(uuid, boolean), public.telemetry_v2_flag(uuid), public.telemetria_v2_intento(uuid), public.telemetry_v2_monitor(integer) to authenticated';
   execute 'revoke all on function public.telemetry_v2_clean(jsonb), public.respuesta_vacia(jsonb) from public, anon';
 end $$;
