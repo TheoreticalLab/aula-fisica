@@ -1,5 +1,6 @@
 /** Operaciones del panel docente. La autorización real la aplican las políticas RLS y las funciones SQL. */
 import { calificar, errorMessage, invocar, rpc, supabase } from '@/lib/supabase';
+import type { MetaBanco, RendimientoEjercicio } from '@/lib/banco';
 import type {
   Activity,
   ActivityItem,
@@ -80,6 +81,23 @@ export function listExercises(f: ExerciseFilter) {
   if (f.search) query = query.or(`prompt.ilike.%${f.search.replace(/[%,()]/g, ' ')}%,slug.ilike.%${f.search.replace(/[%,()]/g, ' ')}%`);
   return q<Exercise[]>(query.order('lesson_id', { nullsFirst: false }).order('position').limit(500));
 }
+
+/**
+ * Metadatos del banco (sin respuestas; solo profesorado) y rendimiento agregado por ejercicio. Si la migración 41
+ * aún no está en la base, devuelven listas vacías y el panel muestra el banco clásico.
+ */
+export async function listBankMeta(courseId: string): Promise<{ exercise_id: string; meta: MetaBanco }[]> {
+  const { data, error } = await supabase.from('exercise_bank_meta').select('exercise_id, meta').eq('course_id', courseId).limit(2000);
+  if (error) {
+    if (/exercise_bank_meta|PGRST205|42P01|schema cache/i.test(`${error.message} ${error.code ?? ''}`)) return [];
+    throw new Error(errorMessage(error));
+  }
+  return (data ?? []) as { exercise_id: string; meta: MetaBanco }[];
+}
+export const bankPerformance = (courseId: string) =>
+  rpc<RendimientoEjercicio[]>('banco_rendimiento', { p_course: courseId })
+    .then((r) => r ?? [])
+    .catch((e) => { if (/Could not find the function|PGRST202|schema cache/i.test(e instanceof Error ? e.message : String(e))) return [] as RendimientoEjercicio[]; throw e; });
 
 export const getExerciseFull = async (id: string) => {
   const ex = await q<Exercise>(supabase.from('exercises').select('*').eq('id', id).single());
