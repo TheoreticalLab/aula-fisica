@@ -162,6 +162,37 @@ export function parseUnit(raw: string): ParsedUnit {
   return { factor, dims, offset: 0, isAffineTemperature: false, empty: false };
 }
 
+/**
+ * Normalización PEDAGÓGICA de mayúsculas/minúsculas (p. ej. «j» → «J»). No es una equivalencia del SI: «j» no es
+ * el símbolo del julio. Solo se aplica cuando la unidad escrita NO tiene lectura propia (parseUnit falla), y solo si
+ * todas las formas de escribirla cambiando mayúsculas que tienen las dimensiones esperadas dan EXACTAMENTE la misma
+ * unidad (mismo factor). Si hay más de una lectura posible (p. ej. «mj»: mJ o MJ, que difieren 10⁹), es ambigua y no
+ * se acepta. Devuelve la escritura correcta o null.
+ */
+export function normalizarMayusculas(raw: string, esperadas: Dims): { texto: string; unidad: ParsedUnit } | { ambigua: string[] } | null {
+  const s = raw.trim();
+  const letras = [...s].map((c, i) => (/[a-zA-Z]/.test(c) ? i : -1)).filter((i) => i >= 0);
+  if (!letras.length || letras.length > 10) return null;
+  const vistas = new Map<string, { texto: string; unidad: ParsedUnit }>();
+  for (let mask = 0; mask < 1 << letras.length; mask++) {
+    const cs = [...s];
+    letras.forEach((pos, b) => { cs[pos] = mask & (1 << b) ? cs[pos].toUpperCase() : cs[pos].toLowerCase(); });
+    const texto = cs.join('');
+    if (texto === s) continue;
+    try {
+      const u = parseUnit(texto);
+      if (u.empty || !sameDims(u.dims, esperadas)) continue;
+      const clave = `${u.factor.toPrecision(12)}|${u.isAffineTemperature}`;
+      if (!vistas.has(clave)) vistas.set(clave, { texto, unidad: u });
+    } catch {
+      /* esta variante no es una unidad */
+    }
+  }
+  if (vistas.size === 1) return [...vistas.values()][0];
+  if (vistas.size > 1) return { ambigua: [...vistas.values()].map((v) => v.texto) };
+  return null;
+}
+
 export function sameDims(a: Dims, b: Dims): boolean {
   return a.every((x, i) => Math.abs(x - b[i]) < 1e-9);
 }

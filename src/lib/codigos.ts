@@ -16,6 +16,7 @@ export const CODIGO_ERROR: Record<string, string> = {
   wrong_text: 'respuesta escrita incorrecta',
   sig_figs: 'cifras significativas',
   parse_error: 'formato no reconocido',
+  unit_format: 'unidad mal escrita o no reconocida',
   blank: 'sin responder',
   empty: 'sin responder',
   manual: 'requiere revisión del profesor',

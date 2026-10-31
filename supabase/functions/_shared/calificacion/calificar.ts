@@ -4,7 +4,7 @@
  * `interpretNumeric` para mostrar cómo se leyó lo que el estudiante escribió.
  */
 import { countSigFigs, formatSig, parseLeadingNumber } from './numeros.ts';
-import { describeDims, formatDims, isDimensionless, parseUnit, sameDims, toSI, UnitError, type ParsedUnit } from './unidades.ts';
+import { describeDims, formatDims, isDimensionless, normalizarMayusculas, parseUnit, sameDims, toSI, UnitError, type ParsedUnit } from './unidades.ts';
 import type {
   AnswerKey,
   ChoiceKey,
@@ -157,10 +157,35 @@ function factorDiagnosis(student: number, expected: number): { code: string; mes
 }
 
 export function gradeNumeric(key: NumericKey, raw: string): GradeResult {
-  const p = parseQuantity(raw ?? '');
-  if (!p.ok) return { status: 'invalid', credit: 0, messages: [p.message], code: 'parse_error' };
-  const s = p.q;
+  // 1) campo vacío: no es un error de formato
+  if (typeof raw !== 'string' || raw.trim() === '') return { status: 'invalid', credit: 0, messages: ['Escriba una respuesta.'], code: 'empty' };
+  const p = parseQuantity(raw);
   const k = keyQuantity(key.value);
+  if (!p.ok) {
+    // 2) formato: hay número pero la unidad no se reconoce → normalización pedagógica de mayúsculas, si la clave la
+    //    permite (por defecto sí) y solo si la lectura es única y con las dimensiones de la pregunta
+    const num = parseLeadingNumber(raw.replace(/^\s*[A-Za-zΔΘθαβγωλμρτφ_][\w\s{}^_'’,]{0,15}=\s*/u, ''));
+    if (num && num.rest.trim() && !k.unit.empty) {
+      const n = normalizarMayusculas(num.rest, k.unit.dims);
+      if (n && 'texto' in n) {
+        const escrito = num.rest.trim();
+        if ((key.unitCase ?? 'pedagogica') === 'pedagogica') {
+          // se cambia SOLO la unidad dentro de lo que escribió el estudiante (conserva signo, potencia de 10 y cifras)
+          const original = raw.trimEnd();
+          const pos = original.lastIndexOf(escrito);
+          const corregido = pos >= 0 ? original.slice(0, pos) + n.texto + original.slice(pos + escrito.length) : `${num.value} ${n.texto}`;
+          const r = gradeNumeric(key, corregido);
+          return { ...r, messages: [`Se interpretó «${escrito}» como «${n.texto}». Ojo: el símbolo correcto en el SI es «${n.texto}»; «${escrito}» no es una unidad del SI.`, ...r.messages] };
+        }
+        return { status: 'invalid', credit: 0, messages: [`No reconozco «${escrito}» como unidad. ¿Quiso escribir «${n.texto}»? Los símbolos de las unidades distinguen mayúsculas y minúsculas.`], code: 'unit_format' };
+      }
+      if (n && 'ambigua' in n) {
+        return { status: 'invalid', credit: 0, messages: [`La unidad «${num.rest.trim()}» es ambigua (podría ser ${n.ambigua.map((x) => `«${x}»`).join(' o ')}). Escríbala con las mayúsculas correctas.`], code: 'unit_format' };
+      }
+    }
+    return { status: 'invalid', credit: 0, messages: [p.message], code: num && num.rest.trim() ? 'unit_format' : 'parse_error' };
+  }
+  const s = p.q;
   const relTol = key.relTol ?? DEFAULT_REL_TOL;
   const absTol = key.absTol ?? 0;
   const interval = !!key.temperatureInterval;

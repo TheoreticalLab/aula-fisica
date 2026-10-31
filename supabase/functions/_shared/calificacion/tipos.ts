@@ -42,6 +42,14 @@ export interface NumericKey {
   alternatives?: string[];
   /** Respuestas erróneas típicas con un mensaje que explica el error. */
   commonErrors?: { value: string; message: string }[];
+  /**
+   * Mayúsculas en las unidades cuando lo escrito no es ninguna unidad (p. ej. «10290 j»):
+   *  · 'pedagogica' (por defecto): se lee como la única unidad con las dimensiones pedidas («J») y se califica, con
+   *    un aviso de que el símbolo SI correcto es otro. Si hay más de una lectura (p. ej. «mj»: mJ o MJ), se rechaza.
+   *  · 'estricta': se rechaza como error de formato, sugiriendo la escritura correcta.
+   * Nunca convierte una unidad válida en otra, ni acepta dimensiones distintas de las de la pregunta.
+   */
+  unitCase?: 'pedagogica' | 'estricta';
 }
 
 export interface TextKey {
