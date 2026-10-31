@@ -2,7 +2,7 @@
 import datos from '@/lib/lieia/validacion.json';
 import { DETECTORES, type Detector } from '@/lib/lieia/laboratorio';
 import { ESCENARIOS, type Escenario } from '@/lib/lieia/simulador';
-import { ESTADO_TEXTO, type Estado } from '@/lib/lieia/validacion';
+import { ESTADO_TEXTO, OBSOLETOS, obsoleto, type Estado } from '@/lib/lieia/validacion';
 import { Badge, Card } from '@/components/ui';
 import { LineasBarrido, useTema } from './graficos';
 
@@ -16,8 +16,8 @@ export interface Validacion {
 }
 export const VALIDACION = datos as unknown as Validacion;
 export const TONO_ESTADO: Record<Estado, 'green' | 'amber' | 'gray' | 'red'> = { validado: 'green', validado_limitado: 'amber', sin_potencia: 'gray', no_validado: 'red' };
-/** ¿Se puede mostrar este detector como evidencia sobre datos reales? */
-export const habilitado = (d: Detector) => ['validado', 'validado_limitado'].includes(VALIDACION.veredictos[d]?.estado ?? 'no_validado');
+/** ¿Se puede mostrar este detector como evidencia sobre datos reales? Nunca si está metodológicamente obsoleto. */
+export const habilitado = (d: Detector) => !obsoleto(d) && ['validado', 'validado_limitado'].includes(VALIDACION.veredictos[d]?.estado ?? 'no_validado');
 export const posteriorHabilitada = (d: 'd1' | 'd2') => VALIDACION.posterior[d].calibrada && VALIDACION.posterior[d].informativa;
 
 const pct = (x: number | null | undefined) => (x === null || x === undefined ? '—' : `${(100 * x).toFixed(1)} %`);
@@ -44,16 +44,26 @@ export function Validacion() {
                 return (
                   <tr key={d} className="border-b border-gray-100 align-top dark:border-white/5">
                     <td className="py-1.5"><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full" style={{ background: t.color(d) }} />{NOMBRES[d]}<span className="block text-xs text-gray-500">{DETECTORES[d].hipotesis}</span></td>
-                    <td><Badge tone={TONO_ESTADO[x.estado]}>{ESTADO_TEXTO[x.estado]}</Badge></td>
+                    <td>{obsoleto(d)
+                      ? <><Badge tone="red">Obsoleto (metodología)</Badge><span className="block text-xs text-gray-500">Veredicto simulado histórico: {ESTADO_TEXTO[x.estado]} — no aplicable</span></>
+                      : <Badge tone={TONO_ESTADO[x.estado]}>{ESTADO_TEXTO[x.estado]}</Badge>}</td>
                     <td className="text-right tabular-nums">{peor ? <>{pct(peor.fpr)} <span className="text-xs text-gray-500">({pct(peor.ic[0])}–{pct(peor.ic[1])})</span><span className="block text-xs text-gray-500">{ESCENARIOS[peor.escenario].titulo}</span></> : '—'}</td>
                     <td className="text-xs">{x.potencia.map((p) => <span key={p.escenario} className="block">{ESCENARIOS[p.escenario].titulo}: <strong>{pct(p.potencia)}</strong></span>)}</td>
-                    <td className="text-xs">{habilitado(d) ? '✓ se muestra (valores p y q)' : '✗ abstención (no se muestra como evidencia)'}</td>
+                    <td className="text-xs">{habilitado(d) ? '✓ se muestra (valores p y q)' : obsoleto(d) ? '✗ retirado (resultados históricos marcados como obsoletos)' : '✗ abstención (no se muestra como evidencia)'}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
+        {(Object.entries(OBSOLETOS) as [Detector, NonNullable<(typeof OBSOLETOS)[Detector]>][]).map(([d, o]) => (
+          <div key={d} className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm dark:border-red-500/30 dark:bg-red-500/10">
+            <p className="font-medium">{d.toUpperCase()} ({o.version}) retirado el {o.desde} por defectos metodológicos</p>
+            <p className="mt-1 text-xs">La batería simulada no podía revelarlos porque generaba los datos con el mismo modelo que el detector suponía. Sus resultados anteriores se conservan, pero son de una versión obsoleta y no deben usarse para priorizar revisiones.</p>
+            <ol className="mt-1 list-decimal pl-5 text-xs">{o.defectos.map((x) => <li key={x}>{x}</li>)}</ol>
+            <p className="mt-1 text-xs">Sustituto: {o.sustituto}. Detalle: <code>{o.documento}</code>.</p>
+          </div>
+        ))}
         <ul className="mt-2 list-disc pl-5 text-sm">
           {(Object.keys(DETECTORES) as Detector[]).flatMap((d) => v.veredictos[d].limitaciones.map((l) => <li key={d + l}><strong>{d.toUpperCase()}</strong>: {l}</li>))}
           {(['d1', 'd2'] as const).map((d) => (

@@ -13,13 +13,27 @@ Reproducir: `./node_modules/.bin/vite-node scripts/lieia-validar.ts 30` (mismos 
 | D3 Sincronía de respuestas iguales | Validado | 5.7 % (5.3 %–6.0 %) en «Red con fuente central» | Copia en parejas: 87.8 %; Red con fuente central: 86.7 % |
 | D4 Ajuste de persona (l_z) | Sin potencia demostrada | 1.3 % (0.8 %–2.2 %) en «Orden aleatorio de preguntas» | Asistencia externa / IA: 13.3 % |
 | D5 Aciertos difíciles demasiado rápidos | Sin potencia demostrada | 1.3 % (0.8 %–2.2 %) en «Red con fuente central» | Asistencia externa / IA: 17.8 % |
-| D6 Tiempo insensible a la dificultad | Validado | 5.1 % (3.9 %–6.6 %) en «Examen fácil» | Asistencia externa / IA: 100.0 % |
+| D6 Tiempo insensible a la dificultad (v1, obsoleto) | **Obsoleto (metodología, 2026-10-30)**; veredicto simulado histórico: Validado — no aplicable | 5.1 % (3.9 %–6.6 %) en «Examen fácil» | Asistencia externa / IA: 100.0 % |
 | D7 Anomalía multivariante (descriptiva) | No validado (falsos positivos no controlados) | 20.4 % (18.1 %–22.9 %) en «Independencia» | Asistencia externa / IA: 100.0 % |
 | D8 Inconsistencia entre versiones isomorfas | Validado | 1.6 % (1.0 %–2.6 %) en «Filtración de preguntas» | Filtración de preguntas: 85.6 % |
 
 Criterio: límite superior del IC ≤ 7.5 % en cada control negativo (Independencia, Examen fácil, Mismo ritmo y habilidad, Inicio escalonado, Orden aleatorio de preguntas, Misma confusión (causa común)) y entre las unidades no implicadas de los escenarios positivos y adversariales.
 
 - **D1**: Señala al 40 % de las parejas con una misma confusión (causa común legítima): no distingue copiar de haber estudiado juntos.
+
+### D6 (d6-1) retirado el 2026-10-30 por defectos metodológicos
+
+La batería simulada no podía revelarlos (generaba los datos con el mismo modelo que el detector suponía). Sus resultados anteriores se conservan como históricos de una versión obsoleta y no se usan para priorizar revisiones.
+
+1. La «normalidad» (exigencia temporal de cada pregunta) se estimaba con la misma sección investigada: el resultado de un estudiante dependía de sus compañeros.
+2. El regresor era la intensidad temporal media de la pregunta, no su dificultad: medía «tarda más donde todos tardan», no sensibilidad a la dificultad.
+3. Sin variación entre preguntas devolvía pendiente 1 («normal»): un valor inventado cuando el indicador no es identificable.
+4. Solo exigía 8 respuestas: un mínimo arbitrario que no comprobaba la cobertura de niveles de dificultad ni la precisión de la pendiente.
+5. El tiempo de cada pregunta era el intervalo entre primeras respuestas consecutivas: incluía pausas, pestaña oculta, lectura de otras preguntas y revisiones.
+6. No distinguía respuestas correctas de incorrectas.
+7. Además: la nula del remuestreo usaba parámetros estimados con los mismos datos (incluido el propio estudiante), sin incertidumbre de la referencia.
+
+Sustituto: D6 v2 (sensibilidad temporal con referencia externa): EXPERIMENTAL, todavía no habilitado con datos reales. Detalle: `docs/LIEIA_D6.md`.
 
 ## Probabilidad posterior de dependencia
 

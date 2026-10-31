@@ -6,11 +6,11 @@ const HIPOTESIS: [string, string, string][] = [
   ['Colaboración entre parejas', 'Errores idénticos improbables (D1) y respuestas iguales sincronizadas (D3). Juntas, compatibles con intercambio durante el examen.', 'No identifica el mecanismo (hablar, mensajería, mirar). La copia con retardo de minutos borra la huella temporal.'],
   ['Redes de intercambio', 'Grupos conectados en el grafo de parejas con evidencia.', 'Dos receptores de una misma fuente aparecen conectados entre sí (dependencia indirecta).'],
   ['Fuente central de distribución', 'Nodo que responde primero en más conexiones (dirección temporal de D3).', 'Identificación moderada en el laboratorio; una fuente externa al aula no se observa directamente.'],
-  ['Asistencia externa o IA', 'Tiempo insensible a la dificultad (D6): tarda lo mismo en todo.', 'Una asistencia que imite los tiempos de un estudiante real no se distingue con telemetría. Aciertos «demasiado buenos» se confunden con alta habilidad.'],
+  ['Asistencia externa o IA', 'Hoy no se infiere con datos reales: D6 v1 (tiempo insensible a la dificultad) se retiró por defectos metodológicos y D6 v2 (referencia externa) es experimental hasta tener una referencia real y validación independiente.', 'Una asistencia que imite los tiempos de un estudiante real no se distingue con telemetría. Aciertos «demasiado buenos» se confunden con alta habilidad.'],
   ['Coincidencias naturales y falsos positivos', 'Controles negativos del laboratorio: examen fácil, mismo ritmo, inicio escalonado, orden aleatorio, misma confusión.', 'D1 no distingue copiar de una causa común (estudiar juntos, mismo material).'],
   ['Conocimiento previo de preguntas concretas (filtración)', 'Con pares isomorfos en el examen: inconsistencia entre gemelas (acierta y responde rápido una, no la otra) más allá del modelo (D8).', 'Sin grupos isomorfos no es identificable. Una filtración que incluya todas las variantes tampoco.'],
   ['Efectos del diseño (orden, fatiga, aprendizaje)', 'Con orden aleatorio o contrabalanceado, el modelo de tiempos separa la posición (fatiga) del ítem; los experimentos de diseño miden qué características aportan o engañan.', 'Con orden fijo, posición e ítem están confundidos (se absorben juntos).'],
-  ['Cambios de comportamiento con la dificultad','Modelo de dificultad (Rasch) frente al de tiempos (lognormal): gráfico por ítem y D6 por estudiante.', 'Pocos ítems o pocos estudiantes vuelven inestables las estimaciones.'],
+  ['Cambios de comportamiento con la dificultad','Modelo de dificultad (Rasch) frente al de tiempos (lognormal): gráfico por ítem (D6 por estudiante: retirado en v1, experimental en v2).', 'Pocos ítems o pocos estudiantes vuelven inestables las estimaciones.'],
 ];
 
 export function Metodo() {

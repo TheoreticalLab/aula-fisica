@@ -28,6 +28,30 @@ export const ESTADO_TEXTO: Record<Estado, string> = {
   validado: 'Validado', validado_limitado: 'Validado con limitaciones (solo indicio)', sin_potencia: 'Sin potencia demostrada', no_validado: 'No validado (falsos positivos no controlados)',
 };
 
+/**
+ * Detectores retirados por defectos METODOLÓGICOS (no por sus cifras en la batería). Un detector obsoleto no se
+ * muestra como evidencia aunque su veredicto simulado sea «Validado»: la batería medía su comportamiento bajo el mismo
+ * modelo que lo definía, así que no podía revelar estos defectos. Sus resultados históricos se conservan, pero se
+ * presentan como producidos por una versión metodológicamente obsoleta.
+ */
+export interface Obsolescencia { version: string; desde: string; defectos: string[]; sustituto: string; documento: string }
+export const OBSOLETOS: Partial<Record<Detector, Obsolescencia>> = {
+  d6: {
+    version: 'd6-1', desde: '2026-10-30', documento: 'docs/LIEIA_D6.md',
+    sustituto: 'D6 v2 (sensibilidad temporal con referencia externa): EXPERIMENTAL, todavía no habilitado con datos reales',
+    defectos: [
+      'La «normalidad» (exigencia temporal de cada pregunta) se estimaba con la misma sección investigada: el resultado de un estudiante dependía de sus compañeros.',
+      'El regresor era la intensidad temporal media de la pregunta, no su dificultad: medía «tarda más donde todos tardan», no sensibilidad a la dificultad.',
+      'Sin variación entre preguntas devolvía pendiente 1 («normal»): un valor inventado cuando el indicador no es identificable.',
+      'Solo exigía 8 respuestas: un mínimo arbitrario que no comprobaba la cobertura de niveles de dificultad ni la precisión de la pendiente.',
+      'El tiempo de cada pregunta era el intervalo entre primeras respuestas consecutivas: incluía pausas, pestaña oculta, lectura de otras preguntas y revisiones.',
+      'No distinguía respuestas correctas de incorrectas.',
+      'Además: la nula del remuestreo usaba parámetros estimados con los mismos datos (incluido el propio estudiante), sin incertidumbre de la referencia.',
+    ],
+  },
+};
+export const obsoleto = (d: Detector) => OBSOLETOS[d] ?? null;
+
 export interface Veredicto {
   estado: Estado;
   fpr: { escenario: Escenario; fpr: number; ic: [number, number]; ok: boolean }[];

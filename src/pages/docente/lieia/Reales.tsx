@@ -164,16 +164,16 @@ export function Reales() {
               <table className="w-full text-sm">
                 <thead><tr className="border-b text-left text-xs dark:border-white/10">
                   <th className="py-1">Estudiante</th><th className="text-right">Aciertos</th><th className="text-right">Habilidad (θ)</th>
-                  <th className="text-right">D6 tiempo insensible p / q</th><th className="text-right">D8 isomorfas p / q</th><th className="text-right">Cambios de respuesta</th><th className="text-right text-gray-400">D4 l_z</th><th className="text-right text-gray-400">D5 rápidas difíciles</th><th className="text-right">Pestaña oculta</th><th className="text-right text-gray-400">D7 atipicidad</th>
+                  <th className={`text-right ${habilitado('d6') ? '' : 'text-gray-400'}`}>{habilitado('d6') ? 'D6 tiempo insensible p / q' : 'D6 v1 (obsoleto, histórico)'}</th><th className="text-right">D8 isomorfas p / q</th><th className="text-right">Cambios de respuesta</th><th className="text-right text-gray-400">D4 l_z</th><th className="text-right text-gray-400">D5 rápidas difíciles</th><th className="text-right">Pestaña oculta</th><th className="text-right text-gray-400">D7 atipicidad</th>
                 </tr></thead>
-                <tbody>{[...res.estudiantes].sort((a, b) => (a.d6?.p ?? 1) - (b.d6?.p ?? 1)).map((e) => {
+                <tbody>{[...res.estudiantes].sort((a, b) => (habilitado('d6') ? (a.d6?.p ?? 1) - (b.d6?.p ?? 1) : a.i - b.i)).map((e) => {
                   const n = nombres?.find((x) => x.seudonimo === examen.estudiantes[e.i].id);
                   return (
                     <tr key={e.i} className="border-b border-gray-100 dark:border-white/5">
                       <td className="py-1">{n ? <Link className="enlace" to={`/docente/estudiantes/${n.user_id}`}>{etiqueta(e.i)}</Link> : etiqueta(e.i)}</td>
                       <td className="text-right tabular-nums">{e.puntaje}/{e.respondidas}</td>
                       <td className="text-right tabular-nums">{e.theta.toFixed(2)}</td>
-                      <td className={`text-right tabular-nums ${habilitado('d6') && e.q6 !== null && e.q6 < Q ? 'font-semibold' : ''}`}>{habilitado('d6') && e.d6 ? `${fmtP(e.d6.p)} / ${fmtP(e.q6)} (pend. ${e.d6.pendiente.toFixed(2)})` : '—'}</td>
+                      <td className={`text-right tabular-nums ${habilitado('d6') && e.q6 !== null && e.q6 < Q ? 'font-semibold' : ''}`}>{habilitado('d6') && e.d6 ? `${fmtP(e.d6.p)} / ${fmtP(e.q6)} (pend. ${e.d6.pendiente.toFixed(2)})` : e.d6 ? <span className="text-gray-400" title="Versión metodológicamente obsoleta: no usar para priorizar">{fmtP(e.d6.p)} (v1)</span> : '—'}</td>
                       <td className={`text-right tabular-nums ${habilitado('d8') && e.q8 !== null && e.q8 < Q ? 'font-semibold' : ''}`}>{habilitado('d8') && e.d8 ? `${fmtP(e.d8.p)} / ${fmtP(e.q8)}` : e.d8 ? <span className="text-gray-400">no validado</span> : '—'}</td>
                       <td className="text-right tabular-nums">{e.cambios}</td>
                       <td className="text-right tabular-nums text-gray-400">{e.d4 ? e.d4.lz.toFixed(2) : '—'}</td>

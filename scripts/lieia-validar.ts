@@ -8,7 +8,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { barrido, DETECTORES, ejecutarExperimento, type Detector, type ResultadoExperimento } from '../src/lib/lieia/laboratorio';
 import { ESCENARIOS, PARAMETROS_BASE, type Escenario } from '../src/lib/lieia/simulador';
-import { ESTADO_TEXTO, FPR_MAX, NEGATIVOS, veredicto, veredictoPosterior } from '../src/lib/lieia/validacion';
+import { ESTADO_TEXTO, FPR_MAX, NEGATIVOS, OBSOLETOS, veredicto, veredictoPosterior } from '../src/lib/lieia/validacion';
 
 const REPLICAS = Number(process.argv[2] ?? 30);
 const SEMILLA = 20261027;
@@ -65,10 +65,16 @@ lineas.push('## Veredicto por detector', '', '| Detector | Estado | Peor tasa de
 for (const d of Object.keys(DETECTORES) as Detector[]) {
   const v = veredictos[d];
   const peor = [...v.fpr].sort((a, b) => b.ic[1] - a.ic[1])[0];
-  lineas.push(`| ${d.toUpperCase()} ${DETECTORES[d].nombre} | ${ESTADO_TEXTO[v.estado]} | ${peor ? `${pct(peor.fpr)} (${pct(peor.ic[0])}–${pct(peor.ic[1])}) en «${ESCENARIOS[peor.escenario].titulo}»` : '—'} | ${v.potencia.map((p) => `${ESCENARIOS[p.escenario].titulo}: ${pct(p.potencia)}`).join('; ')} |`);
+  const ob = OBSOLETOS[d];
+  lineas.push(`| ${d.toUpperCase()} ${DETECTORES[d].nombre} | ${ob ? `**Obsoleto (metodología, ${ob.desde})**; veredicto simulado histórico: ${ESTADO_TEXTO[v.estado]} — no aplicable` : ESTADO_TEXTO[v.estado]} | ${peor ? `${pct(peor.fpr)} (${pct(peor.ic[0])}–${pct(peor.ic[1])}) en «${ESCENARIOS[peor.escenario].titulo}»` : '—'} | ${v.potencia.map((p) => `${ESCENARIOS[p.escenario].titulo}: ${pct(p.potencia)}`).join('; ')} |`);
 }
 lineas.push('', `Criterio: límite superior del IC ≤ ${pct(FPR_MAX)} en cada control negativo (${NEGATIVOS.map((e) => ESCENARIOS[e].titulo).join(', ')}) y entre las unidades no implicadas de los escenarios positivos y adversariales.`, '');
 for (const d of Object.keys(DETECTORES) as Detector[]) for (const l of veredictos[d].limitaciones) lineas.push(`- **${d.toUpperCase()}**: ${l}`);
+for (const [d, o] of Object.entries(OBSOLETOS)) {
+  lineas.push('', `### ${d.toUpperCase()} (${o.version}) retirado el ${o.desde} por defectos metodológicos`, '',
+    'La batería simulada no podía revelarlos (generaba los datos con el mismo modelo que el detector suponía). Sus resultados anteriores se conservan como históricos de una versión obsoleta y no se usan para priorizar revisiones.', '',
+    ...o.defectos.map((x, k) => `${k + 1}. ${x}`), '', `Sustituto: ${o.sustituto}. Detalle: \`${o.documento}\`.`);
+}
 lineas.push('', '## Probabilidad posterior de dependencia', '');
 for (const d of ['d1', 'd2'] as const) {
   const p = posterior[d];

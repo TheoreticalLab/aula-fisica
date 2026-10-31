@@ -22,7 +22,7 @@ export const DETECTORES: Record<Detector, { nombre: string; unidad: 'pareja' | '
   d3: { nombre: 'Sincronía de respuestas iguales', unidad: 'pareja', hipotesis: 'Uno responde lo mismo poco después del otro (líder–seguidor)' },
   d4: { nombre: 'Ajuste de persona (l_z)', unidad: 'estudiante', hipotesis: 'Patrón de aciertos incoherente con la habilidad' },
   d5: { nombre: 'Aciertos difíciles demasiado rápidos', unidad: 'estudiante', hipotesis: 'Asistencia externa / IA' },
-  d6: { nombre: 'Tiempo insensible a la dificultad', unidad: 'estudiante', hipotesis: 'Asistencia externa / IA' },
+  d6: { nombre: 'Tiempo insensible a la dificultad (v1, obsoleto)', unidad: 'estudiante', hipotesis: 'Asistencia externa / IA' },
   d7: { nombre: 'Anomalía multivariante (descriptiva)', unidad: 'estudiante', hipotesis: 'Comportamiento atípico (sin hipótesis específica)' },
   d8: { nombre: 'Inconsistencia entre versiones isomorfas', unidad: 'estudiante', hipotesis: 'Conocimiento específico de ciertas preguntas (filtración)' },
 };

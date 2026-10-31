@@ -230,7 +230,9 @@ function ResultadoIntegridad({ res, nombre, usuario }: { res: Resultado; nombre:
           <tbody>
             <Fila k="Aciertos" v={`${e.puntaje}/${e.respondidas} · puesto ${integ.puesto} de ${integ.total}`} />
             <Fila k="Habilidad estimada (θ)" v={e.theta.toFixed(2)} />
-            <Fila k="D6 · tarda lo mismo en preguntas fáciles y difíciles (p / q)" v={habilitado('d6') && e.d6 ? <span className={negrita(e.q6)}>{fmtP(e.d6.p)} / {fmtP(e.q6)} (pendiente {e.d6.pendiente.toFixed(2)}; lo normal ≈ 1)</span> : '—'} />
+            <Fila k={<span className="text-gray-400">D6 v1 · tiempo insensible a la dificultad (RETIRADO: metodología obsoleta)</span>} v={habilitado('d6') && e.d6
+              ? <span className={negrita(e.q6)}>{fmtP(e.d6.p)} / {fmtP(e.q6)} (pendiente {e.d6.pendiente.toFixed(2)}; lo normal ≈ 1)</span>
+              : <span className="text-gray-400" title="Versión obsoleta: no usar para priorizar revisiones (ver LIEIA → Validación)">{e.d6 ? `valor histórico v1: p ${fmtP(e.d6.p)} — no usar` : '—'}</span>} />
             <Fila k="D8 · respuestas distintas en preguntas equivalentes (p / q)" v={e.d8 ? (habilitado('d8') ? <span className={negrita(e.q8)}>{fmtP(e.d8.p)} / {fmtP(e.q8)}</span> : <span className="text-gray-400">no validado</span>) : '—'} />
             <Fila k="P1 · respondió rápido y envió mucho después (p / q)" v={habilitadoP('p1') && p?.p1 ? <span className={negrita(p.q1)}>{fmtP(p.p1.p)} / {fmtP(p.q1)}</span> : '—'} />
             <Fila k="P2 · ritmo anormalmente regular (p / q, potencia limitada)" v={habilitadoP('p2') && p?.p2 ? <span className="text-gray-500">{fmtP(p.p2.p)} / {fmtP(p.q2)}</span> : '—'} />
