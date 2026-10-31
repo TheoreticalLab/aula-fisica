@@ -1,6 +1,6 @@
 /** Configuración del aprendizaje asistido de una práctica: transferencia por ejercicio, pesos editables y verificación diferida. */
 import { useEffect, useState } from 'react';
-import { assistedSettingsGet, assistedSettingsSave, type ConfigAsistida as Cfg } from '@/api/asistida';
+import { assistedSettingsDisable, assistedSettingsGet, assistedSettingsSave, type ConfigAsistida as Cfg } from '@/api/asistida';
 import { funcionAusente } from '@/api/examen';
 import { activityItems, listActivities, listExercises } from '@/api/docente';
 import { notaCompuesta } from '@/lib/asistida';
@@ -105,7 +105,15 @@ export function ConfigAsistida({ activityId, courseId, classId }: { activityId: 
         <div className="flex items-center gap-3">
           <button className="btn-primario" onClick={() => void guardar()} disabled={action.busy || suma !== 100}>{action.busy ? 'Guardando…' : 'Guardar aprendizaje asistido'}</button>
           {ok && <span className="text-emerald-700 dark:text-emerald-300">Guardado ✓</span>}
+          {st.data!.s.config && !s.con_pasos && (
+            <button className="btn-texto ml-auto text-sm text-red-700 dark:text-red-300" disabled={action.busy} onClick={async () => {
+              if (!window.confirm('¿Volver a práctica tradicional? Se quita el aprendizaje asistido (ningún estudiante lo ha usado todavía). La retroalimentación inmediata y las pistas puede activarlas en la configuración de la actividad.')) return;
+              const r = await action.run(() => assistedSettingsDisable(activityId));
+              if (r) { st.setData({ ...st.data!, s: r }); setCfg(null); }
+            }}>Desactivar el aprendizaje asistido</button>
+          )}
         </div>
+        {s.con_pasos && <p className="text-xs text-gray-500">Ya hay estudiantes con pasos registrados: el aprendizaje asistido no se puede desactivar en esta práctica.</p>}
       </div>
     </Card>
   );

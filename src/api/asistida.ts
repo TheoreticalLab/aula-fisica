@@ -31,6 +31,9 @@ export const assistedSettingsGet = (activityId: string) =>
 export const assistedSettingsSave = (activityId: string, cfg: Partial<ConfigAsistida>, transferencias: Record<string, string> | null) =>
   rpc<{ config: ConfigAsistida | null; transferencias: Record<string, string>; con_pasos: boolean }>('assisted_settings_save', { p_activity: activityId, p_cfg: cfg, p_transferencias: transferencias });
 
+export const assistedSettingsDisable = (activityId: string) =>
+  rpc<{ config: ConfigAsistida | null; transferencias: Record<string, string>; con_pasos: boolean }>('assisted_settings_disable', { p_activity: activityId });
+
 export interface ProcesoAsistida {
   asistida: boolean;
   config: ConfigAsistida;

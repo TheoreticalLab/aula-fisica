@@ -204,5 +204,29 @@ do $$ begin
 end $$;
 reset role;
 
+-- desactivar (migración 40): no con pasos registrados; sí en una práctica asistida sin pasos; solo el profesor de la sección
+reset role;
+insert into public.activities (id, class_id, title, mode, published, reveal_policy, hints_enabled) values
+  ('de380000-0000-4000-8000-0000000000a4', 'de380000-0000-4000-8000-000000000031', 'Asistida sin usar', 'practice', true, 'after_submit', false);
+insert into public.assisted_settings (activity_id) values ('de380000-0000-4000-8000-0000000000a4');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"de380000-0000-4000-8000-000000000001","role":"authenticated"}', true);
+select set_config('request.jwt.claim.sub', 'de380000-0000-4000-8000-000000000001', true);
+do $$ begin
+  begin perform public.assisted_settings_disable('de380000-0000-4000-8000-0000000000a1'); raise exception 'FALLO: desactivó con pasos registrados';
+  exception when raise_exception then null; end;
+  if public.assisted_settings_disable('de380000-0000-4000-8000-0000000000a4') -> 'config' <> 'null'::jsonb then raise exception 'FALLO: no se desactivó'; end if;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"de380000-0000-4000-8000-000000000002","role":"authenticated"}', true);
+select set_config('request.jwt.claim.sub', 'de380000-0000-4000-8000-000000000002', true);
+do $$ begin
+  begin perform public.assisted_settings_disable('de380000-0000-4000-8000-0000000000a1'); raise exception 'FALLO: profesor ajeno desactivó';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+do $$ begin
+  if not exists (select 1 from public.assisted_settings where activity_id = 'de380000-0000-4000-8000-0000000000a1') then raise exception 'FALLO: se borró la configuración con pasos'; end if;
+end $$;
+
 select 'practica_asistida.sql: PRUEBAS PASARON' as resultado;
 rollback;

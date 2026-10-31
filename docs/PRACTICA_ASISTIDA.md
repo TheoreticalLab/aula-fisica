@@ -108,4 +108,4 @@ La interfaz aún no se ha probado en un navegador ni en un teléfono.
 
 - **Tutor IA integrado (opcional):** una acción de Orbe IA que solo haga preguntas guía («¿qué principio usarías?»), sin dar la respuesta. Necesita su decisión sobre el envío del enunciado (nunca datos personales) y el presupuesto.
 - **Análisis automático de las explicaciones:** solo como ayuda al profesor, nunca para calificar ni para detectar autoría.
-- **Volver a tradicional:** no hay botón para desactivar el modo asistido de una práctica ya creada; cree una práctica nueva.
+- **Volver a tradicional:** hecho (migración 40). El botón «Desactivar el aprendizaje asistido» solo aparece si ningún estudiante ha registrado pasos; si ya los hay, cree una práctica tradicional nueva.
