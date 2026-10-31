@@ -181,6 +181,23 @@ begin
 end;
 $$;
 
+-- Reglas visibles para el estudiante ANTES de empezar (inscrito en la sección y actividad publicada)
+create or replace function public.exam_rules(p_activity uuid)
+returns jsonb
+language plpgsql stable security definer set search_path = ''
+as $$
+declare act public.activities;
+begin
+  if auth.uid() is null then raise exception 'Debe iniciar sesión' using errcode = '28000'; end if;
+  select * into act from public.activities where id = p_activity;
+  if act.id is null or not (public.is_class_teacher(act.class_id)
+      or (act.published and exists (select 1 from public.enrollments e where e.class_id = act.class_id and e.user_id = auth.uid()))) then
+    raise exception 'Actividad no disponible' using errcode = '42501';
+  end if;
+  return public.exam_settings_of(p_activity) - 'configurado';
+end;
+$$;
+
 -- -----------------------------------------------------------------------------
 -- Estudiante: sesión de examen
 
@@ -558,7 +575,7 @@ begin
     execute format('revoke all on function %s from public, anon, authenticated', f);
   end loop;
   foreach f in array array[
-    'public.exam_settings_get(uuid)', 'public.exam_settings_save(uuid, jsonb)', 'public.exam_open(uuid)', 'public.exam_ping(uuid)',
+    'public.exam_settings_get(uuid)', 'public.exam_settings_save(uuid, jsonb)', 'public.exam_rules(uuid)', 'public.exam_open(uuid)', 'public.exam_ping(uuid)',
     'public.exam_goto(uuid, uuid)', 'public.exam_pause(uuid)', 'public.exam_resume(uuid)', 'public.exam_journal(uuid, jsonb)',
     'public.exam_save(uuid, uuid, jsonb, bigint)', 'public.exam_timeline(uuid)'] loop
     execute format('revoke all on function %s from public, anon', f);

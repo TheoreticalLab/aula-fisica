@@ -7,6 +7,7 @@ import { estimarDesfase, formatoCuenta, horaLimite, restante } from '../src/lib/
 import { AlmacenMemoria, ColaGuardado, ErrorDefinitivo, type Pendiente } from '../src/lib/examen/guardado';
 import { conciliar, intervalosDePregunta, resumirTiempos, type EventoServidor } from '../src/lib/examen/intervalos';
 import { reconstruirTiempo } from '../src/lib/lieia/d6';
+import { describirReglas } from '../src/lib/examen/reglas';
 
 const C: ConfigExamen = { ...CONFIG_EXAMEN_POR_DEFECTO, pausas: { permitidas: true, max_numero: 2, max_total_s: 300, detienen_reloj: true } };
 const ok = (r: { ok: boolean; estado: EstadoMotor }) => { expect(r.ok).toBe(true); return r.estado; };
@@ -110,6 +111,19 @@ describe('Motor de examen · recuperación tras cierre o desconexión', () => {
     const e = abrir(crearMotor(['q1']), 0);
     expect(tramosHasta(e, s(10))).toEqual([{ inicio: 0, fin: s(10), tipo: 'trabajo', exercise_id: 'q1' }]);
     expect(e.tramos).toEqual([]);
+  });
+});
+
+describe('Reglas explicadas al estudiante antes de empezar', () => {
+  it('describe duración, navegación y pausas; la presentación clásica no muestra reglas', () => {
+    const r = describirReglas({ presentacion: 'una_a_la_vez', navegacion: 'solo_adelante', duracion_s: 3600, pausas: { permitidas: true, max_numero: 1, max_total_s: 300, detienen_reloj: true } })!;
+    expect(r.titulo).toBe('Examen de 60 minutos');
+    const t = r.lineas.join(' ');
+    expect(t).toMatch(/Solo se avanza/);
+    expect(t).toMatch(/pausar una vez \(5 min en total\).*el reloj se detiene/);
+    expect(t).toMatch(/se entrega automáticamente/);
+    expect(describirReglas(CONFIG_EXAMEN_POR_DEFECTO)!.lineas.join(' ')).toMatch(/no tiene pausas/);
+    expect(describirReglas({ ...CONFIG_EXAMEN_POR_DEFECTO, presentacion: 'todas' })).toBeNull();
   });
 });
 

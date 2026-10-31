@@ -32,5 +32,6 @@ export const examTimeline = (attemptId: string) => rpc<{
   eventos: { t: number; tipo: string; exercise_id: string | null; data: Record<string, unknown> }[];
   tramos: { seq: number; tipo: Tramo['tipo']; exercise_id: string | null; inicio: number; fin: number; sin_red: boolean }[];
 }>('exam_timeline', { p_attempt: attemptId });
-export const examSettingsGet = (activityId: string) => rpc<ConfigExamenGuardada>('exam_settings_get', { p_activity: activityId });
+export const examRules = (activityId: string) => rpc<ConfigExamen>('exam_rules', { p_activity: activityId });
+export const examSettingsGet =(activityId: string) => rpc<ConfigExamenGuardada>('exam_settings_get', { p_activity: activityId });
 export const examSettingsSave = (activityId: string, cfg: ConfigExamen) => rpc<ConfigExamenGuardada>('exam_settings_save', { p_activity: activityId, p_cfg: cfg });

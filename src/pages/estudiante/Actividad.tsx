@@ -8,6 +8,11 @@ import type { Activity } from '@/api/tipos';
 import { fecha, puntaje, relativo, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, ErrorBox, Notice, PageTitle, Spinner } from '@/components/ui';
 import { Markdown } from '@/components/Markdown';
+import { examRules } from '@/api/examen';
+import { describirReglas } from '@/lib/examen/reglas';
+import type { ConfigExamen } from '@/lib/examen/motor';
+
+const CONFIG_CLASICA: ConfigExamen = { presentacion: 'todas', navegacion: 'libre', duracion_s: null, pausas: { permitidas: false, max_numero: 0, max_total_s: 0, detienen_reloj: false } };
 
 export const REVEAL_TEXT: Record<string, string> = {
   immediate: 'Verá si acierta y la solución al comprobar cada ejercicio.',
@@ -57,14 +62,16 @@ export default function Actividad() {
       myActivities(),
     ]);
     if (error) throw new Error('Actividad no disponible.');
-    return { act: act as Activity, mine: list.find((a) => a.id === activityId) };
+    // reglas del motor de examen (si la evaluación lo usa); sin ellas, la evaluación es clásica
+    const reglas = (act as Activity).mode === 'exam' ? describirReglas(await examRules(activityId).catch(() => CONFIG_CLASICA)) : null;
+    return { act: act as Activity, mine: list.find((a) => a.id === activityId), reglas };
   }, [activityId]);
   const action = useAction();
   const [lecturaHecha, setLecturaHecha] = useState(false);
   const alCompletarLectura = useCallback(() => setLecturaHecha(true), []);
   if (loading) return <Spinner />;
   if (error) return <ErrorBox error={error} />;
-  const { act, mine } = data!;
+  const { act, mine, reglas } = data!;
   const conLectura = !!act.reading_min_seconds && !!act.reading_text;
   const bloqueada = conLectura && !lecturaHecha && !mine?.reading_done && !mine?.in_progress;
   const now = Date.now();
@@ -80,6 +87,12 @@ export default function Actividad() {
     <div className="mx-auto max-w-3xl">
       <PageTitle title={act.title} subtitle={mine?.class_name} back={{ to: '/', label: 'Inicio' }} />
       <FichaActividad act={act} items={mine?.items} maxScore={mine?.max_score} used={used} bestScore={mine?.best_score ?? null}>
+        {reglas && !mine?.in_progress && (
+          <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-4 dark:border-violet-500/30 dark:bg-violet-900/20">
+            <p className="font-semibold">Antes de empezar · {reglas.titulo}</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">{reglas.lineas.map((l) => <li key={l}>{l}</li>)}</ul>
+          </div>
+        )}
         <ErrorBox error={action.error} />
         <div className="mt-4 flex flex-wrap gap-2">
           {mine?.in_progress ? (
@@ -94,7 +107,7 @@ export default function Actividad() {
             <p className="text-sm text-gray-600 dark:text-gray-300">🔒 Los ejercicios se habilitan cuando cumpla el tiempo mínimo de la lectura de abajo.</p>
           ) : (
             <button className="btn-primario" onClick={start} disabled={action.busy}>
-              {conLectura ? (used ? 'Nuevo intento de los ejercicios' : 'Ir a los ejercicios') : used ? 'Nuevo intento' : 'Comenzar'}
+              {conLectura ? (used ? 'Nuevo intento de los ejercicios' : 'Ir a los ejercicios') : used ? 'Nuevo intento' : reglas?.titulo.startsWith('Examen de ') ? 'Comenzar (empieza el reloj)' : 'Comenzar'}
             </button>
           )}
         </div>

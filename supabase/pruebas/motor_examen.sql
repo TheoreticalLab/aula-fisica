@@ -72,6 +72,10 @@ do $$ begin
   begin perform public.exam_settings_save('de350000-0000-4000-8000-0000000000a2', '{}'); raise exception 'FALLO: un estudiante configuró';
   exception when insufficient_privilege then null; end;
 end $$;
+do $$ declare r jsonb; begin
+  r := public.exam_rules('de350000-0000-4000-8000-0000000000a2');
+  if r ->> 'presentacion' <> 'una_a_la_vez' or (r -> 'pausas' ->> 'max_numero')::int <> 1 or r ? 'configurado' then raise exception 'FALLO: reglas visibles %', r; end if;
+end $$;
 select set_config('prueba.t1', public.start_activity_attempt('de350000-0000-4000-8000-0000000000a1')::text, true);
 select public.save_response(current_setting('prueba.t1')::uuid, 'de350000-0000-4000-8000-0000000000e1', '{"selected":[1]}');
 do $$ begin
