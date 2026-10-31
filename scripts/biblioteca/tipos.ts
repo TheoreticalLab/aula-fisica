@@ -32,10 +32,16 @@ export interface Autoevaluacion {
   explicacion: string;
 }
 
+// Metadatos del banco de ejercicios (sin respuestas): definidos en src/lib/banco.ts, que también usa el panel docente.
+export { FAMILIAS, TIPOS_PREGUNTA } from '../../src/lib/banco';
+export type { Familia, MetaBanco, ParametroBanco, TipoChoque, TipoPregunta } from '../../src/lib/banco';
+import type { MetaBanco } from '../../src/lib/banco';
+
 /** Ejercicio de la biblioteca: el enunciado, su clave protegida y una comprobación física independiente. */
 export interface EjercicioBiblioteca extends Omit<ExerciseDef, 'role'> {
   role?: ExerciseDef['role'];
   clave: ExerciseKeyDef;
+  meta?: MetaBanco;
   /**
    * Obligatorio en los numéricos: recalcula el resultado desde los datos del enunciado y lo devuelve EN UNIDADES SI.
    * El validador lo compara con la clave: así se detectan errores aritméticos, de unidades o de signo.
@@ -68,6 +74,14 @@ export interface UnidadBiblioteca {
   resumen: string;
   /** Estado con el que se instala por primera vez (después lo decide el profesor). */
   estadoInicial: EstadoUnidad;
+  /** Unidad con banco de ejercicios: todos sus ejercicios deben llevar `meta` completa (se valida). */
+  banco?: boolean;
+  /**
+   * Unidad que esta sustituye (slug): en la primera instalación se hereda su estado en cada asignatura (si estaba
+   * publicada, la nueva nace publicada; si no, `estadoInicial`). Evita que los estudiantes se queden sin la unidad
+   * al archivar la anterior, sin publicar nada que el profesor no hubiera publicado ya.
+   */
+  heredaEstadoDe?: string;
 }
 
 export interface InstanciaCurso {
@@ -83,6 +97,11 @@ export interface CursoBiblioteca {
   objetivos: string[];
   /** Carpetas de las unidades, en orden. */
   unidades: string[];
+  /**
+   * Slugs de unidades instaladas antes y sustituidas por otras: el instalador las pasa a «archivado» (no las borra;
+   * sus lecciones, ejercicios, actividades, intentos y respuestas se conservan intactos).
+   */
+  archivar?: string[];
   instancias: InstanciaCurso[];
 }
 

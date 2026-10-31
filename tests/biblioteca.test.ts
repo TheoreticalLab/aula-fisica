@@ -155,3 +155,32 @@ describe('instalador de la biblioteca', () => {
     expect(sql).toMatch(/update public\.classes set archived = true, join_open = false where id = v_clase/);
   });
 });
+
+describe('instalador: unidades sustituidas y banco de ejercicios', () => {
+  const conMeta = miniValido();
+  conMeta.ejercicios = conMeta.ejercicios.map((e) => ({
+    ...e,
+    meta: { tema: 'Prueba', previos: ['c-1'], datos: ['x'], solicitado: ['a'], tipo: 'calculo' as const, choque: 'ninguno' as const, etapas: 1, friccion: false, energia: false, cinematica: false, plano: false, dimensional: 'm/s² ✓' },
+  }));
+  const sql = sqlBiblioteca({
+    dir: '/x',
+    curso: { nombre: 'prueba', presentacion: 'Curso.', objetivos: ['a', 'b'], unidades: ['u9'], archivar: ['vieja-9', 'vieja-10', 'u9'], instancias: [{ codigo: 'C-1', titulo: 'Curso 1' }] },
+    unidades: [{ carpeta: 'u9', posicion: 9, meta: { slug: 'u9', titulo: 'U9', resumen: 'R', estadoInicial: 'preparado', banco: true, heredaEstadoDe: 'vieja-9' }, minis: [{ archivo: '01-prueba.ts', posicion: 1, mini: conMeta }] }],
+  });
+  it('la unidad nueva hereda el estado de la que sustituye (y se archiva la vieja DESPUÉS de leerlo)', () => {
+    const ins = sql.indexOf('insert into public.units');
+    const arch = sql.indexOf("update public.units set status = 'archivado'");
+    expect(sql.slice(ins, sql.indexOf(';', ins))).toMatch(/coalesce\(\(select status from public\.units where course_id = .* and slug = \$aula_b7\$vieja-9\$aula_b7\$ and status in \('publicado', 'preparado', 'borrador'\)\), \$aula_b7\$preparado\$aula_b7\$\)/);
+    expect(arch).toBeGreaterThan(ins);
+  });
+  it('archiva (no borra) las unidades sustituidas, y nunca la que se instala', () => {
+    expect(sql).toMatch(/update public\.units set status = 'archivado' where course_id = .* and slug = any\(array\[\$aula_b7\$vieja-9\$aula_b7\$, \$aula_b7\$vieja-10\$aula_b7\$\]::text\[\]\)/);
+    expect(sql).not.toMatch(/\bdelete\b|\bdrop\b|\btruncate\b/i);
+  });
+  it('escribe los metadatos del banco sin la respuesta', () => {
+    const filas = sql.match(/insert into public\.exercise_bank_meta[\s\S]*?;/g)!;
+    expect(filas).toHaveLength(conMeta.ejercicios.length);
+    expect(filas.join('\n')).not.toContain('2.0 m/s^2');
+    expect(filas[0]).toContain('"leccion":"prueba"');
+  });
+});

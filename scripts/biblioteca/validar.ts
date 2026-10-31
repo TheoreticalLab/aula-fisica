@@ -7,8 +7,9 @@ import { grade, parseQuantity, validateNumericKey } from '../../supabase/functio
 import { sameDims, toSI } from '../../supabase/functions/_shared/calificacion/unidades';
 import type { ExerciseDef } from '../../contenido/tipos';
 import { checkExercise, checkMarkdown, checkSimRef, checkTex } from '../validar-contenido';
+import { evaluarExpresion } from '../../supabase/functions/_shared/calificacion/arrastre';
 import type { BibliotecaCargada } from './cargar';
-import type { EjercicioBiblioteca, MiniCapitulo } from './tipos';
+import { FAMILIAS, TIPOS_PREGUNTA, type EjercicioBiblioteca, type MiniCapitulo } from './tipos';
 
 /** Secciones «## …» obligatorias en la teoría (B–E). Se comparan sin tildes ni mayúsculas. */
 export const SECCIONES_TEORIA = ['introduccion', 'explicacion conceptual', 'desarrollo matematico', 'interpretacion'];
@@ -80,6 +81,73 @@ export function validarEjercicio(where: string, e: EjercicioBiblioteca, concepto
     }
   } else if (a.format === 'truefalse') {
     if (!a.modelJustification.trim()) p.push(`${where}: verdadero/falso sin justificación modelo`);
+  }
+}
+
+const CHOQUES = ['elastico', 'totalmente_inelastico', 'parcialmente_inelastico', 'rebote', 'general', 'ninguno'];
+
+/** Metadatos del banco (unidades con `banco: true`): completos, coherentes y sin la respuesta. */
+export function validarMeta(where: string, e: EjercicioBiblioteca, conceptos: Set<string>, p: string[]) {
+  const m = e.meta;
+  if (!m) { p.push(`${where}: falta meta (unidad con banco de ejercicios)`); return; }
+  if (!m.tema?.trim()) p.push(`${where}: meta sin tema`);
+  if (!m.previos?.length) p.push(`${where}: meta sin conceptos previos`);
+  for (const c of m.previos ?? []) if (!conceptos.has(c)) p.push(`${where}: concepto previo desconocido «${c}»`);
+  if (!m.datos?.length && m.tipo !== 'info_insuficiente' && e.format === 'numeric') p.push(`${where}: meta sin datos explícitos`);
+  if (!m.solicitado?.length) p.push(`${where}: meta sin magnitudes solicitadas`);
+  if (!(m.tipo in TIPOS_PREGUNTA)) p.push(`${where}: tipo de pregunta desconocido «${m.tipo}»`);
+  if (!CHOQUES.includes(m.choque)) p.push(`${where}: tipo de choque desconocido «${m.choque}»`);
+  if (!Number.isInteger(m.etapas) || m.etapas < 1 || m.etapas > 7) p.push(`${where}: etapas debe ser un entero entre 1 y 7`);
+  if (m.familia && !(m.familia in FAMILIAS)) p.push(`${where}: familia desconocida «${m.familia}»`);
+  if (e.format === 'numeric' && !m.dimensional?.trim()) p.push(`${where}: numérico sin validación dimensional en meta`);
+  if (m.tipo === 'grafica' && !e.figure) p.push(`${where}: pregunta de gráfica sin figura`);
+  if ((m.tipo === 'simulacion' || m.tipo === 'prediccion') && !e.simulation) p.push(`${where}: pregunta de simulación sin simulación`);
+  if (m.tipo === 'encadenada' && !m.problema) p.push(`${where}: pregunta encadenada sin problema/etapa`);
+  for (const q of m.parametros ?? []) {
+    if (!(q.min <= q.valor && q.valor <= q.max)) p.push(`${where}: parámetro «${q.nombre}» fuera de su rango`);
+  }
+  // la respuesta no debe colarse en los metadatos (los lee el profesorado, pero no son el lugar de la clave)
+  if (e.clave.answer.format === 'numeric') {
+    const texto = JSON.stringify(m);
+    if (texto.includes(e.clave.answer.value)) p.push(`${where}: meta contiene el valor de la respuesta`);
+  }
+}
+
+/** Cadenas de etapas y arrastre: orden 1..n dentro del minicapítulo y expresiones coherentes con las claves. */
+export function validarCadenas(where: string, m: MiniCapitulo, p: string[]) {
+  const pos = new Map(m.ejercicios.map((e, i) => [e.id, i]));
+  const cadenas = new Map<string, EjercicioBiblioteca[]>();
+  for (const e of m.ejercicios) if (e.meta?.problema) {
+    const l = cadenas.get(e.meta.problema.id) ?? [];
+    l.push(e);
+    cadenas.set(e.meta.problema.id, l);
+  }
+  for (const [id, l] of cadenas) {
+    const total = l[0].meta!.problema!.total;
+    if (l.length !== total || l.some((e, i) => e.meta!.problema!.etapa !== i + 1 || e.meta!.problema!.total !== total)) {
+      p.push(`${where}: el problema por etapas «${id}» no tiene las etapas 1..${total} en orden`);
+    }
+    const idx = l.map((e) => pos.get(e.id)!);
+    if (idx.some((v, i) => i > 0 && v !== idx[i - 1] + 1)) p.push(`${where}: las etapas del problema «${id}» deben ser consecutivas`);
+  }
+  for (const e of m.ejercicios) {
+    const a = e.clave.answer;
+    if (a.format !== 'numeric' || !a.arrastre) continue;
+    const w = `${where} ${e.id}`;
+    const src = m.ejercicios.find((x) => x.id === a.arrastre!.desde);
+    if (!src) { p.push(`${w}: arrastre desde un ejercicio inexistente en este minicapítulo («${a.arrastre.desde}»)`); continue; }
+    if (pos.get(src.id)! >= pos.get(e.id)!) p.push(`${w}: el arrastre debe venir de una etapa ANTERIOR`);
+    if (src.clave.answer.format !== 'numeric') { p.push(`${w}: el arrastre debe venir de una etapa numérica`); continue; }
+    try {
+      const x = valorSI(src.clave.answer.value);
+      const v = evaluarExpresion(a.arrastre.expresion, x);
+      const k = valorSI(a.value);
+      if (!Number.isFinite(v) || Math.abs(v - k) / Math.max(Math.abs(k), 1e-12) > TOL_VERIFICACION) {
+        p.push(`${w}: la expresión de arrastre con el valor correcto de la etapa anterior da ${v.toPrecision(6)} y la clave es ${k.toPrecision(6)} (SI)`);
+      }
+    } catch (err) {
+      p.push(`${w}: ${(err as Error).message}`);
+    }
   }
 }
 
@@ -158,6 +226,8 @@ export function validarBiblioteca(b: BibliotecaCargada): string[] {
         ids.add(e.id);
       }
       validarMini(w, mini, conceptos, p);
+      validarCadenas(w, mini, p);
+      if (u.meta.banco) for (const e of mini.ejercicios) validarMeta(`${w} ${e.id}`, e, conceptos, p);
     }
   }
   return p;

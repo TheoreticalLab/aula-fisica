@@ -7,7 +7,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { MiniCapitulo, UnidadBiblioteca } from './tipos';
-import { validarMini } from './validar';
+import { validarCadenas, validarMeta, validarMini } from './validar';
 
 const ARCHIVO_MINI = /^(\d\d)-[a-z0-9-]+\.ts$/;
 
@@ -58,6 +58,8 @@ async function main() {
       ids.add(e.id);
     }
     validarMini(`${carpeta}/${archivo}`, mini, conceptos, p);
+    validarCadenas(`${carpeta}/${archivo}`, mini, p);
+    if (unidad.banco) for (const e of mini.ejercicios) validarMeta(`${carpeta}/${archivo} ${e.id}`, e, conceptos, p);
   }
   // ids y conceptos no deben chocar con otras unidades
   for (const [c, otras] of porUnidad) {

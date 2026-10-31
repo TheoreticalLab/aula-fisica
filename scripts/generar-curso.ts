@@ -11,6 +11,7 @@
  * El SQL es idempotente y respeta al profesor: crea lo que falta y actualiza solo lo que NO se haya
  * personalizado desde el panel (columna customized). Nunca borra nada ni cambia el estado de una unidad ya
  * instalada (eso lo decide el profesor); el estado de la biblioteca solo se usa en la primera instalación.
+ * Única excepción, declarada en curso.ts: las unidades de `archivar` (sustituidas por otras) pasan a «archivado».
  */
 import { existsSync, readdirSync, readFileSync, unlinkSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -74,8 +75,11 @@ end $sec$;`);
 
     for (const u of b.unidades) {
       out.push(`\n-- ${inst.codigo} · ${u.meta.titulo}`);
+      const estado = u.meta.heredaEstadoDe
+        ? `coalesce((select status from public.units where course_id = ${C} and slug = ${q(u.meta.heredaEstadoDe)} and status in ('publicado', 'preparado', 'borrador')), ${q(u.meta.estadoInicial)})`
+        : q(u.meta.estadoInicial);
       out.push(`insert into public.units (course_id, slug, position, title, summary, status)
-values (${C}, ${q(u.meta.slug)}, ${u.posicion}, ${q(u.meta.titulo)}, ${q(u.meta.resumen)}, ${q(u.meta.estadoInicial)})
+values (${C}, ${q(u.meta.slug)}, ${u.posicion}, ${q(u.meta.titulo)}, ${q(u.meta.resumen)}, ${estado})
 on conflict (course_id, slug) do update set ${set('', ['position', 'title', 'summary'])} where units.customized = false;`);
       const unitId = `(select id from public.units where course_id = ${C} and slug = ${q(u.meta.slug)})`;
       for (const { posicion, mini: m } of u.minis) {
@@ -102,8 +106,20 @@ on conflict (course_id, slug) do update set ${set('', ['lesson_id', 'position', 
           out.push(`insert into public.exercise_keys (exercise_id, answer, hints, explanation)
 select e.id, ${j(e.clave.answer)}, ${j(e.clave.hints)}, ${q(e.clave.explanation)} from public.exercises e where e.course_id = ${C} and e.slug = ${q(e.id)}
 on conflict (exercise_id) do update set ${set('', ['answer', 'hints', 'explanation'])} where exercise_keys.customized = false;`);
+          if (e.meta) {
+            // metadatos del banco (sin la respuesta): solo los lee el profesorado (migración 41)
+            out.push(`insert into public.exercise_bank_meta (exercise_id, course_id, meta)
+select e.id, ${C}, ${j({ ...e.meta, unidad: u.meta.slug, leccion: m.slug })} from public.exercises e where e.course_id = ${C} and e.slug = ${q(e.id)}
+on conflict (exercise_id) do update set meta = excluded.meta, updated_at = now();`);
+          }
         });
       }
+    }
+    // unidades sustituidas: se ARCHIVAN (los estudiantes dejan de verlas), nunca se borran. Sus lecciones, ejercicios,
+    // actividades, intentos y respuestas quedan intactos; el profesor puede volver a publicarlas desde el panel.
+    const archivar = (b.curso.archivar ?? []).filter((s) => !b.unidades.some((u) => u.meta.slug === s));
+    if (archivar.length) {
+      out.push(`update public.units set status = 'archivado' where course_id = ${C} and slug = any(${arr(archivar)}) and status <> 'archivado';`);
     }
     // verificación final dentro de la misma transacción
     const slugsEj = b.unidades.flatMap((u) => u.minis.flatMap((m) => m.mini.ejercicios.map((e) => e.id)));

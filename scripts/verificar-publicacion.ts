@@ -8,6 +8,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { loadContent, ROOT } from './cargar-contenido';
+import { cargarBiblioteca } from './biblioteca/cargar';
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((f) => {
@@ -44,8 +45,16 @@ async function main() {
     if (/sb_secret_[A-Za-z0-9_-]{16,}/.test(s)) problems.push(`${relative(ROOT, f)}: contiene una clave secreta de Supabase`);
   }
   const units = await loadContent();
-  const secrets = units
-    .flatMap((u) => u.lessons.flatMap((l) => Object.values(l.keys ?? {})))
+  const claves = units.flatMap((u) => u.lessons.flatMap((l) => Object.values(l.keys ?? {})));
+  // claves de las bibliotecas académicas (privado/biblioteca/<nombre>/curso.ts), p. ej. la Unidad 9 de choques
+  const dirBib = join(ROOT, 'privado', 'biblioteca');
+  if (existsSync(dirBib)) {
+    for (const nombre of readdirSync(dirBib).filter((d) => existsSync(join(dirBib, d, 'curso.ts')))) {
+      const b = await cargarBiblioteca(join(dirBib, nombre));
+      claves.push(...b.unidades.flatMap((u) => u.minis.flatMap((m) => m.mini.ejercicios.map((e) => e.clave))));
+    }
+  }
+  const secrets = claves
     .flatMap((k) => [k.explanation, ...k.hints, k.answer.format === 'open' ? k.answer.rubric : '', k.answer.format === 'truefalse' ? k.answer.modelJustification : ''])
     .filter((s): s is string => !!s && s.length >= 40)
     .map((s) => s.slice(0, 40));
