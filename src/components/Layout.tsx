@@ -108,6 +108,7 @@ export function Layout() {
                   <div role="menu" className="absolute right-0 mt-1 w-56 rounded-lg border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-white/10 dark:bg-primario-950" onClick={() => setMenu(false)}>
                     <p className="px-3 py-2 text-xs text-gray-500">ID: {profile?.login_id ?? '—'}<br />{profile?.role === 'admin' ? 'Administrador' : profile?.role === 'teacher' ? 'Profesor' : 'Estudiante'}</p>
                     <Link role="menuitem" to="/perfil" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Mi perfil</Link>
+                    <Link role="menuitem" to="/ayuda" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">❓ Ayuda</Link>
                     {esMonitor && <Link role="menuitem" to="/secretaria" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Secretaría del curso</Link>}
                     <Link role="menuitem" to="/entregas" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Entregas en PDF</Link>
                     <Link role="menuitem" to="/laboratorio" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10 md:hidden">Laboratorio virtual</Link>

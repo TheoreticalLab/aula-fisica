@@ -91,6 +91,7 @@ export default function Actividad() {
           <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-4 dark:border-violet-500/30 dark:bg-violet-900/20">
             <p className="font-semibold">Antes de empezar · {reglas.titulo}</p>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">{reglas.lineas.map((l) => <li key={l}>{l}</li>)}</ul>
+            <Link className="enlace mt-2 inline-block text-sm" to="/ayuda">¿Dudas? Vea la ayuda →</Link>
           </div>
         )}
         <ErrorBox error={action.error} />
