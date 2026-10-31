@@ -564,6 +564,31 @@ begin
 end;
 $$;
 
+-- Seguimiento en vivo para el profesorado de la sección: estado de cada intento en curso (sin respuestas ni tramos)
+create or replace function public.exam_monitor(p_activity uuid)
+returns jsonb
+language plpgsql stable security definer set search_path = ''
+as $$
+declare act public.activities;
+begin
+  select * into act from public.activities where id = p_activity;
+  if act.id is null or not public.is_class_teacher(act.class_id) then raise exception 'Sin permiso' using errcode = '42501'; end if;
+  return jsonb_build_object(
+    'ahora_ms', public.exam_ms(now()),
+    'inscritos', (select count(*) from public.enrollments e where e.class_id = act.class_id),
+    'entregados', (select count(distinct a.user_id) from public.attempts a where a.activity_id = p_activity and a.status = 'submitted'),
+    'en_curso', (select coalesce(jsonb_agg(jsonb_build_object(
+        'attempt_id', a.id, 'nombre', p.full_name,
+        'pregunta', array_position(public.exam_item_order(a.id), s.activa), 'total', cardinality(public.exam_item_order(a.id)),
+        'respondidas', (select count(*) from public.responses r where r.attempt_id = a.id and r.answer <> '{}'::jsonb),
+        'en_pausa', s.pausa_desde is not null, 'pausas', s.pausas_n,
+        'ultimo_contacto_ms', public.exam_ms(s.ultimo_contacto), 'limite_ms', public.exam_ms(public.exam_deadline(a.id)),
+        'inicio_ms', public.exam_ms(a.started_at)) order by p.full_name), '[]'::jsonb)
+      from public.attempts a join public.exam_sessions s on s.attempt_id = a.id join public.profiles p on p.id = a.user_id
+      where a.activity_id = p_activity and a.status = 'in_progress'));
+end;
+$$;
+
 -- -----------------------------------------------------------------------------
 -- Permisos: nada para anon; las funciones de uso directo, a authenticated; los ayudantes, a nadie
 do $$
@@ -577,7 +602,7 @@ begin
   foreach f in array array[
     'public.exam_settings_get(uuid)', 'public.exam_settings_save(uuid, jsonb)', 'public.exam_rules(uuid)', 'public.exam_open(uuid)', 'public.exam_ping(uuid)',
     'public.exam_goto(uuid, uuid)', 'public.exam_pause(uuid)', 'public.exam_resume(uuid)', 'public.exam_journal(uuid, jsonb)',
-    'public.exam_save(uuid, uuid, jsonb, bigint)', 'public.exam_timeline(uuid)'] loop
+    'public.exam_save(uuid, uuid, jsonb, bigint)', 'public.exam_timeline(uuid)', 'public.exam_monitor(uuid)'] loop
     execute format('revoke all on function %s from public, anon', f);
     execute format('grant execute on function %s to authenticated', f);
   end loop;

@@ -214,6 +214,23 @@ do $$ declare r jsonb; begin
   exception when raise_exception then null; end;
 end $$;
 
+-- 8b) seguimiento en vivo: el profesor ve los intentos en curso; un estudiante no
+select set_config('request.jwt.claims', '{"sub":"de350000-0000-4000-8000-000000000001","role":"authenticated"}', true);
+select set_config('request.jwt.claim.sub', 'de350000-0000-4000-8000-000000000001', true);
+do $$ declare r jsonb; begin
+  r := public.exam_monitor('de350000-0000-4000-8000-0000000000a2');
+  if jsonb_array_length(r -> 'en_curso') <> 1 or (r -> 'en_curso' -> 0 ->> 'respondidas')::int <> 1 or (r ->> 'inscritos')::int <> 2 then raise exception 'FALLO: seguimiento %', r; end if;
+  if r::text ~ 'selected' then raise exception 'FALLO: el seguimiento expone respuestas'; end if;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"de350000-0000-4000-8000-000000000012","role":"authenticated"}', true);
+select set_config('request.jwt.claim.sub', 'de350000-0000-4000-8000-000000000012', true);
+do $$ begin
+  begin perform public.exam_monitor('de350000-0000-4000-8000-0000000000a2'); raise exception 'FALLO: un estudiante vio el seguimiento';
+  exception when insufficient_privilege then null; end;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"de350000-0000-4000-8000-000000000011","role":"authenticated"}', true);
+select set_config('request.jwt.claim.sub', 'de350000-0000-4000-8000-000000000011', true);
+
 -- 9) entrega: evento oficial y tramos finales aceptados solo hasta la hora de entrega
 reset role;
 update public.attempts set status = 'submitted', submitted_at = now() where id = current_setting('prueba.t2')::uuid;

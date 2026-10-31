@@ -25,6 +25,7 @@ import { analizarTexto, formatoTiempo, MAX_SEGUNDOS, MIN_SEGUNDOS, segundosSuger
 import { CODIGO_ERROR } from '@/lib/codigos';
 import { DisenoExamen } from './lieia/DisenoExamen';
 import { ModoExamen } from './ModoExamen';
+import { MonitorExamen } from './MonitorExamen';
 
 /** Lectura cronometrada previa a los ejercicios: texto y tiempo mínimo (con sugerencia según el texto). */
 function LecturaEditor({ draft, set }: { draft: Activity; set: (p: Partial<Activity>) => void }) {
@@ -195,6 +196,7 @@ export default function ActividadEditor() {
       {tab === 'config' && <CopiarASecciones activityId={activityId} courseId={cls.course_id} classId={cls.id} />}
       {tab === 'ejercicios' && <TabEjercicios activityId={activityId} courseId={cls.course_id} lessons={lessons} initial={st.data!.items} initialExercises={st.data!.exercises} onSaved={st.reload} />}
       {tab === 'diseno' && <DisenoExamen activityId={activityId} courseId={cls.course_id} estudiantesSeccion={0} />}
+      {tab === 'resultados' && act.mode === 'exam' && <div className="mt-4"><MonitorExamen activityId={activityId} /></div>}
       {tab === 'resultados' && <TabResultados act={act} classId={cls.id} />}
     </div>
   );

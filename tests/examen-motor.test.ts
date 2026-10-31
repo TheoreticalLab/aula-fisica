@@ -8,6 +8,7 @@ import { AlmacenMemoria, ColaGuardado, ErrorDefinitivo, type Pendiente } from '.
 import { conciliar, intervalosDePregunta, resumirTiempos, type EventoServidor } from '../src/lib/examen/intervalos';
 import { reconstruirTiempo } from '../src/lib/lieia/d6';
 import { describirReglas } from '../src/lib/examen/reglas';
+import { estadoEnVivo } from '../src/lib/examen/monitor';
 
 const C: ConfigExamen = { ...CONFIG_EXAMEN_POR_DEFECTO, pausas: { permitidas: true, max_numero: 2, max_total_s: 300, detienen_reloj: true } };
 const ok = (r: { ok: boolean; estado: EstadoMotor }) => { expect(r.ok).toBe(true); return r.estado; };
@@ -124,6 +125,16 @@ describe('Reglas explicadas al estudiante antes de empezar', () => {
     expect(t).toMatch(/se entrega automáticamente/);
     expect(describirReglas(CONFIG_EXAMEN_POR_DEFECTO)!.lineas.join(' ')).toMatch(/no tiene pausas/);
     expect(describirReglas({ ...CONFIG_EXAMEN_POR_DEFECTO, presentacion: 'todas' })).toBeNull();
+  });
+});
+
+describe('Seguimiento en vivo del profesor', () => {
+  it('vencido > en pausa > sin conexión (45 s) > respondiendo', () => {
+    const e = { attempt_id: 'a', nombre: 'X', pregunta: 1, total: 3, respondidas: 0, en_pausa: false, pausas: 0, ultimo_contacto_ms: 0, limite_ms: s(600), inicio_ms: 0 };
+    expect(estadoEnVivo(e, s(10)).etiqueta).toBe('Respondiendo');
+    expect(estadoEnVivo(e, s(60)).etiqueta).toBe('Sin conexión');
+    expect(estadoEnVivo({ ...e, en_pausa: true }, s(60)).etiqueta).toBe('En pausa');
+    expect(estadoEnVivo(e, s(601)).etiqueta).toBe('Tiempo vencido');
   });
 });
 
