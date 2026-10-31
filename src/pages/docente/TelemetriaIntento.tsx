@@ -31,7 +31,9 @@ const MARCA: Partial<Record<EventoReconstruido['tipo'], { s: string; n: string }
   edicion: { s: '▲', n: 'Edición' }, guardado_confirmado: { s: '●', n: 'Guardado confirmado' }, guardado_fallido: { s: '✕', n: 'Guardado fallido' },
   comprobacion: { s: '◆', n: 'Comprobación' }, interaccion: { s: '·', n: 'Interacción' }, pregunta_activada: { s: '▶', n: 'Activada' }, exposicion_inicio: { s: '◦', n: 'En pantalla' },
   entrega_solicitada: { s: '⚑', n: 'Entrega solicitada' }, entrega: { s: '⚑', n: 'Entrega' },
+  fase_asistida: { s: '✎', n: 'Paso de la práctica asistida' },
 };
+const DECLARACION: Record<string, string> = { autonomo: 'declaró hacerlo sin ayuda', consulto_ayuda: 'declaró haber consultado ayuda', no_pudo: 'declaró que no pudo' };
 
 export function dur(ms: number | null): string {
   if (ms === null) return '—';
@@ -150,7 +152,7 @@ function Resumen({ rec, auditoria, titulo, onFicha }: { rec: Reconstruccion; aud
 function Cronologia({ rec, titulo, onFicha }: { rec: Reconstruccion; titulo: (id: string) => string; onFicha: (id: string) => void }) {
   const [ventana, setVentana] = useState<[number, number]>([rec.dominio.inicio, Math.max(rec.dominio.fin, rec.dominio.inicio + 1000)]);
   const [sel, setSel] = useState<EventoReconstruido | null>(null);
-  const [tipos, setTipos] = useState<Set<string>>(new Set(['edicion', 'guardado_confirmado', 'guardado_fallido', 'comprobacion', 'pregunta_activada', 'entrega', 'entrega_solicitada']));
+  const [tipos, setTipos] = useState<Set<string>>(new Set(['edicion', 'guardado_confirmado', 'guardado_fallido', 'comprobacion', 'pregunta_activada', 'entrega', 'entrega_solicitada', 'fase_asistida']));
   const W = 1000, IZQ = 170, FILA = 26, filasQ = rec.preguntas.length, H = 30 + FILA * (filasQ + 1) + 10;
   const [a, b] = ventana;
   const x = (t: number) => IZQ + ((Math.min(Math.max(t, a), b) - a) / (b - a)) * (W - IZQ - 10);
@@ -277,6 +279,19 @@ function Ficha({ q, a, titulo, item, onCerrar }: { q: ResultadoPregunta; a?: Aud
                 </details>
               )}
               {a.revisiones.length > 2 && <p className="mt-1 text-xs text-gray-500">{a.revisiones.length} revisiones guardadas (los guardados seguidos en menos de 20 s se consolidan).</p>}
+              {a.asistida && (
+                <div className="mt-3 rounded border border-violet-200 p-2 text-sm dark:border-violet-800">
+                  <p className="font-semibold">Práctica asistida</p>
+                  <ul className="mt-1 space-y-0.5">
+                    <li>Primer intento: {a.asistida.inicial ? `${a.asistida.inicial.no_se ? '«no sé resolverlo»' : texto(a.asistida.inicial.answer)} · ${a.asistida.inicial.status ?? '—'}${a.asistida.inicial.declaracion ? ` · ${DECLARACION[a.asistida.inicial.declaracion] ?? a.asistida.inicial.declaracion}` : ''}` : '—'}</li>
+                    <li>Correcciones: {a.asistida.correcciones}{a.asistida.final ? ` · final: ${texto(a.asistida.final.answer)} (${a.asistida.final.status ?? '—'})` : ''}</li>
+                    <li>Explicación: {a.asistida.explicacion ? (a.asistida.explicacion.presentada ? 'presentada' : 'vacía') + (a.asistida.explicacion.fuentes.length ? ` · ayudas declaradas: ${a.asistida.explicacion.fuentes.join(', ')}` : '') : '—'}</li>
+                    <li>Transferencia: {a.asistida.transferencia ? (a.asistida.transferencia.status ?? '—') : 'no realizada'}</li>
+                    <li>Tiempos: primer intento → corrección {dur(a.asistida.tiempos.inicial_a_primera_correccion)} · → explicación {dur(a.asistida.tiempos.inicial_a_explicacion)}</li>
+                  </ul>
+                  <p className="mt-1 text-xs text-gray-500">La declaración es voluntaria y no es una verificación; los pasos son registros inmutables del servidor. No se juzga la autoría.</p>
+                </div>
+              )}
             </>
           ) : <p className="text-sm text-gray-500">Sin datos de respuesta.</p>}
         </div>

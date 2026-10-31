@@ -30,6 +30,7 @@ export type TipoEvento =
   | 'exposicion_inicio' | 'exposicion_fin' | 'pregunta_activada' | 'pregunta_desactivada'
   | 'interaccion' | 'edicion' | 'guardado_solicitado' | 'guardado_confirmado' | 'guardado_fallido' | 'comprobacion'
   | 'pausa_inicio' | 'pausa_fin' | 'apertura' | 'entrega' | 'entrega_solicitada'
+  | 'fase_asistida'   // paso inmutable de la práctica asistida (hecho del servidor; no cambia el estado)
   | 'estado';
 
 /**

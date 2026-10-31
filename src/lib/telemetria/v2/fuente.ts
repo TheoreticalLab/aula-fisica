@@ -4,12 +4,12 @@
  */
 import { desdeDiarioExamen, desdeV1, desdeV2, type FilaV1, type FilaV2 } from './adaptadores';
 import { reconstruir } from './reconstruir';
-import type { Atribucion, Entrada, Metrica, Reconstruccion } from './modelo';
+import type { Atribucion, Entrada, EventoNorm, Metrica, Reconstruccion } from './modelo';
 import type { TipoTramo } from '../../examen/motor';
 
 export interface PaqueteIntento {
   intento: { id: string; inicio: string; entrega: string | null; estado: string; modo: string; actividad: string | null; leccion: string | null; presentacion: string | null };
-  items: { exercise_id: string; slug: string; dificultad: string; formato: string; titulo: string }[];
+  items: { exercise_id: string; slug: string; dificultad: string; formato: string; titulo: string; conceptos?: string[] }[];
   v1: FilaV1[];
   v2: FilaV2[];
   tramos: { seq: number; tipo: TipoTramo; exercise_id: string | null; inicio: string; fin: string; sin_red: boolean }[];
@@ -18,12 +18,35 @@ export interface PaqueteIntento {
   evaluaciones: { exercise_id: string; kind: string; answer: Record<string, unknown> | null; result: Record<string, unknown> | null; at: string }[];
   respuestas: { exercise_id: string; answer: Record<string, unknown>; status: string; auto_credit: number | null; manual_credit: number | null; engine_code: string | null; tries: number; hints_used: number; solution_revealed: boolean; client_rev: number | null; updated_at: string }[];
   instantanea: { attempt_id: string; submitted_at: string | null; revisiones: { exercise_id: string; rev: number | null; status: string; vacia: boolean; answer_hash: string }[]; created_at: string } | null;
+  /** Migración 44: pasos inmutables de la práctica asistida (ausente en bases anteriores). */
+  asistida?: PasoAsistido[];
+}
+
+export interface PasoAsistido {
+  exercise_id: string; fase: 'inicial' | 'corregida' | 'reflexion' | 'transferencia'; version: number; answer: Record<string, unknown> | null; no_se: boolean;
+  declaracion: string | null; fuentes: string[] | null; explicacion_presentada: boolean; transfer_exercise_id: string | null;
+  status: string | null; credit: number | null; engine_code: string | null; at: string;
+}
+
+/** Los pasos de la práctica asistida como hechos del servidor (marcas en la cronología; no cambian el estado). */
+function eventosAsistida(p: PaqueteIntento): EventoNorm[] {
+  return (p.asistida ?? []).map((a, i) => ({
+    sesion: 'asistida', seq: i + 1, tipo: 'fase_asistida' as const, fuente: 'servidor' as const, t: Date.parse(a.at), pregunta: a.exercise_id,
+    datos: { fase: a.fase, version: a.version, declaracion: a.declaracion, status: a.status },
+  }));
 }
 
 export type FuenteElegida = 'diario_examen' | 'v2' | 'v1' | 'ninguna';
 
 /** Elige la fuente con más garantías: diario del examen (servidor) > V2 (sincronizada, pregunta activa) > V1. */
 export function armarEntrada(p: PaqueteIntento): { entrada: Entrada | null; fuente: FuenteElegida; discrepancias: string[] } {
+  const r = armarEntradaBase(p);
+  const asis = eventosAsistida(p);
+  if (r.entrada && asis.length) r.entrada = { ...r.entrada, eventos: [...r.entrada.eventos, ...asis] };
+  return r;
+}
+
+function armarEntradaBase(p: PaqueteIntento): { entrada: Entrada | null; fuente: FuenteElegida; discrepancias: string[] } {
   const preguntas = p.items.map((i) => i.exercise_id);
   const inicio = Date.parse(p.intento.inicio), fin = p.intento.entrega ? Date.parse(p.intento.entrega) : null;
   const unica: Atribucion | null = preguntas.length === 1 ? 'unica' : null;
@@ -66,6 +89,44 @@ export interface AuditoriaPregunta {
   actual: PaqueteIntento['respuestas'][number] | null;
   diagnostico: DiagnosticoRespuesta;
   explicacion: string;
+  /** Práctica asistida: el proceso INTENTA → CORRIGE → EXPLICA → DEMUESTRA (null si no fue una práctica asistida). */
+  asistida: ProcesoAsistido | null;
+}
+
+export interface ProcesoAsistido {
+  inicial: { answer: Record<string, unknown> | null; no_se: boolean; declaracion: string | null; status: string | null; at: string } | null;
+  correcciones: number;
+  final: { answer: Record<string, unknown> | null; status: string | null; at: string } | null;
+  explicacion: { presentada: boolean; fuentes: string[]; at: string } | null;
+  transferencia: { exercise_id: string | null; status: string | null; at: string } | null;
+  /** ms entre fases (hora del servidor); null si falta alguna de las dos */
+  tiempos: { inicial_a_primera_correccion: number | null; inicial_a_explicacion: number | null; explicacion_a_transferencia: number | null };
+  /** Cambio de resultado entre el primer intento (declarado) y la respuesta final; descriptivo, sin juicio de autoría. */
+  cambio: 'mejoro' | 'empeoro' | 'igual' | 'sin_datos';
+}
+
+const RANGO: Record<string, number> = { correct: 3, partial: 2, incorrect: 1, invalid: 0, pending_review: 0 };
+
+export function procesoAsistido(pasos: PasoAsistido[]): ProcesoAsistido | null {
+  if (!pasos.length) return null;
+  const ord = [...pasos].sort((a, b) => Date.parse(a.at) - Date.parse(b.at) || a.version - b.version);
+  const ini = ord.find((x) => x.fase === 'inicial') ?? null;
+  const corr = ord.filter((x) => x.fase === 'corregida');
+  const refl = ord.filter((x) => x.fase === 'reflexion');
+  const trans = ord.find((x) => x.fase === 'transferencia') ?? null;
+  const fin = corr[corr.length - 1] ?? null;
+  const dt = (a: { at: string } | null | undefined, b: { at: string } | null | undefined) => (a && b ? Date.parse(b.at) - Date.parse(a.at) : null);
+  const ultRefl = refl[refl.length - 1] ?? null;
+  const ra = ini?.status ? RANGO[ini.status] : undefined, rb = (fin ?? ini)?.status ? RANGO[(fin ?? ini)!.status!] : undefined;
+  return {
+    inicial: ini ? { answer: ini.answer, no_se: ini.no_se, declaracion: ini.declaracion, status: ini.status, at: ini.at } : null,
+    correcciones: corr.length,
+    final: fin ? { answer: fin.answer, status: fin.status, at: fin.at } : null,
+    explicacion: ultRefl ? { presentada: ultRefl.explicacion_presentada, fuentes: ultRefl.fuentes ?? [], at: ultRefl.at } : null,
+    transferencia: trans ? { exercise_id: trans.transfer_exercise_id, status: trans.status, at: trans.at } : null,
+    tiempos: { inicial_a_primera_correccion: dt(ini, corr[0]), inicial_a_explicacion: dt(ini, ultRefl), explicacion_a_transferencia: dt(ultRefl, trans) },
+    cambio: ra === undefined || rb === undefined ? 'sin_datos' : rb > ra ? 'mejoro' : rb < ra ? 'empeoro' : 'igual',
+  };
 }
 
 export function auditarRespuestas(p: PaqueteIntento, rec: Reconstruccion | null): AuditoriaPregunta[] {
@@ -90,7 +151,10 @@ export function auditarRespuestas(p: PaqueteIntento, rec: Reconstruccion | null)
     } else {
       diagnostico = 'nunca_escrita'; explicacion = 'No consta que se escribiera nada en esta pregunta.';
     }
-    return { exercise_id, revisiones, primera: revisiones[0] ?? null, final, entregada: ent ? { rev: ent.rev, status: ent.status, vacia: ent.vacia } : null, evaluaciones: evals, actual, diagnostico, explicacion };
+    return {
+      exercise_id, revisiones, primera: revisiones[0] ?? null, final, entregada: ent ? { rev: ent.rev, status: ent.status, vacia: ent.vacia } : null, evaluaciones: evals, actual,
+      diagnostico, explicacion, asistida: procesoAsistido((p.asistida ?? []).filter((x) => x.exercise_id === exercise_id)),
+    };
   });
 }
 

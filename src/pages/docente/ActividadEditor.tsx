@@ -114,6 +114,7 @@ export default function ActividadEditor() {
         back={{ to: `/docente/clases/${cls.id}?t=actividades`, label: cls.name }} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Link to={`/docente/actividades/${activityId}/vista-previa`} className="btn-secundario">👁 Vista previa como estudiante</Link>
+        <Link to={`/docente/actividades/${activityId}/telemetria`} className="btn-secundario">🔭 Análisis de telemetría</Link>
         {dirty && <span className="text-xs text-amber-700 dark:text-amber-300">Guarde los cambios para verlos en la vista previa.</span>}
       </div>
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[{ id: 'config', label: 'Configuración' }, { id: 'ejercicios', label: `Ejercicios (${st.data!.items.length})` }, { id: 'diseno', label: '🔬 Diseño LIEIA' }, { id: 'resultados', label: 'Resultados y estadísticas' }]} />
