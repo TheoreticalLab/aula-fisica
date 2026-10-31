@@ -28,8 +28,10 @@ export function conciliar(diario: Tramo[], eventos: EventoServidor[], tol = TOLE
   // pausas oficiales [pausa, reanudación)
   const pausas: [number, number][] = [];
   ev.forEach((e, k) => { if (e.tipo === 'pausa') pausas.push([e.t, ev.slice(k + 1).find((x) => x.tipo === 'reanudacion' || x.tipo === 'entrega')?.t ?? Infinity]); });
-  // pregunta activa según el servidor en cada instante
-  const activaEn = (t: number) => { let a: string | null | undefined; for (const e of ev) { if (e.t > t + tol) break; if (e.tipo === 'ir_a' || e.tipo === 'apertura') a = e.exercise_id ?? a; } return a; };
+  // periodos en que el servidor tuvo activa cada pregunta: desde un «ir_a»/«apertura» hasta el siguiente (o la entrega)
+  const cambios = ev.filter((e) => (e.tipo === 'ir_a' || e.tipo === 'apertura') && e.exercise_id);
+  const periodos = cambios.map((e, k) => ({ q: e.exercise_id!, desde: e.t, hasta: cambios[k + 1]?.t ?? fin }));
+  const activaDurante = (q: string, a: number, b: number) => periodos.some((p) => p.q === q && p.desde <= b + tol && p.hasta >= a - tol);
   for (const tr of [...diario].sort((a, b) => a.inicio - b.inicio)) {
     const malo = (motivo: string) => { discrepancias.push({ tramo: tr, motivo }); out.push({ ...tr, tipo: 'desconocido' }); ultimoFin = Math.max(ultimoFin, tr.fin); };
     if (!(tr.fin > tr.inicio)) { discrepancias.push({ tramo: tr, motivo: 'duración no positiva' }); continue; }
@@ -38,9 +40,8 @@ export function conciliar(diario: Tramo[], eventos: EventoServidor[], tol = TOLE
     const enPausa = pausas.some(([a, b]) => tr.inicio >= a - tol && tr.fin <= b + tol);
     if (tr.tipo === 'pausa_declarada' && !enPausa) { malo('pausa no registrada por el servidor'); continue; }
     if ((tr.tipo === 'trabajo' || tr.tipo === 'inactividad') && pausas.some(([a, b]) => tr.inicio < b - tol && tr.fin > a + tol)) { malo('trabajo durante una pausa oficial'); continue; }
-    if ((tr.tipo === 'trabajo' || tr.tipo === 'inactividad') && tr.exercise_id) {
-      const a = activaEn(tr.inicio + tol);
-      if (a !== undefined && a !== null && a !== tr.exercise_id && activaEn(tr.fin - tol) !== tr.exercise_id) { malo('la pregunta no estaba activa según el servidor'); continue; }
+    if ((tr.tipo === 'trabajo' || tr.tipo === 'inactividad') && tr.exercise_id && periodos.length && !activaDurante(tr.exercise_id, tr.inicio, tr.fin)) {
+      malo('la pregunta no estaba activa según el servidor'); continue;
     }
     out.push(tr);
     ultimoFin = Math.max(ultimoFin, tr.fin);
