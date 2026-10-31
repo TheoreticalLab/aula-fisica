@@ -19,6 +19,12 @@ import { Figura } from './Grafica';
 import { Simulador } from '@/sims/Simulador';
 import { useTelemetria } from './Telemetria';
 import { describirRespuesta } from '@/lib/telemetria/rastreador';
+import { confirmarCopia, decidir, esperaReintento, guardarCopia, leerCopia, type Almacen } from '@/lib/borradores';
+
+const ALMACEN_LOCAL: Almacen | null = typeof localStorage === 'undefined' ? null : {
+  leer: (k) => localStorage.getItem(k), escribir: (k, v) => localStorage.setItem(k, v), borrar: (k) => localStorage.removeItem(k),
+};
+
 
 const LETRAS = 'abcdefghijklmnopqrstuvwxyz';
 
@@ -183,7 +189,7 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
   const [result, setResult] = useState<GradeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [saved, setSaved] = useState<'idle' | 'saving' | 'saved' | 'pendiente'>('idle');
   const [similares, setSimilares] = useState<{ exercise_id: string; lesson_id: string }[] | null>(null);
   const dirty = useRef(false);
   const tel = useTelemetria();
@@ -191,41 +197,85 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
 
   const locked = item.locked || !view.flags.editable;
   const status = response?.status ?? null;
+  // copia en el dispositivo y guardado garantizado (solo el dueño del intento, en preguntas editables)
+  const conCopia = view.flags.is_owner && !locked && acciones === ACCIONES_SERVIDOR;
+  const answerRef = useRef(answer);
+  const confirmadaRef = useRef<StudentAnswer | null>(response?.answer ?? null);   // lo último que el servidor confirmó
+  const pendiente = useRef(false);          // hay cambios que el servidor todavía no confirmó
+  const reintentos = useRef(0);
+  const [recuperado, setRecuperado] = useState<'auto' | null>(null);
+  const [conflicto, setConflicto] = useState<StudentAnswer | null>(null);
 
-  // telemetría: respuesta de partida y visibilidad de la pregunta en pantalla (≥ 50 %)
+  // telemetría: respuesta de partida y visibilidad de la pregunta en pantalla
   useEffect(() => {
     if (!tel) return;
     tel.conocer(ex.id, describirRespuesta(response?.answer));
     const el = tarjeta.current;
     if (!el || typeof IntersectionObserver === 'undefined') return;
+    // V1: criterio original SIN CAMBIOS (LIEIA, congelado, lee estos eventos). El criterio corregido
+    // (preguntaVisible) se usa solo para la exposición de Telemetría V2.
     const obs = new IntersectionObserver(([e]) => tel.vista(ex.id, e.isIntersecting), { threshold: 0.5 });
     obs.observe(el);
     return () => { obs.disconnect(); tel.vista(ex.id, false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tel, ex.id]);
 
-  // guardado automático de borradores
+  // al abrir: ¿quedó en este dispositivo un borrador que el servidor no llegó a confirmar?
+  useEffect(() => {
+    if (!conCopia) return;
+    const d = decidir(leerCopia(ALMACEN_LOCAL, view.attempt.id, ex.id), response ? { answer: response.answer as Record<string, unknown>, updated_at: response.updated_at } : null);
+    if (d.accion === 'recuperar') {
+      dirty.current = true; pendiente.current = true; answerRef.current = d.answer as StudentAnswer;
+      setAnswer(d.answer as StudentAnswer); setRecuperado('auto');
+    }
+    else if (d.accion === 'conflicto') setConflicto(d.answer as StudentAnswer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view.attempt.id, ex.id]);
+
+  // al salir de la página o de la pregunta con cambios sin confirmar: guardar ya (la copia local sigue ahí si falla)
+  useEffect(() => () => {
+    if (pendiente.current && conCopia) void acciones.guardar(view.attempt.id, ex.id, answerRef.current).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // guardado automático de borradores, con reintentos si falla
+  const [intentoGuardado, setIntentoGuardado] = useState(0);
   useEffect(() => {
     if (!dirty.current || locked || !view.flags.is_owner) return;
+    const espera = intentoGuardado > 0 ? esperaReintento(reintentos.current) : 1200;
     const t = setTimeout(async () => {
+      const enviada = answer;
       setSaved('saving');
       try {
-        await acciones.guardar(view.attempt.id, ex.id, answer);
+        await acciones.guardar(view.attempt.id, ex.id, enviada);
         tel?.guardado(ex.id, true);
+        reintentos.current = 0;
+        confirmadaRef.current = enviada;
+        if (answerRef.current === enviada) pendiente.current = false;
+        if (conCopia) confirmarCopia(ALMACEN_LOCAL, view.attempt.id, ex.id, enviada as Record<string, unknown>);
         setSaved('saved');
-        if (!practice) onChange({ ...item, response: { ...(response ?? emptyResponse()), answer, status: 'draft' } });
+        setError(null);
+        if (!practice) onChange({ ...item, response: { ...(response ?? emptyResponse()), answer: enviada, status: 'draft' } });
       } catch (e) {
         tel?.guardado(ex.id, false);
-        setSaved('idle');
-        setError(e instanceof Error ? e.message : String(e));
+        reintentos.current += 1;
+        setSaved('pendiente');
+        setError(`${e instanceof Error ? e.message : String(e)} — Su respuesta sigue guardada en este dispositivo; se reintentará automáticamente.`);
+        setIntentoGuardado((n) => n + 1);
       }
-    }, 1200);
+    }, espera);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [answer]);
+  }, [answer, intentoGuardado]);
 
   const change = (a: StudentAnswer) => {
     dirty.current = true;
+    pendiente.current = true;
+    answerRef.current = a;
+    if (conCopia) guardarCopia(ALMACEN_LOCAL, view.attempt.id, ex.id, {
+      answer: a as Record<string, unknown>, base: response?.updated_at ?? null, confirmada: (confirmadaRef.current ?? null) as Record<string, unknown> | null, t: Date.now(),
+    });
+    setRecuperado(null);
     tel?.cambio(ex.id, describirRespuesta(a));
     setSaved('idle');
     setAnswer(a);
@@ -394,9 +444,26 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
               {triesLeft} {triesLeft === 1 ? 'intento restante' : 'intentos restantes'}
             </span>
           )}
-          {!practice && !locked && (
-            <span className="text-xs text-gray-500">{saved === 'saving' ? 'Guardando…' : saved === 'saved' ? 'Guardado ✓' : 'Se guarda automáticamente'}</span>
+          {!locked && (!practice || saved !== 'idle') && (
+            <span className={`text-xs ${saved === 'pendiente' ? 'font-medium text-amber-700 dark:text-amber-300' : 'text-gray-500'}`} role="status">
+              {saved === 'saving' ? 'Guardando…' : saved === 'saved' ? 'Guardado ✓' : saved === 'pendiente' ? 'Sin guardar en el servidor: copia en este dispositivo' : 'Se guarda automáticamente'}
+            </span>
           )}
+        </div>
+      )}
+
+      {recuperado === 'auto' && (
+        <p className="mt-2 rounded-md bg-sky-50 px-3 py-2 text-sm text-sky-900 dark:bg-sky-900/30 dark:text-sky-100" role="status">
+          Se recuperó lo que había escrito en este dispositivo y no se llegó a guardar. Se está guardando ahora.
+        </p>
+      )}
+      {conflicto && !locked && (
+        <div className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">
+          <p>En este dispositivo hay un borrador distinto de la respuesta guardada (que se cambió después, quizá desde otro dispositivo). No se reemplazó nada.</p>
+          <div className="mt-1 flex flex-wrap gap-2">
+            <button className="btn-secundario py-1 text-sm" onClick={() => { const a = conflicto; setConflicto(null); change(a); }}>Usar el borrador de este dispositivo</button>
+            <button className="btn-texto text-sm" onClick={() => { setConflicto(null); confirmarCopia(ALMACEN_LOCAL, view.attempt.id, ex.id, conflicto as Record<string, unknown>); }}>Conservar la respuesta guardada</button>
+          </div>
         </div>
       )}
 
