@@ -31,12 +31,11 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
       'Vista previa del panel de inicio del estudiante por sección («Ver como estudiante»), con el mismo componente y los datos que vería un estudiante recién inscrito.',
       'Vista previa «como estudiante» de cada práctica o evaluación: los mismos componentes que ve el estudiante, calificados con el mismo motor, sin guardar nada.',
       'Lectura cronometrada antes de los ejercicios: el servidor cuenta el tiempo real de lectura, se detiene si el estudiante sale de la plataforma y los ejercicios se habilitan al cumplir el mínimo.',
+      'Evaluaciones de una pregunta a la vez: límite de tiempo con el reloj oficial del servidor, navegación libre o solo hacia adelante, pausas declaradas, guardado automático con recuperación tras desconexiones, tiempo por pregunta, seguimiento en vivo y prórrogas individuales.',
+      'Asistente «+ Crear actividad» en cuatro pasos con plantillas (práctica, tarea, quiz, parcial, examen estricto).',
+      'Seguimiento de estudiantes que pueden necesitar apoyo y recordatorios a quien no ha entregado.',
     ],
-    pendiente: [
-      'Evaluaciones de una pregunta a la vez con límite de tiempo oficial, pausas declaradas, navegación configurable, guardado con recuperación y seguimiento en vivo: implementado y probado en local; pendiente de desplegar.',
-      'Asistente «+ Crear actividad» con plantillas: implementado; pendiente de desplegar.',
-      'Prórrogas individuales.', 'Orden aleatorio de opciones.',
-    ],
+    pendiente: ['Probar el modo de una pregunta a la vez en teléfonos reales.', 'Orden aleatorio de opciones.'],
   },
   {
     area: 'Seguimiento',
