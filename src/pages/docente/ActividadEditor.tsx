@@ -18,7 +18,8 @@ import {
 } from '@/api/docente';
 import { getLessonList } from '@/api/estudiante';
 import type { Activity, Exercise, RevealPolicy } from '@/api/tipos';
-import { aInputFecha, CATEGORIA, deInputFecha, DIFICULTAD, downloadText, fecha, porcentaje, puntaje, toCsv, useAction, useAsync } from '@/lib/util';
+import { aInputFecha, CATEGORIA, deInputFecha, DIFICULTAD, downloadText, fecha, porcentaje, puntaje, relativo, toCsv, useAction, useAsync } from '@/lib/util';
+import { rpc } from '@/lib/supabase';
 import { Badge, Card, Empty, ErrorBox, Field, Notice, PageTitle, Spinner, Tabs } from '@/components/ui';
 import { EditorMarkdown } from '@/components/EditorMarkdown';
 import { analizarTexto, formatoTiempo, MAX_SEGUNDOS, MIN_SEGUNDOS, segundosSugeridos } from '@/lib/lectura';
@@ -335,6 +336,44 @@ function TabEjercicios({ activityId, courseId, lessons, initial, initialExercise
   );
 }
 
+/** Quién no ha entregado (sin empezar / en curso), con recordatorio por mensaje en vivo. */
+function Pendientes({ act, students, attempts }: {
+  act: Activity;
+  students: { user_id: string; profiles?: { full_name: string } | null }[];
+  attempts: { user_id: string; status: string }[];
+}) {
+  const [enviado, setEnviado] = useState<string | null>(null);
+  const action = useAction();
+  const entregaron = new Set(attempts.filter((a) => a.status === 'submitted').map((a) => a.user_id));
+  const enCurso = new Set(attempts.filter((a) => a.status === 'in_progress').map((a) => a.user_id));
+  const sinEntregar = students.filter((s) => !entregaron.has(s.user_id));
+  if (!students.length) return null;
+  const nombre = (s: (typeof students)[number]) => s.profiles?.full_name ?? 'Estudiante';
+  const sinEmpezar = sinEntregar.filter((s) => !enCurso.has(s.user_id)), empezados = sinEntregar.filter((s) => enCurso.has(s.user_id));
+  async function recordar() {
+    const cierre = act.closes_at ? ` Cierra ${relativo(act.closes_at)} (${fecha(act.closes_at)}).` : '';
+    const texto = window.prompt(`Recordatorio para ${sinEntregar.length} estudiante(s):`, `Recuerde completar y entregar «${act.title}».${cierre}`);
+    if (!texto?.trim()) return;
+    const r = await action.run(() => rpc<{ recipients: number }>('send_live_message', {
+      p_kind: 'importante', p_body: texto.trim(), p_mode: 'seleccion', p_users: sinEntregar.map((s) => s.user_id), p_class: null, p_expires_minutes: 1440,
+    }));
+    if (r) setEnviado(`Recordatorio enviado a ${r.recipients} estudiante(s).`);
+  }
+  return (
+    <Card title={`Pendientes de entregar (${sinEntregar.length} de ${students.length})`}
+      actions={sinEntregar.length > 0 && <button className="btn-secundario text-sm" onClick={() => void recordar()} disabled={action.busy}>📢 Enviar recordatorio</button>}>
+      {sinEntregar.length ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div><p className="mb-1 text-sm font-medium">Sin empezar ({sinEmpezar.length})</p><p className="text-sm text-gray-600 dark:text-gray-300">{sinEmpezar.map(nombre).join(', ') || '—'}</p></div>
+          <div><p className="mb-1 text-sm font-medium">Empezado, sin entregar ({empezados.length})</p><p className="text-sm text-gray-600 dark:text-gray-300">{empezados.map(nombre).join(', ') || '—'}</p></div>
+        </div>
+      ) : <p className="text-sm text-emerald-700 dark:text-emerald-300">Todos entregaron. ✓</p>}
+      <ErrorBox error={action.error} />
+      {enviado && <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-300">{enviado}</p>}
+    </Card>
+  );
+}
+
 function TabResultados({ act, classId }: { act: Activity; classId: string }) {
   const st = useAsync(async () => {
     const [attempts, students, stats] = await Promise.all([activityAttempts(act.id), roster(classId), activityStats(act.id)]);
@@ -369,6 +408,7 @@ function TabResultados({ act, classId }: { act: Activity; classId: string }) {
       )}
       {msg && <Notice tone="ok">{msg}</Notice>}
       <ErrorBox error={action.error} />
+      {act.published && <Pendientes act={act} students={students} attempts={attempts} />}
       <Card title="Análisis por pregunta">
         {stats.items.length ? (
           <div className="overflow-x-auto">
