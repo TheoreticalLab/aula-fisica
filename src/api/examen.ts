@@ -40,9 +40,11 @@ export const examTimeline = (attemptId: string) => rpc<{
 export interface MonitorExamenDatos {
   ahora_ms: number; inscritos: number; entregados: number;
   en_curso: { attempt_id: string; nombre: string | null; pregunta: number | null; total: number; respondidas: number; en_pausa: boolean; pausas: number;
-    ultimo_contacto_ms: number; limite_ms: number | null; inicio_ms: number }[];
+    ultimo_contacto_ms: number; limite_ms: number | null; inicio_ms: number; extra_s?: number }[];
 }
-export const examMonitor = (activityId: string) => rpc<MonitorExamenDatos>('exam_monitor', { p_activity: activityId });
+export const examExtend = (attemptId: string, minutos: number, motivo?: string) =>
+  rpc<{ extra_s: number; limite_ms: number | null }>('exam_extend', { p_attempt: attemptId, p_minutos: minutos, p_motivo: motivo ?? null });
+export const examMonitor =(activityId: string) => rpc<MonitorExamenDatos>('exam_monitor', { p_activity: activityId });
 export const examRules =(activityId: string) => rpc<ConfigExamen>('exam_rules', { p_activity: activityId });
 export const examSettingsGet =(activityId: string) => rpc<ConfigExamenGuardada>('exam_settings_get', { p_activity: activityId });
 export const examSettingsSave = (activityId: string, cfg: ConfigExamen) => rpc<ConfigExamenGuardada>('exam_settings_save', { p_activity: activityId, p_cfg: cfg });

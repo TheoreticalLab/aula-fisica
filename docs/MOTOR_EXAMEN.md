@@ -24,6 +24,7 @@ En una **evaluación**, pestaña Configuración → **Modo de examen**:
 - **Pausas declaradas** (opcional): número máximo y minutos en total. Durante la pausa **se ocultan las preguntas** y no se puede guardar ni navegar. Si se marca «la pausa detiene el reloj», el límite se desplaza por la pausa usada (hasta el máximo).
 - Los intentos ya empezados conservan la configuración con la que empezaron.
 - **Seguimiento en vivo** (pestaña Resultados de la evaluación): quién está respondiendo, en pausa, sin conexión (más de 45 s sin contacto) o con el tiempo vencido; en qué pregunta va, cuántas lleva respondidas y cuánto le queda. Se actualiza cada 10 s. No muestra respuestas.
+- **Prórrogas individuales** (migración 37): en «En vivo», el botón **+5 min** amplía el tiempo de un estudiante (conexión caída, adaptación, incidencia). Pide un motivo opcional y queda registrado quién, cuánto y cuándo. Nunca pasa del cierre de la actividad. El estudiante ve el aviso «El profesor amplió su tiempo» en la siguiente sincronización (≤ 20 s), y antes de entregar sola al vencer, la aplicación consulta al servidor por si hubo una prórroga.
 - En la revisión de cada intento: tiempo por pregunta separado en trabajo, inactividad, pausa, página oculta, desconexión y desconocido.
 - La forma más rápida de crear una evaluación con este modo es **+ Crear actividad** (plantillas «Quiz rápido», «Examen parcial», «Examen estricto»).
 

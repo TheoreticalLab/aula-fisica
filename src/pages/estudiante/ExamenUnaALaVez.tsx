@@ -43,7 +43,28 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems }: {
   const desfase = useRef<number>(servidor.ahora_ms - performance.now());
   const ahora = useCallback(() => performance.now() + desfase.current, []);
   const [, setTic] = useState(0);
-  const [pausaSrv, setPausaSrv] = useState(servidor.pausa);
+  const [pausaSrv, setPausaSrvEstado] = useState(servidor.pausa);
+  const pausaRef = useRef(servidor.pausa);
+  const setPausaSrv = (p: typeof servidor.pausa) => { pausaRef.current = p; setPausaSrvEstado(p); };
+  // diferencia entre el límite que dice el servidor y el que se calcula aquí (prórrogas individuales)
+  const limiteLocal = useCallback((pausa: typeof servidor.pausa, t: number) => horaLimite({
+    inicio: servidor.inicio_ms, duracion_s: cfg.duracion_s, pausas_ms: pausa.ms, pausa_en_curso_desde: pausa.desde_ms,
+    detienen_reloj: cfg.pausas.detienen_reloj, max_pausa_ms: cfg.pausas.max_total_s * 1000, cierre_actividad: servidor.cierre_ms,
+  }, t), [servidor.inicio_ms, servidor.cierre_ms, cfg]);
+  const diferencia = useCallback((limiteSrv: number | null, t: number) => {
+    const l = limiteLocal(pausaRef.current, t);
+    return limiteSrv === null || l === null ? 0 : limiteSrv - l;
+  }, [limiteLocal]);
+  const [extra, setExtra] = useState(() => diferencia(servidor.limite_ms, servidor.ahora_ms));
+  const extraRef = useRef(extra);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const ajustarLimite = useCallback((limiteSrv: number | null, t: number) => {
+    const d = diferencia(limiteSrv, t), prev = extraRef.current;
+    if (Math.abs(d - prev) <= 1000) return;              // diferencias de redondeo o de red
+    if (d - prev > 30_000) setAviso(`El profesor amplió su tiempo en ${Math.round((d - prev) / 60_000)} minuto(s).`);
+    extraRef.current = d;
+    setExtra(d);
+  }, [diferencia]);
 
   // ---- motor (persistido en el dispositivo)
   const [motor, setMotorEstado] = useState<EstadoMotor>(() => {
@@ -106,6 +127,7 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems }: {
 
   // ---- latidos, sincronización, visibilidad, inactividad y red
   const ultimaEntrada = useRef(performance.now());
+  const sincronizarRef = useRef<() => Promise<void>>(async () => {});
   useEffect(() => {
     const lat = setInterval(() => { setMotor(latido(motorRef.current, ahora())); setTic((x) => x + 1); }, LATIDO_MS);
     const seg = setInterval(() => setTic((x) => x + 1), 1000);
@@ -117,8 +139,10 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems }: {
         muestras.current = [...muestras.current.slice(-9), { envio_local: envio, servidor: r.ahora_ms, recibo_local: performance.now() }];
         const d = estimarDesfase(muestras.current);
         if (d) desfase.current = d.desfase;
+        ajustarLimite(r.limite_ms, r.ahora_ms);
       } catch { /* sin red */ }
     };
+    sincronizarRef.current = sincronizar;
     void sincronizar();
     const ping = setInterval(() => void sincronizar(), PING_MS);
     const ina = setInterval(() => {
@@ -140,13 +164,14 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems }: {
       window.removeEventListener('online', enRed); window.removeEventListener('offline', enRed);
       for (const ev of ['keydown', 'pointerdown', 'input', 'scroll'] as const) window.removeEventListener(ev, entrada);
     };
-  }, [ahora, attemptId, cola, enviarDiario, setMotor]);
+  }, [ahora, attemptId, cola, enviarDiario, setMotor, ajustarLimite]);
 
-  // ---- límite oficial
-  const limite = horaLimite({
+  // ---- límite oficial: el cálculo local (pausas en curso) más lo que el servidor añada (prórrogas del profesor)
+  const base = horaLimite({
     inicio: servidor.inicio_ms, duracion_s: cfg.duracion_s, pausas_ms: pausaSrv.ms, pausa_en_curso_desde: pausaSrv.desde_ms,
     detienen_reloj: cfg.pausas.detienen_reloj, max_pausa_ms: cfg.pausas.max_total_s * 1000, cierre_actividad: servidor.cierre_ms,
   }, ahora());
+  const limite = base === null ? null : base + extra;
   const queda = restante(limite, ahora());
 
   // ---- acciones
@@ -167,13 +192,13 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems }: {
     const no = puedePausar(motorRef.current, cfg);
     if (no) { setError(no); return; }
     setOcupado(true);
-    try { await cola.vaciar(); const s = await examPause(attemptId); setPausaSrv(s.pausa); aplicar(pausar(motorRef.current, ahora(), cfg)); }
+    try { await cola.vaciar(); const s = await examPause(attemptId); setPausaSrv(s.pausa); ajustarLimite(s.limite_ms, s.ahora_ms); aplicar(pausar(motorRef.current, ahora(), cfg)); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setOcupado(false); }
   };
   const doReanudar = async () => {
     setOcupado(true);
-    try { const s = await examResume(attemptId); setPausaSrv(s.pausa); aplicar(reanudar(motorRef.current, ahora())); }
+    try { const s = await examResume(attemptId); setPausaSrv(s.pausa); ajustarLimite(s.limite_ms, s.ahora_ms); aplicar(reanudar(motorRef.current, ahora())); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setOcupado(false); }
   };
@@ -200,7 +225,18 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems }: {
     } finally { setOcupado(false); }
   }, [ahora, almacen, attemptId, claveMotor, cola, enviarDiario, onEntregado, setMotor, tel]);
   // entrega automática al vencer el tiempo oficial
-  useEffect(() => { if (queda === 0 && limite !== null && !entregando.current) void doEntregar(true); }, [queda, limite, doEntregar]);
+  // entrega automática al vencer: antes se confirma con el servidor (puede haber una prórroga recién concedida)
+  const confirmando = useRef(false);
+  useEffect(() => {
+    if (queda !== 0 || limite === null || entregando.current || confirmando.current) return;
+    confirmando.current = true;
+    void (async () => {
+      await sincronizarRef.current();
+      confirmando.current = false;
+      const l = limiteLocal(pausaRef.current, ahora());
+      if (l !== null && l + extraRef.current <= ahora()) void doEntregar(true);
+    })();
+  }, [queda, limite, doEntregar, limiteLocal, ahora]);
 
   // ---- vista
   // lo pendiente en el dispositivo también cuenta como respondido (sin conexión, la vista no se actualiza)
@@ -230,6 +266,7 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems }: {
         )}
       </div>
 
+      {aviso && <Notice tone="ok">{aviso}</Notice>}
       {recuperadas > 0 && <Notice>Recuperamos {recuperadas} respuesta(s) que estaban guardadas en este dispositivo y se están enviando.</Notice>}
       {!motor.en_red && <Notice tone="warn">Sin conexión. Puede seguir respondiendo: se guarda en este dispositivo y se enviará sola al volver la red. El reloj oficial sigue corriendo.</Notice>}
       <ErrorBox error={error} />

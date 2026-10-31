@@ -1,7 +1,7 @@
 /** Seguimiento en vivo de una evaluación con el motor de examen (se actualiza cada 10 s). Solo estado, sin respuestas. */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { examMonitor, type MonitorExamenDatos } from '@/api/examen';
+import { examExtend, examMonitor, type MonitorExamenDatos } from '@/api/examen';
 import { formatoCuenta } from '@/lib/examen/reloj';
 import { estadoEnVivo } from '@/lib/examen/monitor';
 import { Badge, Card } from '@/components/ui';
@@ -12,6 +12,16 @@ export function MonitorExamen({ activityId }: { activityId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [desfase, setDesfase] = useState(0);
   const [, setTic] = useState(0);
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [recarga, setRecarga] = useState(0);
+  async function prorrogar(attemptId: string, nombre: string | null) {
+    const motivo = window.prompt(`¿Dar 5 minutos más a ${nombre || 'este estudiante'}? Motivo (opcional, queda registrado):`, '');
+    if (motivo === null) return;
+    setOcupado(attemptId);
+    try { await examExtend(attemptId, 5, motivo); setRecarga((x) => x + 1); }
+    catch (err) { window.alert(err instanceof Error ? err.message : String(err)); }
+    finally { setOcupado(null); }
+  }
   useEffect(() => {
     let vivo = true;
     const cargar = async () => {
@@ -21,7 +31,7 @@ export function MonitorExamen({ activityId }: { activityId: string }) {
     void cargar();
     const t = setInterval(() => void cargar(), 10_000), s = setInterval(() => setTic((x) => x + 1), 1000);
     return () => { vivo = false; clearInterval(t); clearInterval(s); };
-  }, [activityId]);
+  }, [activityId, recarga]);
   if (error) return null;               // sin motor de examen (o migración sin aplicar): no se muestra
   if (!d) return null;
   const ahora = Date.now() + desfase;
@@ -45,6 +55,11 @@ export function MonitorExamen({ activityId }: { activityId: string }) {
                 <span className="tabular-nums text-gray-600 dark:text-gray-300">{e.respondidas} respondidas</span>
                 {e.limite_ms !== null && <span className="tabular-nums text-gray-600 dark:text-gray-300">⏱ {formatoCuenta(Math.max(0, e.limite_ms - ahora))}</span>}
                 {e.pausas > 0 && <span className="text-xs text-gray-500">{e.pausas} pausa(s)</span>}
+                {!!e.extra_s && <span className="text-xs text-gray-500">+{Math.round(e.extra_s / 60)} min de prórroga</span>}
+                {e.limite_ms !== null && (
+                  <button className="btn-secundario !min-h-[36px] !px-2 text-xs" disabled={ocupado === e.attempt_id}
+                    title="Dar 5 minutos más a este estudiante (queda registrado)" onClick={() => void prorrogar(e.attempt_id, e.nombre)}>+5 min</button>
+                )}
               </li>
             );
           })}
