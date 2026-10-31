@@ -81,6 +81,45 @@ async function gradeAndRecordSubmission(db: Db, userId: string, attemptId: strin
   return call<{ status: string }>(db, 'svc_record_submission', { p_user: userId, p_attempt: attemptId, p_results: results });
 }
 
+/** Mensaje del primer intento cuando la respuesta no se entiende: genérico, para no revelar la unidad ni el resultado. */
+export const MENSAJE_FORMATO_INICIAL = 'No se pudo interpretar la respuesta. Revise el número y la unidad (por ejemplo, 9.8 m/s^2) o marque «No sé resolverlo».';
+
+const texto = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
+
+/**
+ * Práctica con aprendizaje asistido (acción «asistida»):
+ *  - inicial        primer intento + declaración. Solo se valida que se pueda interpretar; NUNCA se devuelve si es correcto.
+ *  - corregida      respuesta después de estudiar: retroalimentación normal del motor (comprobaciones limitadas).
+ *  - transferencia  ejercicio distinto con el mismo concepto: retroalimentación normal.
+ * Las reglas de orden, inmutabilidad y permisos las impone el servidor (svc_asistida_*). Idempotente por client_id.
+ */
+async function pasoAsistido(b: Record<string, unknown>, userId: string, db: Db): Promise<unknown> {
+  const attempt = uuid(b.attempt_id, 'attempt_id');
+  const exercise = uuid(b.exercise_id, 'exercise_id');
+  const clientId = uuid(b.client_id, 'client_id');
+  const fase = b.fase;
+  if (fase !== 'inicial' && fase !== 'corregida' && fase !== 'transferencia') throw new HttpError(400, 'Fase inválida');
+  const noSe = fase === 'inicial' && b.no_se === true;
+  const answer = noSe ? {} : validateAnswerShape(b.answer);
+  if (!answer) throw new HttpError(400, 'Respuesta con formato inválido');
+  if (fase === 'inicial' && !['autonomo', 'consulto_ayuda', 'no_pudo'].includes(String(b.declaracion))) throw new HttpError(400, 'Indique cómo realizó el primer intento');
+  const ctx = await call<{ repetido?: boolean; estado?: unknown; key: AnswerKey | null; option_count: number | null }>(db, 'svc_asistida_contexto',
+    { p_user: userId, p_attempt: attempt, p_exercise: exercise, p_fase: fase, p_client_id: clientId });
+  if (ctx.repetido) return { guardado: true, repetido: true, estado: ctx.estado };
+  const result: GradeResult = noSe
+    ? { status: 'incorrect', credit: 0, messages: ['No supo resolverlo en el primer intento.'], code: 'no_se' }
+    : safeGrade(ctx.key, answer, ctx.option_count);
+  if (!noSe && result.status === 'invalid') {
+    // no se guarda: el estudiante corrige el formato (en el primer intento, sin pistas sobre la respuesta)
+    return { guardado: false, mensajes: fase === 'inicial' ? [MENSAJE_FORMATO_INICIAL] : result.messages };
+  }
+  const datos = { answer, procedimiento: texto(b.procedimiento, 5000), explicacion: texto(b.explicacion, 3000), no_se: noSe, declaracion: fase === 'inicial' ? b.declaracion : null };
+  const estado = await call<unknown>(db, 'svc_asistida_registrar', {
+    p_user: userId, p_attempt: attempt, p_exercise: exercise, p_fase: fase, p_datos: datos, p_resultado: result, p_client_id: clientId,
+  });
+  return fase === 'inicial' ? { guardado: true, estado } : { guardado: true, resultado: result, estado };
+}
+
 export async function handle(body: unknown, userId: string, db: Db): Promise<unknown> {
   if (!body || typeof body !== 'object') throw new HttpError(400, 'Cuerpo inválido');
   const b = body as Record<string, unknown>;
@@ -126,6 +165,8 @@ export async function handle(body: unknown, userId: string, db: Db): Promise<unk
       }
       return { finalized: done, errors };
     }
+    case 'asistida':
+      return pasoAsistido(b, userId, db);
     default:
       throw new HttpError(400, 'Acción desconocida');
   }
