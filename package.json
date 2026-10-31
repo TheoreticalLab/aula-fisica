@@ -19,6 +19,7 @@
     "estado": "vite-node scripts/ops/aula.ts estado",
     "respaldo": "vite-node scripts/ops/aula.ts respaldo",
     "probar": "vite-node scripts/ops/aula.ts probar",
+    "carga-telemetria": "vite-node scripts/ops/carga-telemetria.ts",
     "plan": "vite-node scripts/ops/aula.ts plan",
     "aplicar": "vite-node scripts/ops/aula.ts aplicar",
     "revisar-migraciones": "vite-node scripts/ops/aula.ts revisar-migraciones"
