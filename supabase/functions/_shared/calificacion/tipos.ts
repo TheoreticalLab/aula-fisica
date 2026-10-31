@@ -50,6 +50,13 @@ export interface NumericKey {
    * Nunca convierte una unidad válida en otra, ni acepta dimensiones distintas de las de la pregunta.
    */
   unitCase?: 'pedagogica' | 'estricta';
+  /**
+   * Arrastre de errores en problemas por etapas: si la respuesta no coincide con la clave pero sí con el valor que
+   * se obtiene a partir de la respuesta del MISMO estudiante en una etapa anterior (`desde`, slug del ejercicio),
+   * se califica como correcta con un aviso, para no penalizar dos veces el mismo error.
+   * `expresion` usa `x` (valor SI de la etapa anterior), números, + − * / ^, paréntesis y sqrt/abs; da un valor SI.
+   */
+  arrastre?: { desde: string; expresion: string };
 }
 
 export interface TextKey {

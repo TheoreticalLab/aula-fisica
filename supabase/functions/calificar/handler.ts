@@ -10,6 +10,7 @@
  * este módulo solo interpreta y compara respuestas.
  */
 import { grade, validateAnswerShape } from '../_shared/calificacion/calificar.ts';
+import { gradeConArrastre } from '../_shared/calificacion/arrastre.ts';
 import type { AnswerKey, GradeResult, StudentAnswer } from '../_shared/calificacion/tipos.ts';
 
 export interface Db {
@@ -39,14 +40,25 @@ async function call<T>(db: Db, fn: string, args: Record<string, unknown>): Promi
   return data as T;
 }
 
-function safeGrade(key: AnswerKey | null, answer: StudentAnswer, optionCount?: number | null): GradeResult {
+function safeGrade(key: AnswerKey | null, answer: StudentAnswer, optionCount?: number | null, previo?: string | null): GradeResult {
   if (!key) return { status: 'pending_review', credit: 0, messages: ['El ejercicio no tiene clave; lo revisará el profesor.'], code: 'no_key' };
   try {
+    if (key.format === 'numeric' && key.arrastre) return gradeConArrastre(key, answer.text ?? '', previo);
     return grade(key, answer, optionCount ?? undefined);
   } catch {
     // Clave mal escrita por el profesor: no se penaliza al estudiante, se envía a revisión manual.
     return { status: 'pending_review', credit: 0, messages: ['No se pudo calificar automáticamente; lo revisará el profesor.'], code: 'key_error' };
   }
+}
+
+/**
+ * Respuesta del mismo estudiante, en el mismo intento, a la etapa anterior de un problema por etapas (arrastre).
+ * Si la función SQL todavía no está en la base (migración pendiente) o falla, devuelve null: se califica sin arrastre.
+ */
+async function respuestaEtapa(db: Db, userId: string, attemptId: string, exerciseId: string, key: AnswerKey | null): Promise<string | null> {
+  if (!key || key.format !== 'numeric' || !key.arrastre) return null;
+  const { data, error } = await db.rpc('svc_respuesta_etapa', { p_user: userId, p_attempt: attemptId, p_exercise: exerciseId, p_desde: key.arrastre.desde });
+  return error || typeof data !== 'string' ? null : data;
 }
 
 interface CheckContext {
@@ -67,12 +79,14 @@ interface SubmitItem {
 
 async function gradeAndRecordSubmission(db: Db, userId: string, attemptId: string) {
   const ctx = await call<{ mode: string; items: SubmitItem[] }>(db, 'svc_submit_context', { p_user: userId, p_attempt: attemptId });
-  const results = ctx.items
+  const pendientes = ctx.items
     // en actividades de práctica, lo ya comprobado conserva su resultado
-    .filter((it) => ctx.mode === 'exam' || it.status === null || it.status === 'draft' || it.status === 'invalid')
-    .map((it) => {
+    .filter((it) => ctx.mode === 'exam' || it.status === null || it.status === 'draft' || it.status === 'invalid');
+  const previos = await Promise.all(pendientes.map((it) => respuestaEtapa(db, userId, attemptId, it.exercise_id, it.key)));
+  const results = pendientes
+    .map((it, i) => {
       const answer = validateAnswerShape(it.answer ?? {}) ?? {};
-      const r = safeGrade(it.key, answer, it.option_count);
+      const r = safeGrade(it.key, answer, it.option_count, previos[i]);
       if (r.status === 'invalid') {
         return { exercise_id: it.exercise_id, answer, status: 'incorrect', credit: 0, code: 'blank', messages: ['Sin respuesta válida: ' + r.messages.join(' ')] };
       }
@@ -130,7 +144,7 @@ export async function handle(body: unknown, userId: string, db: Db): Promise<unk
       const answer = validateAnswerShape(b.answer);
       if (!answer) throw new HttpError(400, 'Respuesta con formato inválido');
       const ctx = await call<CheckContext>(db, 'svc_check_context', { p_user: userId, p_attempt: attempt, p_exercise: exercise });
-      const result = safeGrade(ctx.key, answer, ctx.option_count);
+      const result = safeGrade(ctx.key, answer, ctx.option_count, await respuestaEtapa(db, userId, attempt, exercise, ctx.key));
       if (result.status === 'invalid') {
         // No se pudo interpretar: no consume intento y se guarda como borrador.
         await call(db, 'svc_save_draft', { p_user: userId, p_attempt: attempt, p_exercise: exercise, p_answer: answer }).catch(() => undefined);

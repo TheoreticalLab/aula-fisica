@@ -142,3 +142,36 @@ describe('acción finalize', () => {
     expect(calls[1].args.p_user).toBe(S1);
   });
 });
+
+describe('arrastre en problemas por etapas', () => {
+  const clave = { format: 'numeric', value: '3.2 m', arrastre: { desde: 'mec-u9c-15-4', expresion: 'x^2/(2*0.25*10)' } };
+  const ctx = { svc_check_context: { key: clave, format: 'numeric', option_count: null, max_tries: 3 }, svc_record_check: { status: 'correct' } };
+
+  it('check: con la respuesta previa del mismo estudiante no penaliza dos veces', async () => {
+    const { db, calls } = mockDb({ ...ctx, svc_respuesta_etapa: '6 m/s' });
+    const out = (await handle({ action: 'check', attempt_id: A, exercise_id: E, answer: { text: '7.2 m' } }, U, db)) as { result: { status: string; code: string } };
+    expect(out.result).toMatchObject({ status: 'correct', code: 'arrastre' });
+    const consulta = calls.find((c) => c.fn === 'svc_respuesta_etapa')!;
+    expect(consulta.args).toEqual({ p_user: U, p_attempt: A, p_exercise: E, p_desde: 'mec-u9c-15-4' });
+  });
+  it('check: si la función aún no existe en la base, califica sin arrastre', async () => {
+    const { db } = mockDb(ctx, { svc_respuesta_etapa: { message: 'function does not exist', code: '42883' } });
+    const out = (await handle({ action: 'check', attempt_id: A, exercise_id: E, answer: { text: '7.2 m' } }, U, db)) as { result: { status: string } };
+    expect(out.result.status).toBe('incorrect');
+  });
+  it('check: sin arrastre en la clave no se consulta nada más', async () => {
+    const { db, calls } = mockDb({ svc_check_context: { key: { format: 'numeric', value: '3.2 m' }, format: 'numeric', option_count: null, max_tries: 3 } });
+    await handle({ action: 'check', attempt_id: A, exercise_id: E, answer: { text: '3.2 m' } }, U, db);
+    expect(calls.some((c) => c.fn === 'svc_respuesta_etapa')).toBe(false);
+  });
+  it('submit: el arrastre también vale al entregar una evaluación', async () => {
+    const { db, calls } = mockDb({
+      svc_submit_context: { mode: 'exam', items: [{ exercise_id: E, format: 'numeric', option_count: null, key: clave, answer: { text: '7.2 m' }, status: 'draft' }] },
+      svc_respuesta_etapa: '6 m/s',
+      svc_record_submission: { status: 'submitted' },
+    });
+    await handle({ action: 'submit', attempt_id: A }, U, db);
+    const rec = calls.find((c) => c.fn === 'svc_record_submission')!;
+    expect((rec.args.p_results as { status: string; code: string }[])[0]).toMatchObject({ status: 'correct', code: 'arrastre' });
+  });
+});
