@@ -4,7 +4,8 @@
  * DERIVADAS se calculan en el navegador a partir de ellas (metricas.ts) y nunca sustituyen a los datos originales.
  */
 
-export type Naturaleza = 'observado' | 'registrado_por_el_sistema' | 'calculado_y_almacenado' | 'inferido' | 'calculado' | 'no_disponible';
+/** 'declarado': lo afirma el propio estudiante (p. ej. si usó IA); no es una observación ni una verificación. */
+export type Naturaleza = 'observado' | 'declarado' | 'registrado_por_el_sistema' | 'calculado_y_almacenado' | 'inferido' | 'calculado' | 'no_disponible';
 
 export interface Fuente {
   nombre: string;                    // nombre de la exportación (= export_fuente)
@@ -77,6 +78,10 @@ export const FUENTES: Fuente[] = [
   P('examen_config', 'diseno', 'diseno', 'exam_settings', 'Modo de examen de cada evaluación: presentación, navegación, duración y pausas.', ['activity_id'], { activity_id: 'actividades.id' }),
   P('examen_sesiones', 'telemetria', 'telemetria', 'exam_sessions', 'Sesión oficial de cada intento con el motor de examen (copia de la configuración, pausas usadas, pregunta activa).', ['attempt_id'], { attempt_id: 'intentos.id', user_id: 'estudiantes.id' }),
   P('examen_eventos', 'telemetria', 'telemetria', 'exam_events', 'Eventos OFICIALES del servidor en el examen: apertura, cambio de pregunta, pausa, reanudación, entrega y tramos rechazados.', ['id'], { attempt_id: 'intentos.id', user_id: 'estudiantes.id', exercise_id: 'ejercicios.id' }),
+  P('examen_prorrogas', 'telemetria', 'telemetria', 'exam_extensions', 'Prórrogas individuales concedidas por el profesor: intento, segundos, motivo y momento.', ['id'], { attempt_id: 'intentos.id', teacher_id: 'profesores.id' }),
+  P('asistida_config', 'diseno', 'diseno', 'assisted_settings', 'Práctica con aprendizaje asistido: transferencia activada, pesos de cada fase y verificación posterior.', ['activity_id'], { activity_id: 'actividades.id', verificacion_actividad: 'actividades.id' }),
+  P('asistida_transferencias', 'diseno', 'diseno', 'assisted_transfer', 'Ejercicio de transferencia elegido por el profesor para cada ejercicio de la práctica asistida.', ['activity_id', 'exercise_id'], { activity_id: 'actividades.id', exercise_id: 'ejercicios.id', transfer_exercise_id: 'ejercicios.id' }),
+  P('asistida_pasos', 'respuestas', 'academico', 'assisted_steps', 'PASOS ORIGINALES de la práctica asistida (una fila por versión; nada se sobrescribe): primer intento con su declaración, correcciones, reflexión con fuentes y transferencia, con el resultado del motor.', ['id'], { attempt_id: 'intentos.id', exercise_id: 'ejercicios.id', user_id: 'estudiantes.id', transfer_exercise_id: 'ejercicios.id' }),
   P('examen_tramos', 'telemetria', 'telemetria', 'exam_intervals', 'Diario de TRAMOS del tiempo del intento (trabajo, inactividad, pausa, oculta, desconexión, desconocido, revisión), en hora del servidor.', ['id'], { attempt_id: 'intentos.id', user_id: 'estudiantes.id', exercise_id: 'ejercicios.id' }),
 ];
 
@@ -96,6 +101,7 @@ export const DERIVADAS: Derivada[] = [
   { nombre: 'metricas_pregunta', carpeta: 'metricas', descripcion: 'Una fila por intento y pregunta: cronología (primera vista, primera interacción, primera respuesta, edición, revisitas) y resultado.', clave: ['attempt_id', 'exercise_id'], relaciones: { attempt_id: 'intentos.id', exercise_id: 'ejercicios.id' } },
   { nombre: 'metricas_intento', carpeta: 'metricas', descripcion: 'Una fila por intento: duración, tiempo activo, oculto, inactivo, sin conexión, espera final, puntaje y calidad.', clave: ['attempt_id'], relaciones: { attempt_id: 'intentos.id' } },
   { nombre: 'metricas_estudiante', carpeta: 'metricas', descripcion: 'Una fila por estudiante: intentos, respuestas, aciertos, tiempo de estudio y telemetría disponible.', clave: ['user_id'], relaciones: { user_id: 'estudiantes.id' } },
+  { nombre: 'aprendizaje_asistido', carpeta: 'metricas', descripcion: 'Práctica asistida: una fila por intento y ejercicio con el primer intento y su declaración, la respuesta final, qué cambió, si presentó explicación, ayudas declaradas y transferencia.', clave: ['attempt_id', 'exercise_id'], relaciones: { attempt_id: 'intentos.id', exercise_id: 'ejercicios.id', activity_id: 'actividades.id' } },
   { nombre: 'tiempos_examen', carpeta: 'metricas', descripcion: 'Motor de examen: una fila por intento y pregunta con el tiempo por categoría (trabajo, inactividad, pausa, oculta, desconexión, desconocido), visitas y tiempo observable reconstruido; diario conciliado con los eventos del servidor.', clave: ['attempt_id', 'exercise_id'], relaciones: { attempt_id: 'intentos.id', exercise_id: 'ejercicios.id' } },
   { nombre: 'resumen_colectivo', carpeta: 'metricas', descripcion: 'Una fila por actividad (o práctica libre de una lección): estudiantes, intentos, puntajes y tiempos.', clave: ['clave_grupo'] },
 ];
@@ -154,6 +160,13 @@ export const VARIABLES: Record<string, Variable> = {
   'metricas_pregunta.activo_s': { descripcion: 'Tiempo activo atribuido a la pregunta (excluye oculto, inactivo y sin conexión).', unidad: 's', naturaleza: 'calculado' },
   'metricas_intento.activo_s': { descripcion: 'Tiempo cronológico menos la unión de oculto, inactivo y sin conexión.', unidad: 's', naturaleza: 'calculado' },
   'metricas_intento.espera_final_s': { descripcion: 'Última modificación → envío.', unidad: 's', naturaleza: 'calculado' },
+  'asistida_pasos.declaracion': { descripcion: 'Declaración VOLUNTARIA del estudiante sobre su primer intento: autonomo (sin IA ni ayuda externa), consulto_ayuda o no_pudo.', naturaleza: 'declarado', limitaciones: 'No es una verificación técnica: no prueba el uso ni la ausencia de IA. No interviene en la nota.' },
+  'asistida_pasos.reflexion': { descripcion: 'Explicación del estudiante (JSON con las respuestas a las preguntas de reflexión).', naturaleza: 'declarado', limitaciones: 'La calidad de la redacción no prueba la autoría; una explicación que «parece de IA» no prueba nada.' },
+  'asistida_pasos.fuentes': { descripcion: 'Ayudas que el estudiante declara haber usado: ia, libro, apuntes, persona, video, simulador, ninguna.', naturaleza: 'declarado' },
+  'asistida_pasos.status': { descripcion: 'Resultado del motor de calificación en ese paso (en el primer intento, el estudiante no lo vio hasta corregir).', naturaleza: 'calculado_y_almacenado' },
+  'aprendizaje_asistido.inicial_estado': { descripcion: 'Resultado del primer intento: base del «rendimiento inicial declarado» (no es dominio autónomo verificado).', naturaleza: 'calculado' },
+  'aprendizaje_asistido.cambio': { descripcion: 'Qué cambió entre el primer intento y la respuesta final: sin_cambio, valor, unidad, valor_y_unidad, opcion, texto, de_no_se_a_respuesta.', naturaleza: 'calculado' },
+  'aprendizaje_asistido.reflexion_presentada': { descripcion: 'true si alguna respuesta de la reflexión tiene al menos 15 caracteres (mismo criterio que la nota).', naturaleza: 'calculado', limitaciones: 'No evalúa la calidad ni la autoría.' },
   'tiempos_examen.trabajo_s': { descripcion: 'Segundos con la pregunta activa, visible y con interacción (o pensando, sin superar el umbral de inactividad).', unidad: 's', naturaleza: 'calculado', calculo: 'suma de tramos «trabajo» de la pregunta, tras conciliar con el servidor' },
   'tiempos_examen.desconocido_s': { descripcion: 'Segundos sin información fiable o que contradecían los eventos del servidor (reclasificados).', unidad: 's', naturaleza: 'calculado' },
   'tiempos_examen.tiempo_observable_s': { descripcion: 'Tiempo de trabajo observable reconstruido (trabajo + inactividad hasta 5 min); vacío si no se pudo reconstruir con fiabilidad.', unidad: 's', naturaleza: 'inferido', calculo: 'reconstruirTiempo() sobre los intervalos de la pregunta', limitaciones: 'Describe el proceso; no es un indicador de conducta.' },

@@ -68,6 +68,14 @@ Sin transferencia, los pesos activos se reparten proporcionalmente (20/30/20 →
 - **Transferencia:** resultado del ejercicio nuevo y su concepto.
 - **Retención:** si el profesor vincula una actividad posterior (en «Verificación posterior»), se muestra la nota de cada estudiante en ella. Una verificación en casa no prueba trabajo autónomo; se interpreta mejor una supervisada.
 
+## Exportación (Centro de Datos)
+
+La migración 39 añade al Centro de Datos:
+- **Datos originales:** `asistida_pasos` (una fila por versión, sin el identificador técnico del envío), `asistida_config` y `asistida_transferencias`.
+- **Tabla derivada** `aprendizaje_asistido`: una fila por intento y ejercicio.
+- **Diccionario:** la declaración y las fuentes figuran con naturaleza «declarado», con su limitación explícita.
+- **Modo investigación:** los estudiantes aparecen con seudónimo.
+
 ## Para el profesor
 
 - **Crear:** + Crear actividad → «Práctica con aprendizaje asistido». Opcionalmente marque el paso 4.

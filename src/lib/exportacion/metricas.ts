@@ -9,6 +9,7 @@ import type { Fila } from './formato';
 import { conciliar, intervalosDePregunta, resumirTiempos, type EventoServidor } from '../examen/intervalos';
 import type { Tramo } from '../examen/motor';
 import { reconstruirTiempo } from '../lieia/d6';
+import { compararRespuestas, reflexionPresentada, type Paso } from '../asistida';
 
 const seg = (iso: unknown) => (typeof iso === 'string' && iso ? Date.parse(iso) / 1000 : null);
 const iso = (s: number | null) => (s === null || !Number.isFinite(s) ? null : new Date(s * 1000).toISOString());
@@ -55,7 +56,50 @@ export const COLUMNAS_DERIVADAS: Record<string, string[]> = {
     'duracion_mediana_s', 'intentos_con_telemetria', 'eventos_telemetria'],
   tiempos_examen: ['attempt_id', 'user_id', 'exercise_id', 'posicion', 'trabajo_s', 'inactividad_s', 'pausa_s', 'oculta_s', 'desconexion_s', 'desconocido_s',
     'visitas', 'tiempo_observable_s', 'estado_tiempo', 'discrepancias_intento', 'prorroga_s'],
+  aprendizaje_asistido: ['attempt_id', 'user_id', 'activity_id', 'exercise_id', 'inicial_respuesta', 'inicial_no_se', 'declaracion', 'inicial_estado', 'inicial_momento_utc',
+    'correcciones', 'final_respuesta', 'final_estado', 'final_credito', 'cambio', 'procedimiento_cambio', 'reflexion_presentada', 'fuentes',
+    'transferencia_ejercicio', 'transferencia_estado', 'transferencia_credito', 'fase_alcanzada'],
 };
+
+/** Práctica asistida: una fila por intento y ejercicio con el proceso INTENTA → CORRIGE → EXPLICA → DEMUESTRA. */
+function aprendizajeAsistido(d: Record<string, Fila[]>): Fila[] {
+  const formato = new Map((d.ejercicios ?? []).map((e) => [String(e.id), String(e.format ?? '')]));
+  const intento = new Map((d.intentos ?? []).map((a) => [String(a.id), a]));
+  const grupos = new Map<string, Fila[]>();
+  for (const p of d.asistida_pasos ?? []) {
+    const k = `${p.attempt_id}|${p.exercise_id}`;
+    const xs = grupos.get(k);
+    if (xs) xs.push(p); else grupos.set(k, [p]);
+  }
+  const aPaso = (f: Fila | undefined): Paso | null => (f ? {
+    fase: f.fase as Paso['fase'], version: num(f.version) ?? 1, answer: (f.answer as Paso['answer']) ?? null, procedimiento: (f.procedimiento as string) ?? null,
+    explicacion: (f.explicacion as string) ?? null, no_se: f.no_se === true, declaracion: (f.declaracion as Paso['declaracion']) ?? null,
+    fuentes: (f.fuentes as Paso['fuentes']) ?? null, reflexion: (f.reflexion as Paso['reflexion']) ?? null, referencias: null,
+    status: (f.status as string) ?? null, credit: num(f.credit), messages: null, created_at: String(f.created_at ?? ''),
+  } : null);
+  const ult = (xs: Fila[], fase: string) => xs.filter((x) => x.fase === fase).sort((a, b) => (num(b.version) ?? 0) - (num(a.version) ?? 0))[0];
+  const texto = (p: Paso | null) => {
+    if (!p) return null;
+    if (p.no_se) return null;
+    const a = p.answer ?? {};
+    return a.selected?.length ? a.selected.join(',') : typeof a.value === 'boolean' ? String(a.value) : (a.text ?? null);
+  };
+  return [...grupos.entries()].map(([k, xs]) => {
+    const [aid, ex] = k.split('|');
+    const ini = aPaso(ult(xs, 'inicial')), fin = aPaso(ult(xs, 'corregida')), ref = aPaso(ult(xs, 'reflexion')), trF = ult(xs, 'transferencia'), tra = aPaso(trF);
+    const c = compararRespuestas(formato.get(ex) ?? '', ini, fin);
+    return {
+      attempt_id: aid, user_id: xs[0].user_id ?? null, activity_id: intento.get(aid)?.activity_id ?? null, exercise_id: ex,
+      inicial_respuesta: texto(ini), inicial_no_se: ini?.no_se ?? null, declaracion: ini?.declaracion ?? null, inicial_estado: ini?.status ?? null,
+      inicial_momento_utc: ini?.created_at || null,
+      correcciones: xs.filter((x) => x.fase === 'corregida').length, final_respuesta: texto(fin), final_estado: fin?.status ?? null, final_credito: fin?.credit ?? null,
+      cambio: fin ? c.cambio : null, procedimiento_cambio: fin ? c.procedimientoCambio : null,
+      reflexion_presentada: reflexionPresentada(ref?.reflexion), fuentes: ref?.fuentes?.join(',') ?? null,
+      transferencia_ejercicio: (trF?.transfer_exercise_id as string) ?? null, transferencia_estado: tra?.status ?? null, transferencia_credito: tra?.credit ?? null,
+      fase_alcanzada: tra ? 'transferencia' : ref ? 'reflexion' : fin ? 'corregida' : 'inicial',
+    };
+  });
+}
 
 /** Tiempos del motor de examen por intento y pregunta: diario de tramos conciliado con los eventos oficiales. */
 function tiemposExamen(d: Record<string, Fila[]>): Fila[] {
@@ -292,5 +336,5 @@ export function calcularDerivados(d: Record<string, Fila[]>): Derivados {
   });
 
   return { eventos_normalizados, sesiones_telemetria, intervalos_estado, modificaciones, calidad_datos, metricas_pregunta, metricas_intento, metricas_estudiante, resumen_colectivo,
-    tiempos_examen: tiemposExamen(d) };
+    tiempos_examen: tiemposExamen(d), aprendizaje_asistido: aprendizajeAsistido(d) };
 }

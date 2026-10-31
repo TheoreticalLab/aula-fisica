@@ -100,7 +100,7 @@ function readme(m: Record<string, unknown>, tablas: TablaSalida[]): string {
     '| Tabla | Carpeta | Filas | Origen | Descripción |', '|---|---|---|---|---|',
     ...tablas.map((t) => `| ${t.nombre} | ${t.carpeta} | ${t.filas.length} | ${t.origen} | ${t.descripcion.replace(/\|/g, '/')} |`), '',
     '## Cómo usarla', '',
-    '- **diccionario_datos.csv**: qué significa cada variable, su tipo, unidad, origen (observado, registrado, inferido o calculado), cálculo y limitaciones.',
+    '- **diccionario_datos.csv**: qué significa cada variable, su tipo, unidad, origen (observado, declarado por el estudiante, registrado, inferido o calculado), cálculo y limitaciones. Lo «declarado» (p. ej. si usó IA) no es una verificación.',
     '- **CSV**: UTF-8 con BOM, separador coma, CRLF. Los textos que empiezan con = + - @ llevan un apóstrofo delante para que Excel no los ejecute; JSON y SQL conservan el valor original.',
     '- **JSON Lines** (`json/*.jsonl`): una fila por línea con la estructura original (objetos anidados). En Python: `pandas.read_json(ruta, lines=True)`.',
     '- **Excel**: una hoja por tabla, con filtros. Las tablas de más de 1 048 575 filas continúan en hojas «(2)», «(3)»…',

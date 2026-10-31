@@ -3,7 +3,8 @@
  * Métricas pedagógicas independientes de LIEIA. Nombres honestos: «rendimiento inicial DECLARADO» (no «dominio autónomo»),
  * «rendimiento posterior a la asistencia». Ninguna nota depende de la declaración de uso de IA.
  */
-import { parseQuantity } from '@calif/calificar.ts';
+// ruta relativa (no el alias @calif): este módulo también lo compila Orbe Control (Centro de Datos), que no define alias
+import { parseQuantity } from '../../supabase/functions/_shared/calificacion/calificar.ts';
 import type { StudentAnswer } from '@/api/tipos';
 
 export type Fase = 'inicial' | 'corregida' | 'reflexion' | 'transferencia';

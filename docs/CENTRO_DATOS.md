@@ -49,6 +49,7 @@ código en `src/lib/exportacion/` y `orbe-control/src/Datos.tsx`; pruebas en `te
 | En pantalla | Se reproduce con |
 |---|---|
 | Cronología por pregunta, tiempo activo, oculto, inactivo, sin conexión, espera final, calidad (LIEIA) | **Incluido**: `metricas_pregunta`, `metricas_intento`, `intervalos_estado`, `calidad_datos` (misma función `reconstruir()`) |
+| Práctica asistida: primer intento y declaración, respuesta final, cambio, explicación presentada, ayudas, transferencia | **Incluido** (métricas 1.1): `aprendizaje_asistido`, a partir de `asistida_pasos`. Las variables «declaradas» (uso de IA, fuentes) se marcan como tales en el diccionario: no son verificaciones |
 | Motor de examen: tiempo por pregunta y categoría (trabajo, inactividad, pausa, oculta, desconexión, desconocido), visitas, tiempo observable y prórroga | **Incluido** (métricas 1.1): `tiempos_examen`, calculada con `conciliar()` y `resumirTiempos()` a partir de `examen_tramos` y `examen_eventos` |
 | Detectores LIEIA (D1–D8, P1–P3), calibración 2PL | Funciones de `src/lib/lieia/` sobre `eventos_originales`, `eventos_pregunta`, `respuestas` y `ejercicios` exportados |
 | Sesiones de estudio de la ficha | `visitas` (agrupar por estudiante con la pausa configurada) |
@@ -60,7 +61,7 @@ código en `src/lib/exportacion/` y `orbe-control/src/Datos.tsx`; pruebas en `te
 
 - **Servidor (solo lectura):**
   - `export_begin` resuelve el alcance autorizado (estudiantes e intentos), fija la **hora de corte** (`as_of`), cuenta las filas de cada tabla y registra quién exporta, cuándo y con qué alcance (`data_exports`, sin contenido).
-  - `export_page` sirve páginas de hasta 5000 filas (paginación por clave, sin límite total) de **41 fuentes en lista blanca** (45 con la migración 36, que añade la configuración, las sesiones, los eventos oficiales y los tramos del motor de examen). El nombre pedido nunca entra en el SQL: se elige una plantilla fija.
+  - `export_page` sirve páginas de hasta 5000 filas (paginación por clave, sin límite total) de **41 fuentes en lista blanca** (45 con la migración 36, que añade la configuración, las sesiones, los eventos oficiales y los tramos del motor de examen; 49 con la migración 39, que añade las prórrogas y la práctica con aprendizaje asistido: configuración, transferencias y pasos originales). La 39 también seudonimiza `teacher_id` en modo investigación. El nombre pedido nunca entra en el SQL: se elige una plantilla fija.
   - Solo la persona que inició la exportación puede pedir páginas, durante 24 h, y solo de las fuentes que eligió.
 - **Permisos:** el administrador puede todo. El profesorado, solo los estudiantes que imparte y sus secciones, asignaturas, actividades e intentos. Los estudiantes no pueden exportar nada.
 - **Modo investigación:** los identificadores de personas se sustituyen **en el servidor** por seudónimos estables `E-…`/`P-…` (HMAC-SHA256 con una clave que nunca sale de la base). Así se pueden relacionar entre tablas y entre exportaciones. Seudonimizar no es anonimizar.

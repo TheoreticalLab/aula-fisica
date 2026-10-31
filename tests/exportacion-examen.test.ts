@@ -37,6 +37,21 @@ describe('Centro de Datos · tiempos del motor de examen', () => {
     expect(fila('q1')).toMatchObject({ posicion: 1, trabajo_s: 70, visitas: 2, tiempo_observable_s: 70, estado_tiempo: 'valido', prorroga_s: 300 });
     expect(fila('q2')).toMatchObject({ trabajo_s: 50, pausa_s: 30, oculta_s: 10, desconocido_s: 40, discrepancias_intento: 1 });
   });
+  it('práctica asistida: una fila por intento y ejercicio con el proceso completo', () => {
+    const pasos = [
+      { id: 1, attempt_id: A, exercise_id: 'q1', user_id: U, fase: 'inicial', version: 1, answer: { text: '0.049 m' }, declaracion: 'autonomo', no_se: false, status: 'incorrect', credit: 0, created_at: t(0) },
+      { id: 2, attempt_id: A, exercise_id: 'q1', user_id: U, fase: 'corregida', version: 1, answer: { text: '0.098 cm' }, status: 'incorrect', credit: 0, created_at: t(60) },
+      { id: 3, attempt_id: A, exercise_id: 'q1', user_id: U, fase: 'corregida', version: 2, answer: { text: '0.098 m' }, procedimiento: 'energía', status: 'correct', credit: 1, created_at: t(90) },
+      { id: 4, attempt_id: A, exercise_id: 'q1', user_id: U, fase: 'reflexion', version: 1, reflexion: { error: 'Confundí equilibrio y retorno' }, fuentes: ['ia', 'libro'], created_at: t(120) },
+      { id: 5, attempt_id: A, exercise_id: 'q2', user_id: U, fase: 'inicial', version: 1, no_se: true, declaracion: 'no_pudo', status: 'incorrect', credit: 0, created_at: t(130) },
+    ];
+    const der2 = calcularDerivados({ ...d, ejercicios: [{ id: 'q1', format: 'numeric' }, { id: 'q2', format: 'numeric' }], asistida_pasos: pasos });
+    const f1 = der2.aprendizaje_asistido.find((f) => f.exercise_id === 'q1')!, f2 = der2.aprendizaje_asistido.find((f) => f.exercise_id === 'q2')!;
+    expect(Object.keys(f1).sort()).toEqual([...COLUMNAS_DERIVADAS.aprendizaje_asistido].sort());
+    expect(f1).toMatchObject({ inicial_respuesta: '0.049 m', declaracion: 'autonomo', inicial_estado: 'incorrect', correcciones: 2, final_respuesta: '0.098 m',
+      final_estado: 'correct', cambio: 'valor', procedimiento_cambio: true, reflexion_presentada: true, fuentes: 'ia,libro', fase_alcanzada: 'reflexion', activity_id: 'act' });
+    expect(f2).toMatchObject({ inicial_no_se: true, inicial_respuesta: null, declaracion: 'no_pudo', final_respuesta: null, cambio: null, fase_alcanzada: 'inicial' });
+  });
   it('sin tramos de examen no hay filas (no se inventan)', () => {
     expect(calcularDerivados({ intentos: d.intentos }).tiempos_examen).toEqual([]);
   });
