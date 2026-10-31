@@ -109,9 +109,13 @@ do $$ declare r jsonb; begin
 end $$;
 
 -- Caso 2 · tercer estudiante próximo: activación inmediata y los tres presentes
-do $$ declare r jsonb; s public.attendance_sessions; begin
+do $$ declare r jsonb; begin
   r := public.qtest_unir('13', 0, 25);
-  if r ->> 'estado' <> 'activada' then raise exception 'FALLO caso 2: %', r; end if;
+  if r ->> 'estado' <> 'activada' or r ->> 'session_id' is null then raise exception 'FALLO caso 2: %', r; end if;
+end $$;
+-- las comprobaciones leen las tablas directamente: como administrador de la prueba (el estudiante no puede, y es correcto)
+reset role;
+do $$ declare s public.attendance_sessions; begin
   select * into s from public.attendance_sessions where class_id = 'a4300000-0000-4000-8000-000000000031';
   if s.activacion <> 'quorum' or s.geo_radius_m <> 100 or cardinality(s.quorum_ids) <> 3 or s.closed_at is not null then raise exception 'FALLO caso 2: sesión %', row_to_json(s); end if;
   if not (s.quorum_ids @> array['a4300000-0000-4000-8000-000000000011', 'a4300000-0000-4000-8000-000000000012', 'a4300000-0000-4000-8000-000000000013']::uuid[]) then
@@ -121,6 +125,7 @@ do $$ declare r jsonb; s public.attendance_sessions; begin
   if public.geo_distance_m(s.geo_lat, s.geo_lng, public.qtest_lat(20.0 / 3), public.qtest_lng(25.0 / 3)) > 0.5 then raise exception 'FALLO caso 2: centro'; end if;
   perform set_config('prueba.q', s.id::text, true);
 end $$;
+set local role authenticated;
 
 -- Caso 7 · nuevas pulsaciones con la sesión ya activa: ni otra sesión ni registros duplicados
 do $$ declare r jsonb; begin
@@ -128,10 +133,10 @@ do $$ declare r jsonb; begin
   r := public.qtest_unir('14', 10, 10);  if (r ->> 'ya')::boolean is not true then raise exception 'FALLO caso 7 (repetido): %', r; end if;
   r := public.qtest_unir('11', 0, 0);    if (r ->> 'ya')::boolean is not true then raise exception 'FALLO caso 7 (integrante): %', r; end if;
   if public.qtest_sesiones('31') <> 1 then raise exception 'FALLO caso 7: más de una sesión'; end if;
-  if (select count(*) from public.attendance_records where session_id = current_setting('prueba.q')::uuid) <> 4 then raise exception 'FALLO caso 7: registros duplicados o perdidos'; end if;
 end $$;
 reset role;
 do $$ begin
+  if (select count(*) from public.attendance_records where session_id = current_setting('prueba.q')::uuid) <> 4 then raise exception 'FALLO caso 7: registros duplicados o perdidos'; end if;
   begin
     insert into public.attendance_sessions (class_id, code, code_expires_at, activacion, franja)
       select class_id, '123456', now() + interval '1 hour', 'quorum', franja from public.attendance_sessions where id = current_setting('prueba.q')::uuid;
