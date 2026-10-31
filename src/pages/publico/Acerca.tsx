@@ -48,8 +48,12 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
       'Dominio por concepto calculado a partir de respuestas verificables (acierto al primer intento, uso de pistas, evaluaciones), no de páginas visitadas.',
       'Estadísticas por actividad y por concepto, libro de calificaciones y exportación a CSV.',
       'Panel de inicio del estudiante: mis cursos, continuar donde lo dejó, próximas actividades, avisos de la sección y del sistema, progreso y calificaciones recientes.',
+      'Práctica clásica: lo escrito se copia en el dispositivo hasta que el servidor lo confirma, los guardados fallidos se reintentan y, al volver, se recupera sin sobrescribir lo guardado desde otro dispositivo.',
     ],
-    pendiente: ['Personalización del aprendizaje y análisis pedagógico avanzado (etapa 3).'],
+    pendiente: [
+      'Personalización del aprendizaje y análisis pedagógico avanzado (etapa 3).',
+      'Telemetría V2 (programada y probada, pendiente de instalar y de probar en navegador y teléfono): reconstrucción científica de cada intento por intervalos (lo observado, lo reconstruido, lo estimado y lo desconocido), historial de guardados de respuestas, instantánea de la entrega, exportación por niveles y monitor. Nace apagada; se activa por asignatura.',
+    ],
   },
   {
     area: 'Orbe IA (humor contextual)',

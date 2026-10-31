@@ -173,16 +173,144 @@ controles sí es atribuible. Resultado con el respaldo real: la única respuesta
 encontrada por la auditoría independiente. (Una primera versión marcaba 53 por un artefacto: V1 emite el cambio al
 *cerrar* la ráfaga, 2 s después del último cambio y después del guardado; el motor usa ahora el final real de la ráfaga.)
 
-## 4. Plan por etapas
+## 4. Arquitectura y esquema de datos (etapas C–D, migración 42)
+
+Niveles que **nunca se mezclan**: eventos originales (V1 `telemetry_events`, V2 `telemetry_v2_events`, diario del
+examen, hechos del servidor, revisiones) → proyección reconstruida (`reconstruir`, en el navegador del profesor, a
+partir de los originales; no se guarda) → variables derivadas (métricas por pregunta con estado) → exportación. Cada
+salida lleva `version` del motor y `parametros`; reprocesar con un motor nuevo no modifica ningún registro original.
+
+| Tabla / función | Contenido | Quién |
+|---|---|---|
+| `telemetry_v2_events` | sobre V2: `event_id` (único), `schema_version` = 2, `attempt_id`, `session_id`, `tab_id`, `client_seq` (único por sesión), `event_type`, `question_id`, `active_question_id`, `t_mono` (reloj monotónico), `client_wall` (orientativa; se anula si difiere > 1 día), `received_at` (servidor; es también la confirmación, porque la ingesta es síncrona), `visibility`, `connectivity`, `response_rev`, `payload` (lista blanca, ≤ 600 B), `quality_flags` | escribe solo `telemetry_v2_ingest` (dueño del intento, bandera encendida, identidad desde la sesión autenticada); no hay lectura directa |
+| `telemetry_v2_flags` | bandera por asignatura (apagada por defecto) | `telemetry_v2_set` (equipo de la asignatura), `telemetry_v2_flag` (profesorado) |
+| `telemetry_v2_sync(intento)` | hora del servidor (ms) y si la V2 está activa | estudiante dueño |
+| `response_revisions` | historial de los **guardados** del contenido de cada respuesta (disparador del servidor) | nadie la escribe directamente; lectura vía `telemetria_v2_intento` |
+| `attempt_snapshots` | al entregar: revisión, estado y huella de cada respuesta entregada | disparador; inmutable |
+| `telemetria_v2_intento(intento)` | intento, preguntas, V1, V2, diario y hechos del examen, revisiones, comprobaciones y calificaciones (`response_events`), respuestas actuales e instantánea | profesorado que puede revisar el intento; queda en `analytics_audit` |
+| `telemetry_v2_monitor(horas)` | ingesta por hora, tipos, indicadores de calidad, cola máxima declarada, banderas | administración |
+
+## 5. Diccionario de eventos V2
+
+Todos son **declarados por el cliente**. Los hechos autoritativos (inicio, guardado aceptado, entrega, pausas y cambio
+de pregunta del examen, calificación) están en las tablas del servidor.
+
+| Evento | Qué acción lo genera | Datos | Garantía | Qué NO permite inferir |
+|---|---|---|---|---|
+| `session_started` / `session_resumed` | carga de la página / vuelta desde la caché del navegador | `navegacion`, `visible` | una sesión = un reloj monotónico | que sea la misma persona o el mismo dispositivo que otra sesión |
+| `session_ended` | salida de la página (`pagehide`) | — | best effort (el navegador puede no avisar) | que el estudiante dejara de trabajar |
+| `clock_sync` | llamada a `telemetry_v2_sync` (al empezar y cada 5 min) | `envio_tau`, `servidor_ms`, `recibo_tau` | ancla con incertidumbre = ida y vuelta / 2 | — |
+| `heartbeat` | cada 30 s con la página visible | `pendientes` (cola), `n` (descartados) | señal de vida | actividad del estudiante |
+| `page_visible` / `page_hidden` | cambio de visibilidad de la página | — | estado de la pestaña | que mirara la pantalla / que usara otra herramienta |
+| `focus_gained` / `focus_lost` | foco de la ventana | — | — | atención |
+| `idle_started` / `idle_ended` | 60 s sin puntero, tecla, desplazamiento ni toque / su fin | `desde_tau`, `duracion_ms` | política de inactividad | que pensara o abandonara |
+| `connection_lost` / `connection_restored` | eventos de red del navegador | — | — | que dejara de trabajar (el navegador sigue observando) |
+| `question_exposure_started` / `_ended` | la pregunta ocupa ≥ ½ pantalla o se ve ≥ ½ de ella | — | exposición | lectura |
+| `question_activated` / `_deactivated` | foco o toque dentro de la tarjeta de una pregunta | — | atribución por control | que la pregunta fuera lo único en lo que pensaba |
+| `answer_draft_changed` | ráfaga de cambios (se cierra 2 s después del último) | `inicio_tau`, `fin_tau`, `n`, `len`, `delta`, `h` (huella FNV), `vacia`, `primera`, `borrado`, `tipo_cambio` (introducida, modificada, reemplazada, vaciada, restaurada) | sin contenido | qué escribió; si copió o pegó; autoría |
+| `answer_draft_restored` | se recuperó un borrador del dispositivo | `len`, `h` | — | — |
+| `answer_save_requested` / `_confirmed` / `_failed` | guardado automático / respuesta del servidor / error | `codigo`, `intentos` | la confirmación es la respuesta del servidor; la revisión queda en `response_revisions` | — |
+| `answer_checked` | botón Comprobar (solicitada, recibida, error) | `fase` | el resultado oficial está en `response_events` | comprensión |
+| `attempt_submit_requested` | botón Entregar | — | la entrega oficial es `attempts.submitted_at` | — |
+| `simulation_event` | (reservado para simuladores; aún sin emisores) | `accion`, `param`, `valor` | — | — |
+
+## 6. Estados de una respuesta
+
+| Estado | Dónde se ve |
+|---|---|
+| Nunca modificada | sin ediciones ni revisiones |
+| Borrador en el dispositivo | copia local (`aula-borrador:…`); evento `answer_draft_changed` sin guardado confirmado posterior |
+| Guardado pendiente | «Sin guardar en el servidor: copia en este dispositivo»; reintentos 2 s, 5 s, 15 s y cada 30 s |
+| Guardado confirmado | revisión en `response_revisions` (la 1 = primera respuesta, nunca se consolida) |
+| Conflicto de revisión | práctica: copia local distinta de una respuesta guardada después en otro dispositivo → no se sobrescribe; se ofrece elegir. Examen: `client_rev` (las revisiones viejas no pisan las nuevas) |
+| Incluida en la entrega | `attempt_snapshots.revisiones[].rev` |
+| Evaluada | `response_events` (comprobación o entrega, con la respuesta y el resultado del motor) |
+| No evaluable | estado `pending_review` / código `key_error` |
+
+La auditoría de la reconstrucción responde «¿se escribió algo?, ¿qué versión quedó confirmada?, ¿cuál se entregó?,
+¿qué evaluó el servidor?, ¿por qué apareció vacía?» con un diagnóstico: `nunca_escrita`, `escrita_sin_guardar`,
+`guardada_y_vaciada`, `guardada` o `sin_historial` (intentos anteriores a la migración 42).
+
+## 7. Seguridad, privacidad y retención
+
+- Identidad siempre desde la sesión autenticada del servidor; el cliente no elige el estudiante. Preguntas validadas
+  contra el intento. Lotes ≤ 200 eventos, payload en lista blanca ≤ 600 B, tope de 50 000 eventos V2 por intento.
+- Lectura: estudiante, nada (ve solo el estado de guardado); profesorado, sus secciones (`can_review_attempt`,
+  auditado); administración, el monitor agregado; investigación: el Centro de Datos con seudónimos (pendiente de
+  añadir las fuentes V2).
+- Los registros confirmados no se alteran: sin permisos de escritura para usuarios; revisiones e instantáneas las
+  escriben disparadores. Un evento del navegador **puede falsificarse**: por eso se distingue de los hechos del servidor.
+- No se almacena: contraseñas, texto fuera de las respuestas, portapapeles, capturas, audio, vídeo, historial de
+  navegación, otras aplicaciones, reconocimiento facial ni identificadores entre dispositivos.
+- Retención: eventos V1 y V2, 365 días (limpieza automática); revisiones e instantáneas, como el resto del registro
+  académico (tablas protegidas: nunca pierden filas en un despliegue). El estudiante ve el aviso de lo que se registra.
+
+## 8. Coste (datos reales del respaldo)
+
+Mediana 112 eventos V1 por intento (p90 275, máx. 565); `data` medio 28 B. Estimación en PostgreSQL ≈ 0.3–0.4 KB por
+evento con índices → ≈ 40 KB por intento y capa (p90 ≈ 100 KB). Con V1 y V2 a la vez, ≈ el doble. Revisiones: unas
+pocas por respuesta de ≈ 0.3 KB (los guardados seguidos se consolidan). El motor reconstruyó los 77 intentos reales en
+330 ms (≈ 4 ms por intento) en el navegador del profesor. El cliente limita a 20 eventos/s (lo esencial nunca se
+descarta), lotes de 100 y 3 000 eventos en cola.
+
+## 9. Manual de análisis para el profesorado
+
+1. Revisión del intento → **Telemetría V2 — Reconstrucción del intento**. La cabecera dice la fuente (examen, V2 o V1) y
+   sus límites.
+2. **Resumen**: duración cronológica y partición del tiempo (activa, inactiva, sin foco, oculta, pausa, desconocido,
+   simultánea, sin observación), sesiones y relación entre ellas, eventos tardíos o perdidos; tabla por pregunta.
+   «No identificable» significa que los datos no permiten calcularlo; no es cero.
+3. **Cronología**: una fila por pregunta (en pantalla, activa, edición) y marcas (▲ edición, ● guardado, ✕ fallo,
+   ◆ comprobación, ▶ activación, ⚑ entrega). Acercar, desplazar, filtrar y pulsar una marca para ver su detalle.
+4. **Ficha** de una pregunta: tiempos con su estado, secuencia, calidad por dimensión, primera y última respuesta,
+   versión entregada, comprobaciones.
+5. **Investigación avanzada**: sesiones (ancla, incertidumbre, huecos, duplicados, retrasos), eventos y exportación A–E.
+6. Interpretación: describe el proceso observable. No convierta anomalías en acusaciones ni penalice por indicadores
+   temporales. Compare solo actividades equivalentes y con buena cobertura.
+
+## 10. Compatibilidad con LIEIA
+
+LIEIA y D6 **no cambian**: siguen leyendo V1 y el diario del examen; el observador V1 de visibilidad se dejó tal cual
+(aunque tiene el defecto documentado) para no alterar sus entradas. `paraLieia()` (`fuente.ts`) ofrece una interfaz
+versionada (`telemetria-v2/lieia@1`: tiempo reconstruido, de interacción y de edición, pausas, calidad, cobertura, estado
+de respuesta, resultado, versión del motor y huella de parámetros) en la que un valor no identificable es `null` con su
+estado. **No está conectada** a ningún detector ni recalcula resultados históricos.
+
+## 11. Despliegue y reversión
+
+1. `npm run respaldo` → `npm run probar` (debe aparecer `telemetria_v2.sql: PRUEBAS PASARON`) → `npm run plan` (migración
+   42) → autorización → `npm run aplicar -- --plan CÓDIGO` → `git push` (interfaz).
+2. Tras aplicar, todo sigue apagado: el historial de revisiones y las instantáneas empiezan a registrarse (no cambian
+   nada visible); la V2 del navegador solo se activa al encender la bandera de una asignatura (Análisis → Telemetría).
+   Despliegue progresivo: una asignatura de prueba, comprobar el monitor y una reconstrucción, después el resto.
+3. Reversión: apagar las banderas. Si hiciera falta, una migración que elimine los dos disparadores nuevos
+   (`responses_revision_*`, `attempts_instantanea`); los datos registrados se conservan. La interfaz anterior: `git revert`.
+
+## 12. Pruebas
+
+| Qué | Dónde |
+|---|---|
+| Álgebra de intervalos (propiedades), casos A–H, J–M, Q, R, T, invariantes con 300 intentos aleatorios, determinismo | `tests/telemetria-v2.test.ts` |
+| Ruta V2 completa con reloj simulado y eventos retrasados (error 0 frente a la cronología conocida), idempotencia, cola persistente, presupuestos, tipos de cambio | `tests/telemetria-v2-cliente.test.ts` |
+| Fuente, auditoría de respuestas, interfaz LIEIA, exportación (coincide con la vista; CSV seguro; JSON reproducible) | `tests/telemetria-v2-fuente.test.ts` |
+| Borradores de la práctica clásica (casos G y H del lado del cliente, conflicto entre dispositivos) y criterio de exposición | `tests/borradores.test.ts` |
+| Servidor: permisos, idempotencia, lista blanca, bandera, revisiones y consolidación, instantánea, lectura por profesorado (caso I del lado del servidor, O/P con `practica_asistida.sql`) | `supabase/pruebas/telemetria_v2.sql` |
+| Datos reales: 77 intentos del respaldo sin invariantes violados | `privado/tmp/reconstruir-respaldo.ts` |
+
+**No verificado todavía:** navegador real (escritorio y móvil, cambios de pestaña, suspensión, red intermitente,
+dos pestañas reales), carga simultánea (caso S) y las pruebas SQL (requieren `npm run probar`).
+
+## 13. Plan por etapas
 
 | Etapa | Contenido | Estado |
 |---|---|---|
 | A | Auditoría y modelo formal (el diccionario de eventos V2 se escribe con la ingesta, etapa C, para documentar solo eventos reales) | ✔ este documento |
 | B | Motor puro de intervalos y reconstrucción (V1 → modelo; examen → modelo), calidad, pruebas de casos e invariantes, determinismo | ✔ `src/lib/telemetria/v2/{intervalos,modelo,reconstruir,adaptadores}.ts`, `tests/telemetria-v2.test.ts` (casos A–H, J–M, Q, R, T; propiedades del álgebra; 300 intentos aleatorios). Con los 77 intentos reales del respaldo: 0 invariantes violados, 330 ms en total |
-| C | Ingesta V2: tabla propia versionada e idempotente, sincronización de reloj, bandera de activación | pendiente |
-| D | Respuestas: historial de revisiones del servidor, instantánea de entrega, copia y reintento del borrador en la práctica clásica | pendiente |
-| E–F | Integración con examen (diario existente) y práctica clásica y asistida (pregunta activa por control enfocado, observador corregido) | pendiente |
-| G | Calidad de datos y abstenciones | pendiente |
-| H | Vista docente «Telemetría V2 — Reconstrucción del intento» | pendiente |
-| I | Exportación por niveles (A–E) desde el mismo motor | pendiente |
-| J | Validación integral: SQL, navegador, móvil, carga | pendiente |
+| C | Ingesta V2: tabla propia versionada e idempotente, sincronización de reloj, bandera de activación | ✔ código (migración 42 + `supabase/pruebas/telemetria_v2.sql`); **pendiente de aplicar** |
+| D | Respuestas: historial de revisiones del servidor, instantánea de entrega, copia y reintento del borrador en la práctica clásica | ✔ código (migración 42; `src/lib/borradores.ts`, `Ejercicio.tsx`); pendiente de aplicar y de probar en navegador |
+| E–F | Práctica clásica (pregunta activa por control enfocado, exposición corregida, guardados) y examen (reconstrucción desde su diario conciliado, que ya tiene la pregunta activa del servidor) | ✔ práctica clásica y examen. **Práctica asistida:** sus fases e historial inmutable ya están en `assisted_steps`; aún no se integran en la reconstrucción |
+| G | Calidad de datos y abstenciones | ✔ calidad por dimensión, estados de métrica, invariantes, monitor |
+| H | Vista docente «Telemetría V2 — Reconstrucción del intento» y panel «Telemetría» | ✔ `src/pages/docente/{TelemetriaIntento,TelemetriaPanel}.tsx`; sin probar en navegador |
+| I | Exportación por niveles (A–E) desde el mismo motor | ✔ por intento (`exportar.ts`); exportación masiva seudonimizada: pendiente (fuentes nuevas en el Centro de Datos) |
+| J | Validación integral: SQL, navegador, móvil, carga | ⬜ pendiente: `npm run probar`, navegador y teléfono reales, carga simultánea |
+| — | Análisis estadístico descriptivo entre intentos, actividades y conceptos (fase 11) | ⬜ pendiente |
