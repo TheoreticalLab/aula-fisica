@@ -223,6 +223,31 @@ export const SIMULATIONS: SimInfo[] = [
       { name: 'e', label: 'Coeficiente de restitución', unit: '', min: 0, max: 1, step: 0.05, default: 1 },
     ],
   },
+  {
+    key: 'laboratorio-choques',
+    title: 'Laboratorio de choques: colisión seguida de fricción',
+    block: 'Física de los choques',
+    description:
+      'Dos bloques se acercan sobre una superficie lisa (etapa A), chocan y después deslizan sobre una superficie con fricción hasta detenerse (etapa B). Muestra posiciones, velocidades, cantidad de movimiento, energía cinética, impulsos y la energía transformada en cada etapa, con gráficas x–t, v–t, p–t y K–t. La gráfica fuerza–tiempo usa un modelo de contacto declarado.',
+    model: String.raw`**Etapa A (choque):** el sistema está aislado en la dirección del movimiento, así que $m_1 v_1 + m_2 v_2 = m_1 v_1' + m_2 v_2'$, con $e = \dfrac{v_2' - v_1'}{v_1 - v_2}$. **Etapa B (fricción):** cada cuerpo frena con $a = -\mu_k g$ (en sentido contrario a su velocidad), $t = |v|/(\mu_k g)$, $d = v^2/(2\mu_k g)$ y $W_f = -\mu_k m g\, d = -K$. La cantidad de movimiento **no** se conserva en la etapa B: la fricción es una fuerza externa. **Fuerza de contacto:** pulso semisinusoidal $F(t) = \dfrac{\pi J}{2\Delta t}\sin\dfrac{\pi t}{\Delta t}$, con el impulso $J$ del choque y la duración $\Delta t$ elegida; fuerza media $J/\Delta t$.`,
+    simplifications: [
+      'Superficie lisa antes del choque y fricción cinética constante desde el instante del choque.',
+      'Choque instantáneo frente al resto del movimiento, en una dimensión; el signo indica el sentido.',
+      'Un solo choque. Si e = 0 los bloques quedan unidos y deslizan como un solo cuerpo de masa m₁ + m₂.',
+      'La forma del pulso de fuerza es un modelo: solo el impulso (el área) lo fijan las leyes de conservación.',
+    ],
+    params: [
+      { name: 'm1', label: 'Masa del bloque 1', unit: 'kg', min: 0.1, max: 10, step: 0.1, default: 2 },
+      { name: 'm2', label: 'Masa del bloque 2', unit: 'kg', min: 0.1, max: 10, step: 0.1, default: 1 },
+      { name: 'v1', label: 'Velocidad inicial del bloque 1', unit: 'm/s', min: -10, max: 10, step: 0.1, default: 6 },
+      { name: 'v2', label: 'Velocidad inicial del bloque 2', unit: 'm/s', min: -10, max: 10, step: 0.1, default: 0 },
+      { name: 'e', label: 'Coeficiente de restitución', unit: '', min: 0, max: 1, step: 0.05, default: 0 },
+      { name: 'mu', label: 'Coeficiente de fricción cinética después del choque', unit: '', min: 0, max: 1, step: 0.05, default: 0.25 },
+      { name: 'g', label: 'Aceleración de la gravedad', unit: 'm/s²', min: 1, max: 20, step: 0.1, default: 9.8 },
+      { name: 'separacion', label: 'Separación inicial entre los bloques', unit: 'm', min: 0.2, max: 5, step: 0.1, default: 1.2 },
+      { name: 'dt_ms', label: 'Duración del contacto (modelo de fuerza)', unit: 'ms', min: 1, max: 100, step: 1, default: 10 },
+    ],
+  },
 ];
 
 export function getSimulation(key: string): SimInfo | undefined {

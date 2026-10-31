@@ -15,6 +15,7 @@ const COMPONENTES: Record<string, LazyExoticComponent<ComponentType<SimProps>>> 
   'conservacion-energia': lazy(() => import('./ConservacionEnergia')),
   'masa-resorte': lazy(() => import('./MasaResorte')),
   colisiones: lazy(() => import('./Colisiones')),
+  'laboratorio-choques': lazy(() => import('./LaboratorioChoques')),
 };
 
 export function simulatorAvailable(key: string): boolean {
@@ -43,7 +44,7 @@ export function Simulador({ simKey, params: initial, compact = false }: { simKey
         </div>
       </details>
       <Suspense fallback={<Spinner label="Cargando simulador…" />}>
-        <Comp params={params} compact={compact} />
+        <Comp params={params} compact={compact} setParams={setParams} />
       </Suspense>
     </SimMarco>
   );

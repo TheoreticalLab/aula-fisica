@@ -1,8 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/tema', () => ({ useDark: () => false }));      // el entorno de pruebas no tiene document
 import {
   caidaHorizontal, choque1D, choque2DAngulos, choque2DUnidos, compresionResorte, deslizar, energiaCinetica, frenadoHorizontal, fuerzaMedia,
-  rebote, recorrerDistancia, restitucionPorAlturas, simularLaboratorio, subidaPlano,
+  pulsoContacto, rebote, recorrerDistancia, restitucionPorAlturas, simularLaboratorio, subidaPlano,
 } from '../src/lib/fisica/choques';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import LaboratorioChoques from '../src/sims/LaboratorioChoques';
+import { resolveParams } from '../src/sims/catalogo';
 
 const cerca = (a: number, b: number, d = 9) => expect(a).toBeCloseTo(b, d);
 
@@ -130,5 +136,57 @@ describe('Choques en dos dimensiones', () => {
   it('quedan unidos en un cruce perpendicular', () => {
     const c = choque2DUnidos(1000, 20, 0, 1500, 0, 10);
     cerca(c.vx, 8); cerca(c.vy, 6); cerca(c.v, 10); cerca(c.angulo, (Math.atan2(6, 8) * 180) / Math.PI);
+  });
+});
+
+describe('Modelo de contacto (gráfica fuerza–tiempo)', () => {
+  it('el área del pulso es el impulso y la media es J/Δt', () => {
+    const { pico, media, puntos } = pulsoContacto(4.5, 0.01, 400);
+    let area = 0;
+    for (let i = 1; i < puntos.length; i++) area += ((puntos[i].F + puntos[i - 1].F) / 2) * (puntos[i].t - puntos[i - 1].t);
+    cerca(area, 4.5, 4); cerca(media, 450); cerca(pico, (Math.PI / 2) * 450);
+  });
+});
+
+describe('Laboratorio: otros escenarios', () => {
+  const base = { m1: 2, m2: 1, v1: 6, v2: 0, e: 0, mu: 0.25, g: 10, separacion: 1.2 };
+  it('elástico con fricción: cada bloque frena por separado y toda la K posterior se transforma', () => {
+    const s = simularLaboratorio({ ...base, e: 1 });
+    cerca(s.choque!.v1f, 2); cerca(s.choque!.v2f, 8);
+    cerca(s.transformada_choque, 0); cerca(s.transformada_deslizamiento, 36);
+    cerca(s.frenado1!.d, 0.8); cerca(s.frenado2!.d, 12.8);
+    cerca(s.frenado1!.W + s.frenado2!.W, -36);
+    const fin = s.muestras[s.muestras.length - 1];
+    expect(fin.v1).toBe(0); expect(fin.v2).toBe(0);
+    expect(s.muestras.every((m) => m.x2 >= m.x1 + 0.4 - 1e-9)).toBe(true);   // nunca se atraviesan
+  });
+  it('sin fricción: no se detienen y la simulación termina igualmente', () => {
+    const s = simularLaboratorio({ ...base, mu: 0 });
+    expect(Number.isFinite(s.t_fin)).toBe(true);
+    expect(s.transformada_deslizamiento).toBe(0);
+    const fin = s.muestras[s.muestras.length - 1];
+    cerca(fin.p1 + fin.p2, 12);                                 // sin fuerza externa, p se conserva
+  });
+  it('si no se acercan, no hay choque', () => {
+    const s = simularLaboratorio({ ...base, v1: 1, v2: 2 });
+    expect(s.choca).toBe(false); expect(s.choque).toBeNull();
+    expect(s.muestras.every((m) => m.etapa === 'A')).toBe(true);
+  });
+  it('número de muestras acotado aunque el frenado sea muy largo', () => {
+    const s = simularLaboratorio({ ...base, mu: 0.01, v1: 10 });
+    expect(s.muestras.length).toBeLessThanOrEqual(4001);
+  });
+});
+
+describe('Componente del laboratorio (renderizado en el servidor)', () => {
+  it('se dibuja con los valores por defecto, sin choque, sin fricción y en vista compacta', () => {
+    for (const extra of [{}, { v1: -2 }, { mu: 0 }, { e: 1 }] as Record<string, number>[]) {
+      const params = resolveParams('laboratorio-choques', extra);
+      const html = renderToStaticMarkup(createElement(LaboratorioChoques, { params, setParams: () => {} }));
+      expect(html).toContain('Etapa A');
+    }
+    const html = renderToStaticMarkup(createElement(LaboratorioChoques, { params: resolveParams('laboratorio-choques', {}), compact: true }));
+    expect(html).toContain('Etapa B · deslizamiento con fricción');
+    expect(html).not.toContain('Tipo de choque');               // sin setParams no se ofrecen los botones
   });
 });

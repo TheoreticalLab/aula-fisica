@@ -121,6 +121,19 @@ export const impulsoDeFuerza = (F: number, dt: number) => F * dt;
 export const fuerzaMedia = (m: number, vi: number, vf: number, dt: number) => (m * (vf - vi)) / dt;
 
 /**
+ * Modelo de contacto declarado: pulso semisinusoidal F(t) = (πJ / 2Δt) sen(πt/Δt) en 0 ≤ t ≤ Δt. Su área es J.
+ * Solo el impulso lo fijan las leyes de conservación; la forma y la duración son hipótesis del modelo.
+ */
+export function pulsoContacto(J: number, dt: number, n = 60) {
+  const pico = (Math.PI * J) / (2 * dt);
+  const puntos = Array.from({ length: n + 1 }, (_, i) => {
+    const t = (dt * i) / n;
+    return { t, F: pico * Math.sin((Math.PI * t) / dt) };
+  });
+  return { pico, media: J / dt, puntos };
+}
+
+/**
  * Choque en 2D: el cuerpo 1 llega por +x con v1 contra el 2 en reposo; después, el 1 sale con ángulo α1 (sobre +x) y
  * el 2 con ángulo α2 (bajo +x, ángulos en grados, positivos). Conservación por componentes → rapideces finales.
  */
