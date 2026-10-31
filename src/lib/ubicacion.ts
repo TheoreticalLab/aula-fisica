@@ -2,7 +2,7 @@
  * Ubicación del navegador para la asistencia (la usan el aula y Orbe Control). Solo se pide al marcar o al abrir
  * la asistencia, nunca en segundo plano. Devuelve null si el navegador no la da (permiso negado, sin GPS, etc.).
  */
-export interface Ubicacion { lat: number; lng: number; accuracy: number }
+export interface Ubicacion { lat: number; lng: number; accuracy: number; /** instante (ms, reloj del dispositivo) en que se tomó la medición */ tomada?: number }
 
 export function ubicacionActual(tiempoMax = 12000): Promise<{ ubicacion: Ubicacion | null; motivo: string | null }> {
   return new Promise((resolve) => {
@@ -11,7 +11,7 @@ export function ubicacionActual(tiempoMax = 12000): Promise<{ ubicacion: Ubicaci
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ ubicacion: { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy }, motivo: null }),
+      (p) => resolve({ ubicacion: { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy, tomada: p.timestamp }, motivo: null }),
       (e) => resolve({
         ubicacion: null,
         motivo: e.code === e.PERMISSION_DENIED

@@ -7,6 +7,7 @@ import { aCsv } from '@/lib/tiempo';
 import { porcentajeAsistencia, tonoAsistencia, UMBRAL_ASISTENCIA } from '@/lib/asistencia';
 import { useAction, useAsync } from '@/lib/util';
 import { Badge, Card, ErrorBox, Spinner } from '@/components/ui';
+import { ConfigQuorum } from './ConfigQuorum';
 
 const fecha = (iso: string) => new Date(iso).toLocaleString('es-DO', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -41,11 +42,20 @@ export function EnVivo({ id, onCerrada }: { id: string; onCerrada: () => void })
   const abierta = !d.closed_at && restante > 0;
   const presentes = d.estudiantes.filter((e) => e.presente);
   const cambiaEn = d.code_changes_at ? Math.max(0, Math.ceil((new Date(d.code_changes_at).getTime() - (Date.now() + desfase)) / 1000)) : null;
+  const porQuorum = d.activacion === 'quorum';
   return (
     <div className="space-y-3">
       <ErrorBox error={accion.error} />
+      {porQuorum && (
+        <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm dark:border-sky-800 dark:bg-sky-900/20">
+          <p className="font-semibold">Activada por quórum de proximidad</p>
+          <p>Hora programada: {d.franja ? hora(d.franja) : '—'} · activación real: {hora(d.opened_at)} · zona de {d.geo_radius_m} m alrededor del centro del grupo inicial (fijo)</p>
+          <p>Quórum inicial: {(d.quorum ?? []).map((q) => q.full_name || q.student_code).join(', ') || '—'}</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">Los demás se validaron por proximidad a compañeros ya registrados. Usted puede cerrar, marcar o quitar a mano, o habilitar también el código.</p>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-4">
-        <div className="rounded-xl border border-gray-200 px-6 py-3 text-center dark:border-white/10">
+        <div className={`rounded-xl border border-gray-200 px-6 py-3 text-center dark:border-white/10 ${porQuorum ? 'hidden' : ''}`}>
           <p className="text-xs text-gray-500">Código {d.rotate_seconds ? `(cambia cada ${d.rotate_seconds} s)` : ''}</p>
           <p className={`font-mono text-5xl font-bold tracking-[0.2em] ${abierta ? '' : 'text-gray-400 line-through'}`}>{d.code.slice(0, 3)} {d.code.slice(3)}</p>
           {abierta && cambiaEn !== null && (
@@ -61,7 +71,7 @@ export function EnVivo({ id, onCerrada }: { id: string; onCerrada: () => void })
           <p className="text-sm text-gray-500">presentes</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="btn-secundario" disabled={accion.busy} onClick={() => void accion.run(async () => { await nuevoCodigo(id, 10); await cargar(); })}>Nuevo código (10 min)</button>
+          <button className="btn-secundario" disabled={accion.busy} onClick={() => void accion.run(async () => { await nuevoCodigo(id, 10); await cargar(); })}>{porQuorum ? 'Habilitar también código (10 min)' : 'Nuevo código (10 min)'}</button>
           {!d.closed_at && <button className="btn-secundario" disabled={accion.busy} onClick={() => void accion.run(async () => { await cerrarAsistencia(id); await cargar(); onCerrada(); })}>Cerrar asistencia</button>}
         </div>
       </div>
@@ -69,8 +79,9 @@ export function EnVivo({ id, onCerrada }: { id: string; onCerrada: () => void })
         {d.estudiantes.map((e) => (
           <div key={e.user_id} className={`flex items-center justify-between gap-2 rounded border px-2 py-1 text-sm ${e.presente ? 'border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-900/20' : 'border-gray-200 dark:border-white/10'}`}>
             <span><Link className="enlace" to={`/docente/estudiantes/${e.user_id}`}>{e.full_name || e.student_code || '—'}</Link>
-              <span className="block text-xs text-gray-500">{e.presente ? `${e.method === 'profesor' ? 'marcado por usted' : 'con código'} · ${hora(e.marked_at!)}` : 'ausente'}</span>
-              {e.presente && e.method === 'codigo' && e.geo_status && <span className={`block text-xs ${e.geo_status === 'verificado' ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}`}>{textoVerificacion(e.geo_status, e.distance_m, e.accuracy)}</span>}</span>
+              <span className="block text-xs text-gray-500">{e.presente ? `${e.method === 'profesor' ? 'marcado por usted' : e.method === 'quorum' ? 'quórum inicial' : e.method === 'proximidad' ? 'por proximidad' : 'con código'} · ${hora(e.marked_at!)}` : 'ausente'}</span>
+              {e.presente && e.method === 'codigo' && e.geo_status && <span className={`block text-xs ${e.geo_status === 'verificado' ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}`}>{textoVerificacion(e.geo_status, e.distance_m, e.accuracy)}</span>}
+              {e.presente && (e.method === 'quorum' || e.method === 'proximidad') && <span className="block text-xs text-green-700 dark:text-green-400">📍 a {e.distance_m ?? '?'} m del centro{e.method === 'proximidad' && e.validado_por ? ` · a ${e.distancia_ref_m ?? '?'} m de ${e.validado_por.split(' ')[0]}` : ''}{e.accuracy ? ` · ±${e.accuracy} m` : ''}</span>}</span>
             <button className="btn-secundario !px-2 !py-0.5 text-xs" disabled={accion.busy} onClick={() => void accion.run(async () => { await marcarManual(id, e.user_id, !e.presente); await cargar(); })}>{e.presente ? 'Quitar' : 'Marcar'}</button>
           </div>
         ))}
@@ -86,9 +97,34 @@ export function EnVivo({ id, onCerrada }: { id: string; onCerrada: () => void })
           </ul>
         </div>
       )}
+      {(d.incidencias ?? []).length > 0 && (
+        <details className="rounded-lg border border-gray-200 p-2 text-xs dark:border-white/10">
+          <summary className="cursor-pointer text-sm font-semibold">Validaciones e incidencias geográficas ({d.incidencias!.length})</summary>
+          <ul className="mt-1 space-y-0.5">
+            {d.incidencias!.map((x, i) => (
+              <li key={i}>{hora(x.fecha)} · <strong>{x.full_name ?? '—'}</strong> · {TIPO_INCIDENCIA[x.tipo] ?? x.tipo}
+                {x.detalle.motivo ? ` (${MOTIVO_INCIDENCIA[String(x.detalle.motivo)] ?? String(x.detalle.motivo)})` : ''}
+                {x.detalle.distancia_centro_m !== undefined ? ` · a ${String(x.detalle.distancia_centro_m)} m del centro` : ''}
+                {x.detalle.distancia_ref_m !== undefined ? ` · a ${String(x.detalle.distancia_ref_m)} m del admitido más cercano` : ''}
+                {x.detalle.precision_m !== undefined && x.detalle.precision_m !== null ? ` · ±${String(x.detalle.precision_m)} m` : ''}</li>
+            ))}
+          </ul>
+          <p className="mt-1 text-gray-500">«Inconclusa» no es ausencia: la medición no permitió decidir (puede validar al estudiante con «Marcar»).</p>
+        </details>
+      )}
     </div>
   );
 }
+
+const TIPO_INCIDENCIA: Record<string, string> = {
+  activacion: 'activó la asistencia (quórum)', presente: 'presente por proximidad', inconclusa: 'validación inconclusa', fuera_de_zona: 'fuera de la zona',
+  medicion_antigua: 'medición antigua', dispositivo_compartido: 'dispositivo de otro estudiante', renovada: 'renovó su referencia',
+  configuracion: 'cambió la configuración', centro_modificado: 'el docente cambió el centro',
+};
+const MOTIVO_INCIDENCIA: Record<string, string> = {
+  precision: 'GPS poco preciso', sin_referencias_vigentes: 'ningún admitido con ubicación reciente', zona_incierta: 'en el límite de la zona',
+  proximidad_incierta: 'proximidad incierta', lejos_del_centro: 'lejos del centro inicial', lejos_de_los_admitidos: 'lejos de los admitidos',
+};
 
 /** Formulario para abrir la asistencia con las medidas anti-trampa (compartido con la pestaña de la sección). */
 function AbrirAsistencia({ classId, onAbierta }: { classId: string; onAbierta: (id: string) => void }) {
@@ -171,6 +207,9 @@ export function TabAsistencia({ classId, nombre }: { classId: string; nombre: st
       <Card title="Pasar lista con código">
         {activa ? <EnVivo id={activa} onCerrada={() => void inf.reload()} /> : <AbrirAsistencia classId={classId} onAbierta={(id) => { setActiva(id); void inf.reload(); }} />}
         {activa && <button className="btn-secundario mt-3 text-xs" onClick={() => { setActiva(null); void inf.reload(); }}>Volver al historial</button>}
+      </Card>
+      <Card title="Asistencia autónoma por quórum de proximidad">
+        <ConfigQuorum classId={classId} />
       </Card>
       {inf.data && inf.data.sesiones.length > 0 && (() => {
         const n = inf.data.sesiones.length;

@@ -7,9 +7,14 @@ export interface AsistenciaEnVivo {
   id: string; class_id: string; clase: string; asignatura: string; code: string; code_expires_at: string; opened_at: string; closed_at: string | null;
   abierta: boolean; server_now: string; rotate_seconds: number; code_changes_at: string | null; require_location: boolean; geo_radius_m: number;
   tiene_ubicacion: boolean; geo_accuracy: number | null;
-  estudiantes: { user_id: string; full_name: string; student_code: string | null; presente: boolean; marked_at: string | null; method: 'codigo' | 'profesor' | null;
-    geo_status: string | null; distance_m: number | null; accuracy: number | null }[];
+  estudiantes: { user_id: string; full_name: string; student_code: string | null; presente: boolean; marked_at: string | null; method: 'codigo' | 'profesor' | 'quorum' | 'proximidad' | null;
+    geo_status: string | null; distance_m: number | null; accuracy: number | null; distancia_ref_m?: number | null; validado_por?: string | null }[];
   rechazos: { full_name: string; student_code: string | null; motivo: string; distance_m: number | null; accuracy: number | null; fecha: string }[];
+  /** Migración 43 (ausentes en bases anteriores). */
+  activacion?: 'manual' | 'quorum';
+  franja?: string | null;
+  quorum?: { user_id: string; full_name: string; student_code: string | null }[];
+  incidencias?: { tipo: string; full_name: string | null; detalle: Record<string, unknown>; fecha: string }[];
 }
 export interface InformeAsistencia {
   sesiones: { id: string; opened_at: string; closed_at: string | null; presentes: number }[];
@@ -36,3 +41,36 @@ export const marcarPresente = (codigo: string, u: Ubicacion | null) =>
     p_code: codigo, p_lat: u?.lat ?? null, p_lng: u?.lng ?? null, p_accuracy: u?.accuracy ?? null, p_install: contextoAcceso().install_id,
   });
 export const miAsistencia = () => rpc<MiAsistencia[]>('my_attendance');
+
+// ---- asistencia autónoma por quórum de proximidad (migración 43) ----
+const ausente = (e: unknown) => /Could not find the function|PGRST202|schema cache/i.test(e instanceof Error ? e.message : String(e));
+
+export interface EstadoQuorum {
+  class_id: string; clase: string; asignatura: string; session_id: string | null; activacion: 'manual' | 'quorum' | null;
+  estado: 'activa_quorum' | 'activa_manual' | 'cerrada' | 'quorum_disponible' | 'programada' | 'sin_horario';
+  presente: boolean; franja: string | null; fin_ventana: string | null; proxima: string | null; quorum: number; participantes: number;
+  mi_solicitud: boolean; mi_ref_vigente_hasta: string | null; server_now: string;
+}
+export interface RespuestaQuorum {
+  estado: 'activada' | 'esperando' | 'presente' | 'inconclusa' | 'fuera_de_zona' | 'medicion_antigua' | 'rechazada' | 'fuera_de_horario'
+    | 'sesion_manual' | 'cerrada' | 'no_disponible' | 'sin_sesion' | 'renovada' | 'sin_registro';
+  motivo?: string; participantes?: number; quorum?: number; proxima?: string | null; ya?: boolean; session_id?: string;
+}
+export interface AjustesQuorum {
+  enabled: boolean; quorum: number; ventana_min: number; radio_quorum_m: number; radio_proximidad_m: number; radio_general_m: number;
+  vigencia_ref_min: number; precision_max_m: number; edad_max_s: number; simultaneidad_s: number; duracion_min: number;
+}
+export interface ConfigQuorum { ajustes: AjustesQuorum; horario: { dia_semana: number; hora: string; activo: boolean }[]; proxima: string | null; zona: string }
+
+/** null si la migración 43 aún no está en la base. */
+export const estadoQuorum = () => rpc<EstadoQuorum[]>('attendance_quorum_estado').catch((e) => { if (ausente(e)) return null; throw e; });
+const edad = (u: Ubicacion) => Math.max(0, Math.round(Date.now() - (u.tomada ?? Date.now())));
+export const unirseQuorum = (classId: string, u: Ubicacion) =>
+  rpc<RespuestaQuorum>('attendance_quorum_join', { p_class: classId, p_lat: u.lat, p_lng: u.lng, p_precision: u.accuracy, p_edad_ms: edad(u), p_request: crypto.randomUUID(), p_install: contextoAcceso().install_id });
+export const marcarPorProximidad = (u: Ubicacion) =>
+  rpc<RespuestaQuorum>('attendance_quorum_check_in', { p_lat: u.lat, p_lng: u.lng, p_precision: u.accuracy, p_edad_ms: edad(u), p_install: contextoAcceso().install_id });
+export const renovarReferencia = (u: Ubicacion) =>
+  rpc<RespuestaQuorum>('attendance_quorum_renovar', { p_lat: u.lat, p_lng: u.lng, p_precision: u.accuracy, p_edad_ms: edad(u), p_install: contextoAcceso().install_id });
+export const configQuorum = (classId: string) => rpc<ConfigQuorum>('attendance_quorum_config', { p_class: classId }).catch((e) => { if (ausente(e)) return null; throw e; });
+export const guardarConfigQuorum = (classId: string, ajustes: Partial<AjustesQuorum>, horario: { dia_semana: number; hora: string }[] | null) =>
+  rpc<ConfigQuorum>('attendance_quorum_configurar', { p_class: classId, p_ajustes: ajustes, p_horario: horario });

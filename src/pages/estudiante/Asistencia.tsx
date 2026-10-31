@@ -9,6 +9,7 @@ import { marcarPresente, misAsistenciasAbiertas, miAsistencia, type AsistenciaAb
 import { ubicacionActual } from '@/lib/ubicacion';
 import { useAction, useAsync } from '@/lib/util';
 import { Card, ErrorBox, Notice, PageTitle, Spinner } from '@/components/ui';
+import { AsistenciaQuorum } from '@/components/AsistenciaQuorum';
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-DO', { weekday: 'short', day: 'numeric', month: 'short' });
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -27,8 +28,10 @@ export default function Asistencia() {
     const t = window.setInterval(cargar, 15_000);
     return () => window.clearInterval(t);
   }, []);
-  const pendientes = (abiertas ?? []).filter((a) => !a.presente);
-  const yaPresente = (abiertas ?? []).filter((a) => a.presente);
+  const [deQuorum, setDeQuorum] = useState<Set<string>>(new Set());
+  const conCodigo = (abiertas ?? []).filter((a) => !deQuorum.has(a.session_id));
+  const pendientes = conCodigo.filter((a) => !a.presente);
+  const yaPresente = conCodigo.filter((a) => a.presente);
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
@@ -50,6 +53,7 @@ export default function Asistencia() {
   return (
     <div className="space-y-4">
       <PageTitle title="Asistencia" subtitle="Marque su asistencia con el código que muestra el profesor en clase." />
+      <AsistenciaQuorum onSesionesQuorum={setDeQuorum} onCambio={() => { void misAsistenciasAbiertas().then(setAbiertas); void hist.reload(); }} />
       <Card>
         {abiertas === null ? <Spinner /> : pendientes.length === 0 ? (
           <div className="text-center">
