@@ -300,7 +300,35 @@ estado. **No está conectada** a ningún detector ni recalcula resultados histó
 **No verificado todavía:** navegador real (escritorio y móvil, cambios de pestaña, suspensión, red intermitente,
 dos pestañas reales), carga simultánea (caso S) y las pruebas SQL (requieren `npm run probar`).
 
-## 13. Plan por etapas
+## 13. Análisis estadístico, práctica asistida, exportación masiva y carga (migración 44)
+
+**Práctica asistida en la reconstrucción.** Los pasos inmutables (`assisted_steps`: primer intento con su
+declaración, correcciones, explicación con ayudas declaradas, transferencia) entran como hechos del servidor: marca ✎
+en la cronología (no cambian la partición del tiempo) y, en la ficha de la pregunta, el proceso con los tiempos entre
+fases y el cambio de resultado (descriptivo; la declaración no es una verificación y no se juzga la autoría).
+
+**Análisis descriptivo** (`src/lib/telemetria/v2/estadistica.ts`, página Actividad → «🔭 Análisis de telemetría»).
+`telemetria_v2_actividad` devuelve los datos de todos los intentos de una actividad (máx. 400; profesorado de la
+sección; auditado) y cada intento se reconstruye con el mismo motor que la vista individual. Por pregunta: n y
+cobertura, mediana [P25–P75], IC 95 % de la mediana (remuestreo con semilla fija: reproducible), diagrama de caja,
+acierto, cambio de la respuesta y, si hubo práctica asistida, primer intento / final / transferencia. Además:
+histograma, agrupación por dificultad, formato o concepto (avisando si se mezclan formatos) y tabla de intentos.
+Solo cuentan valores identificables; los demás son faltantes, nunca cero; con menos de 5 observaciones se marca
+«poco estable». Pendiente: comparación longitudinal de un estudiante entre actividades y vista por sección.
+
+**Centro de Datos.** Fuentes nuevas en la lista blanca: `telemetria_v2`, `revisiones_respuesta`,
+`instantaneas_entrega`, `asistencia_horarios`, `asistencia_quorum_eventos` (seudonimización de siempre). Tablas
+derivadas `telemetria_v2_intentos` (nivel A) y `telemetria_v2_preguntas` (nivel B), calculadas reconstruyendo cada
+intento a partir de las tablas exportadas (`paquetes.ts`) con el mismo motor; una prueba comprueba que coinciden con
+la vista del profesor.
+
+**Carga (caso S).** Motor: 200 intentos de 800 eventos (160 200 eventos) en ≈ 4 s, ≈ 21 ms por intento, sin
+invariantes violados; análisis de 400 intentos × 10 preguntas en ≈ 4 s (`tests/telemetria-v2-carga.test.ts`; cotas
+superiores: incluyen generar los datos). Servidor: `npm run carga-telemetria` contra la base local de pruebas (tras
+`npm run probar`) simula N estudiantes simultáneos enviando lotes y guardando respuestas, y mide latencia p50/p95/p99,
+ritmo, idempotencia y espacio. **No se ha ejecutado aún** (requiere la base local).
+
+## 14. Plan por etapas
 
 | Etapa | Contenido | Estado |
 |---|---|---|
@@ -308,9 +336,9 @@ dos pestañas reales), carga simultánea (caso S) y las pruebas SQL (requieren `
 | B | Motor puro de intervalos y reconstrucción (V1 → modelo; examen → modelo), calidad, pruebas de casos e invariantes, determinismo | ✔ `src/lib/telemetria/v2/{intervalos,modelo,reconstruir,adaptadores}.ts`, `tests/telemetria-v2.test.ts` (casos A–H, J–M, Q, R, T; propiedades del álgebra; 300 intentos aleatorios). Con los 77 intentos reales del respaldo: 0 invariantes violados, 330 ms en total |
 | C | Ingesta V2: tabla propia versionada e idempotente, sincronización de reloj, bandera de activación | ✔ código (migración 42 + `supabase/pruebas/telemetria_v2.sql`); **pendiente de aplicar** |
 | D | Respuestas: historial de revisiones del servidor, instantánea de entrega, copia y reintento del borrador en la práctica clásica | ✔ código (migración 42; `src/lib/borradores.ts`, `Ejercicio.tsx`); pendiente de aplicar y de probar en navegador |
-| E–F | Práctica clásica (pregunta activa por control enfocado, exposición corregida, guardados) y examen (reconstrucción desde su diario conciliado, que ya tiene la pregunta activa del servidor) | ✔ práctica clásica y examen. **Práctica asistida:** sus fases e historial inmutable ya están en `assisted_steps`; aún no se integran en la reconstrucción |
+| E–F | Práctica clásica (pregunta activa por control enfocado, exposición corregida, guardados), examen (diario conciliado) y práctica asistida (pasos inmutables en la cronología y la ficha) | ✔ (migración 44 para la asistida) |
 | G | Calidad de datos y abstenciones | ✔ calidad por dimensión, estados de métrica, invariantes, monitor |
 | H | Vista docente «Telemetría V2 — Reconstrucción del intento» y panel «Telemetría» | ✔ `src/pages/docente/{TelemetriaIntento,TelemetriaPanel}.tsx`; sin probar en navegador |
-| I | Exportación por niveles (A–E) desde el mismo motor | ✔ por intento (`exportar.ts`); exportación masiva seudonimizada: pendiente (fuentes nuevas en el Centro de Datos) |
-| J | Validación integral: SQL, navegador, móvil, carga | ⬜ pendiente: `npm run probar`, navegador y teléfono reales, carga simultánea |
-| — | Análisis estadístico descriptivo entre intentos, actividades y conceptos (fase 11) | ⬜ pendiente |
+| I | Exportación por niveles (A–E) desde el mismo motor | ✔ por intento (`exportar.ts`) y masiva seudonimizada en el Centro de Datos (migración 44, tablas derivadas `telemetria_v2_*`) |
+| J | Validación integral: SQL, navegador, móvil, carga | 🟡 carga del motor ✔; carga del servidor: script listo (`npm run carga-telemetria`), sin ejecutar; navegador y teléfono reales: pendiente |
+| — | Análisis estadístico descriptivo entre intentos, actividades y conceptos (fase 11) | ✔ por actividad (migración 44, `estadistica.ts`, página de análisis); pendiente: longitudinal por estudiante y por sección |
