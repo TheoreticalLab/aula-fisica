@@ -1,0 +1,563 @@
+% =============================================================================
+%  Manual del Aula Virtual de Física
+%  Compilar:  pdflatex manual_aula_virtual.tex   (dos veces, para el índice)
+%  Paquetes estándar de TeX Live (texlive-latex-extra, texlive-lang-spanish) o Overleaf.
+% =============================================================================
+\documentclass[11pt,a4paper,oneside]{book}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[spanish,es-noshorthands,es-tabla]{babel}
+\usepackage[margin=2.5cm,headheight=14pt]{geometry}
+\usepackage{amssymb,amsmath}
+\usepackage{xcolor}
+\usepackage{booktabs,tabularx,array,longtable}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tcolorbox}
+\tcbuselibrary{breakable}
+\usepackage[hidelinks,pdftitle={Manual del Aula Virtual de Física},pdfauthor={Aula Virtual de Física}]{hyperref}
+
+\definecolor{primario}{HTML}{14284B}
+\definecolor{acento}{HTML}{C2410C}
+\definecolor{verde}{HTML}{047857}
+\definecolor{gris}{HTML}{4B5563}
+
+\titleformat{\chapter}[display]{\normalfont\huge\bfseries\color{primario}}{\chaptertitlename\ \thechapter}{12pt}{\Huge}
+\titleformat{\section}{\normalfont\Large\bfseries\color{primario}}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries\color{primario}}{\thesubsection}{1em}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gris}Aula Virtual de Física}
+\fancyhead[R]{\small\color{gris}\leftmark}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\setlist{itemsep=2pt,topsep=4pt}
+\setlength{\parskip}{4pt}
+
+% Recuadros
+\newtcolorbox{consejo}[1][Consejo]{colback=verde!5,colframe=verde,fonttitle=\bfseries,title=#1,breakable}
+\newtcolorbox{importante}[1][Importante]{colback=acento!5,colframe=acento,fonttitle=\bfseries,title=#1,breakable}
+\newtcolorbox{nota}[1][Nota]{colback=primario!4,colframe=primario,fonttitle=\bfseries,title=#1,breakable}
+
+% Elementos de la interfaz
+\newcommand{\boton}[1]{\textsf{\textbf{[\,#1\,]}}}
+\newcommand{\menu}[1]{\textsf{\textbf{#1}}}
+\newcommand{\ruta}[1]{\textsf{#1}}
+
+\begin{document}
+
+% ----------------------------------------------------------------------------
+\begin{titlepage}
+  \centering
+  \vspace*{3cm}
+  {\color{primario}\rule{\linewidth}{1.5pt}\par\vspace{0.6cm}}
+  {\Huge\bfseries\color{primario} Aula Virtual de Física\par}
+  \vspace{0.4cm}
+  {\LARGE Manual de uso\par}
+  {\color{primario}\vspace{0.6cm}\rule{\linewidth}{1.5pt}\par}
+  \vspace{1.5cm}
+  {\large Para estudiantes y profesorado\par}
+  \vspace{0.8cm}
+  {\normalsize Evaluaciones de una pregunta a la vez · Prácticas con aprendizaje asistido\\
+  Seguimiento académico · Centro de Datos\par}
+  \vfill
+  {\normalsize Versión del 1 de noviembre de 2026\par}
+\end{titlepage}
+
+\tableofcontents
+
+% ============================================================================
+\chapter{Introducción}
+
+\section{Qué es el Aula Virtual}
+El Aula Virtual de Física es la plataforma del curso: teoría por lecciones, prácticas, evaluaciones, asistencia,
+entregas en PDF, calificaciones y comunicación con el profesor. Funciona en el navegador del teléfono o de la
+computadora; no hace falta instalar nada (también puede añadirse a la pantalla de inicio del teléfono).
+
+Hay tres perfiles:
+\begin{itemize}
+  \item \textbf{Estudiante}: aprende, practica, presenta evaluaciones y ve sus resultados.
+  \item \textbf{Profesor}: crea actividades, sigue a sus estudiantes, revisa y califica.
+  \item \textbf{Administrador}: además gestiona las cuentas y la puesta en producción.
+\end{itemize}
+
+\section{Entrar}
+Abra la dirección del aula y pulse \boton{Ingresar}. Use el identificador y la contraseña que le dio el profesor.
+La primera vez se le pedirá cambiar la contraseña. Si la olvida, pida al profesor que la restablezca.
+
+\section{Moverse por el aula}
+\begin{itemize}
+  \item En el \textbf{teléfono}, la barra inferior lleva a las secciones principales.
+  \item En la \textbf{computadora}, la barra superior hace lo mismo.
+  \item El menú de su nombre (arriba a la derecha) contiene su cuenta, la \menu{Ayuda}, el Laboratorio virtual y
+        \boton{Cerrar sesión}.
+  \item El botón del sol o la luna alterna entre el modo claro y el oscuro.
+\end{itemize}
+
+\begin{consejo}[Ayuda dentro del aula]
+La página \menu{Ayuda} (menú de su nombre) resume este manual y se adapta a su perfil.
+\end{consejo}
+
+% ============================================================================
+\part{Para estudiantes}
+
+\chapter{Navegación del estudiante}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{>{\bfseries}l X}
+\toprule
+Sección & Para qué sirve \\
+\midrule
+Inicio & Lo pendiente, sus cursos, avisos y el acceso para continuar donde lo dejó. Muestra por separado las
+         \emph{evaluaciones} y las \emph{prácticas} pendientes. \\
+Aprender & El temario: teoría por lecciones y la práctica libre de cada lección. \\
+Practicar & Las prácticas asignadas por el profesor (se pueden repetir y tienen retroalimentación). \\
+Evaluaciones & Exámenes y quizzes calificables (se entregan una vez). \\
+Asistencia & Marcar su presencia en clase y ver su registro. \\
+Mi cuenta & Calificaciones, progreso por asignatura, entregas en PDF, laboratorio, perfil y contraseña. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Cada actividad muestra su estado con una etiqueta y una sola acción:
+\textbf{Disponible} (\boton{Empezar} o \boton{Practicar}), \textbf{En curso} (\boton{Continuar}),
+\textbf{Próximamente} (aún no abre), \textbf{Entregada} (\boton{Ver}) o \textbf{Cerrada}. La fecha de cierre aparece en
+rojo cuando faltan menos de 48 horas.
+
+\chapter{Practicar}
+
+\section{Práctica tradicional}
+Todos los ejercicios aparecen en una página. Arriba hay un \textbf{mapa de ejercicios}: indica cuántos lleva
+respondidos y permite saltar a cualquiera tocando su número (verde = respondido; con marca de verificación = correcto).
+
+En cada ejercicio puede \boton{Comprobar} su respuesta (según lo que permita el profesor), pedir pistas y, en algunas
+prácticas, ver la solución. Sus respuestas se guardan solas.
+
+\section{Práctica con aprendizaje asistido}
+En estas prácticas puede usar inteligencia artificial, libros, apuntes o la ayuda de otra persona para
+\emph{aprender}. El aula le guía por cuatro momentos en cada ejercicio, uno a la vez, con una barra de progreso:
+
+\begin{enumerate}[label=\textbf{\arabic*.}]
+  \item \textbf{Intentar.} Resuelva el ejercicio por su cuenta. Puede escribir sus operaciones o marcar
+        \emph{«No sé resolverlo todavía»}: no necesita acertar para continuar. Al pulsar
+        \boton{Guardar mi primer intento} se le pregunta cómo lo hizo:
+        \begin{itemize}
+          \item Lo resolví por mí mismo, sin utilizar IA ni ayuda externa.
+          \item Consulté alguna ayuda antes de responder.
+          \item No conseguí resolverlo por mi cuenta.
+        \end{itemize}
+        Pulse \boton{Confirmar y guardar}. Su primera respuesta queda guardada tal cual y ya no se puede cambiar.
+  \item \textbf{Aprender.} Ahora puede consultar cualquier ayuda permitida. Verá \emph{Tu respuesta inicial} (fija) y
+        \emph{Tu respuesta después de estudiar} (editable). Corrija lo necesario y pulse \boton{Guardar mi corrección}:
+        recibirá retroalimentación. Hay un número limitado de comprobaciones (normalmente dos).
+  \item \textbf{Explicar.} Con sus palabras, responda a dos o tres preguntas breves; cambian según su caso (si se
+        equivocó, si acertó o si no sabía). Marque las ayudas que usó. Si quiere, añada una referencia (fuente,
+        enlace, concepto o idea que le ayudó). No hace falta copiar conversaciones privadas. Pulse
+        \boton{Guardar mi explicación}. Después verá la solución.
+  \item \textbf{Comprobar} (si el profesor lo activó). Un ejercicio \emph{distinto} con el mismo concepto. Tiene una
+        sola oportunidad: \boton{Comprobar mi aprendizaje}.
+\end{enumerate}
+
+Al terminar todos los ejercicios, pulse \boton{Finalizar la práctica}.
+
+\begin{importante}[Sobre la declaración de ayuda]
+Declarar que usó ayuda \textbf{no le quita puntos}, y declarar que no la usó \textbf{no le da puntos extra}. Es una
+información voluntaria para que el profesor entienda mejor cómo aprende el grupo; no es una verificación técnica.
+\end{importante}
+
+\begin{nota}[Sin conexión]
+Si se va la internet, su borrador queda guardado en el teléfono y el aula no avanza de paso hasta que el servidor
+confirme. Cuando vuelva la red, pulse otra vez el botón: no se guardará dos veces.
+\end{nota}
+
+\chapter{Evaluaciones}
+
+Hay dos tipos de evaluación:
+\begin{itemize}
+  \item \textbf{Clásica}: todas las preguntas en una página; se entrega con \boton{Entregar}.
+  \item \textbf{De una pregunta a la vez}: la que se describe en este capítulo.
+\end{itemize}
+
+\section{Antes de empezar}
+Al abrir la evaluación verá el recuadro \textbf{«Antes de empezar»} con las reglas: duración, si se puede volver
+atrás, si hay pausas y cuántas. Si hay límite de tiempo, el botón dice \boton{Comenzar (empieza el reloj)}.
+
+\begin{importante}
+El reloj lo lleva el \textbf{servidor}: sigue corriendo aunque cierre la página o apague el teléfono (salvo durante
+una pausa permitida que detenga el reloj). Cambiar la hora del dispositivo no da ni quita tiempo.
+\end{importante}
+
+\section{Durante la evaluación}
+\begin{itemize}
+  \item Arriba: preguntas respondidas, la \textbf{cuenta atrás} y el estado del guardado
+        (\emph{Guardado}, \emph{Guardando\dots}, \emph{Sin conexión: guardado en este dispositivo}).
+  \item Debajo: los números de las preguntas (verde = respondida; con bandera = marcada para revisar). Tocando un
+        número va a esa pregunta, si la navegación lo permite.
+  \item Abajo: \boton{Anterior}, \boton{Marcar} y \boton{Siguiente}. En la última pregunta,
+        \boton{Revisar y entregar}.
+  \item Durante la evaluación se oculta la barra de navegación del aula (modo concentración), para no salir por
+        accidente.
+\end{itemize}
+
+\textbf{Navegación.} En la navegación \emph{libre} puede volver a cualquier pregunta. En la navegación
+\emph{solo hacia adelante}, una pregunta que deja atrás no se puede volver a abrir ni cambiar.
+
+\textbf{Pausas.} Si el profesor las permite, verá \boton{Pausar}. Durante la pausa las preguntas se ocultan y no se
+puede responder. Pulse \boton{Reanudar} para seguir.
+
+\textbf{Prórrogas.} Si el profesor le concede más tiempo, aparecerá el aviso \emph{«El profesor amplió su tiempo»} y
+la cuenta atrás aumentará.
+
+\section{Entregar}
+La pantalla \textbf{Revisión antes de entregar} muestra qué preguntas faltan y cuáles marcó. Pulse
+\boton{Entregar el examen} y confirme. Si el tiempo se acaba, el aula entrega automáticamente lo que haya guardado
+(antes consulta al servidor por si hubo una prórroga).
+
+\section{Si se va la internet o se cierra la página}
+Siga respondiendo: lo que escriba se guarda en el dispositivo y se envía solo al volver la red. Si se cerró la página,
+vuelva a entrar en la evaluación: continúa en la misma pregunta con sus respuestas.
+
+\chapter{Escribir respuestas}
+
+\section{Respuestas numéricas}
+Escriba el número y la unidad, por ejemplo \texttt{9.8 m/s\textasciicircum2}, \texttt{1.2e3 N} o
+\texttt{10290 J}. Puede usar coma o punto decimal y las teclas rápidas bajo el campo.
+
+\begin{itemize}
+  \item Respete las mayúsculas de los símbolos: J, N, W, Pa, K.
+  \item Si escribe \texttt{10290j}, normalmente se entenderá como julios y se le avisará de que el símbolo
+        correcto es «J» (en algunas preguntas el profesor puede exigir el símbolo exacto).
+  \item Si la escritura es ambigua (por ejemplo \texttt{mj}, que podría ser mJ o MJ), se le pedirá aclararla.
+  \item Una unidad de otra magnitud (por ejemplo newtons en una pregunta de energía) es un error de concepto, no de
+        escritura.
+\end{itemize}
+
+\section{Otros formatos}
+Selección (una o varias opciones), verdadero o falso (a veces con justificación), texto corto y desarrollo
+(lo revisa el profesor).
+
+\chapter{Resultados, asistencia y entregas}
+\begin{itemize}
+  \item \textbf{Calificaciones} (\menu{Mi cuenta}): solo aparecen cuando el profesor las publica.
+  \item \textbf{Mi progreso}: dominio por concepto en cada asignatura, calculado con sus respuestas verificables.
+  \item \textbf{Asistencia}: cuando el profesor abre una sesión, márquela desde el aula durante la clase.
+  \item \textbf{Entregas en PDF}: suba sus trabajos al buzón de la sección antes del cierre.
+\end{itemize}
+
+% ============================================================================
+\part{Para el profesorado}
+
+\chapter{Panel docente}
+
+El panel muestra arriba lo de cada día:
+\begin{itemize}
+  \item \textbf{Crear una actividad}: un botón por sección.
+  \item \textbf{Respuestas por revisar}: desarrollos y respuestas que el motor no puede calificar solo.
+  \item \textbf{Pueden necesitar apoyo}: estudiantes con avisos de seguimiento, por sección.
+\end{itemize}
+Debajo: cifras generales, \textbf{Próximos cierres} de todas las secciones, sus secciones con accesos directos
+(\boton{+ Actividad}, \boton{Estudiantes}, \boton{Notas}) y las herramientas: contenido, banco de ejercicios,
+comunicación en vivo, Orbe Control, analítica de tiempo, vista de estudiante y Laboratorio LIEIA.
+
+\section{Secciones}
+Cada sección tiene pestañas: Estudiantes y grupos, Asistencia, Avisos, Actividades, \textbf{Seguimiento}, Entregas en
+PDF, Calificaciones, Revisión manual y Estadísticas. Los estudiantes se matriculan por su identificador o con el
+código de la sección.
+
+\chapter{Crear actividades}
+
+\section{El asistente en cuatro pasos}
+\ruta{Panel docente $\rightarrow$ + Crear actividad}, o en la sección, pestaña Actividades.
+
+\begin{enumerate}[label=\textbf{\arabic*.}]
+  \item \textbf{Tipo}: elija una plantilla.
+  \item \textbf{Preguntas}: márquelas en el banco (filtros por lección, dificultad y búsqueda) o déjelo para después.
+  \item \textbf{Reglas}: título, fechas y, en evaluaciones, duración y navegación. El resto está en
+        \emph{Opciones avanzadas}.
+  \item \textbf{Revisar}: un resumen en lenguaje llano; pulse \boton{Crear y publicar} o \boton{Guardar borrador}.
+\end{enumerate}
+
+La actividad se crea oculta, se completa y solo al final se publica, para que nadie la empiece sin preguntas.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{>{\bfseries}l X}
+\toprule
+Plantilla & Valores predeterminados \\
+\midrule
+Práctica libre & Retroalimentación al comprobar, pistas, tres comprobaciones por ejercicio, intentos ilimitados. \\
+Práctica con aprendizaje asistido & Intentar $\rightarrow$ aprender $\rightarrow$ explicar ($\rightarrow$ comprobar);
+                                     sin solución inmediata ni pistas; dos comprobaciones de la corrección; cierre en 7 días. \\
+Tarea con fecha & Un intento; soluciones al cerrar; cierre en 7 días. \\
+Quiz rápido & Una pregunta a la vez, 15 minutos, un intento, sin pausas. \\
+Examen parcial & Una pregunta a la vez, 60 minutos, navegación libre, una pausa de 5 minutos que detiene el reloj. \\
+Examen estricto & Una pregunta a la vez, 45 minutos, solo hacia adelante, sin pausas. \\
+En blanco & Práctica o evaluación sin valores sugeridos. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{consejo}
+Antes de publicar una evaluación, ábrala con \boton{Vista previa como estudiante}.
+\end{consejo}
+
+\chapter{Evaluaciones de una pregunta a la vez}
+
+\section{Modo de examen}
+\ruta{Actividad $\rightarrow$ Configuración $\rightarrow$ Modo de examen}.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{>{\bfseries}l X}
+\toprule
+Opción & Significado \\
+\midrule
+Presentación & \emph{Una pregunta a la vez} (reloj oficial, tiempo por pregunta, recuperación tras desconexiones) o
+               \emph{Todas en una página} (clásico). \\
+Navegación & \emph{Libre} (puede volver y marcar) o \emph{Solo hacia adelante} (lo impone el servidor). \\
+Duración & Minutos desde que el estudiante empieza; nunca pasa del cierre de la actividad. \\
+Pausas & Número máximo y minutos en total; las preguntas se ocultan durante la pausa. Si «detienen el reloj», el
+         límite se desplaza por la pausa usada, hasta su máximo. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Los intentos ya empezados conservan la configuración con la que empezaron.
+
+\section{Durante el examen: seguimiento en vivo}
+\ruta{Actividad $\rightarrow$ Resultados $\rightarrow$ En vivo}. Se actualiza cada 10 segundos y muestra, por
+estudiante: \emph{Respondiendo}, \emph{En pausa}, \emph{Sin conexión} (más de 45 segundos sin contacto) o
+\emph{Tiempo vencido}; la pregunta en que va, cuántas lleva respondidas y el tiempo restante. No muestra respuestas.
+
+\section{Prórrogas individuales}
+En la fila del estudiante pulse \boton{+5 min}. Puede escribir un motivo (conexión caída, adaptación, incidencia); queda
+registrado quién la dio, cuánto y cuándo. La prórroga nunca pasa del cierre de la actividad. El estudiante ve el aviso
+en menos de 20 segundos.
+
+\section{Después: tiempo por pregunta}
+En la revisión de cada intento aparece el \textbf{tiempo por pregunta}, separado en trabajo, inactividad, pausa,
+página oculta, desconexión y desconocido, con las veces que volvió a cada pregunta. Es una descripción del proceso,
+no un indicador de conducta: una pausa o una página oculta tienen muchas explicaciones legítimas.
+
+\chapter{Prácticas con aprendizaje asistido}
+
+\section{Propósito}
+El estudiante puede aprovechar la inteligencia artificial para aprender, y usted puede distinguir:
+\begin{enumerate}
+  \item lo que el estudiante \emph{declara} poder resolver solo (primer intento);
+  \item lo que consigue después de estudiar con ayuda (corrección);
+  \item qué errores identifica y qué dice haber aprendido (explicación);
+  \item lo que demuestra después en un ejercicio diferente (transferencia y verificación posterior).
+\end{enumerate}
+
+\section{Crear y configurar}
+\begin{enumerate}
+  \item \ruta{+ Crear actividad $\rightarrow$ Práctica con aprendizaje asistido}. Si quiere el paso 4, marque
+        \emph{Añadir el paso «Demuestra lo que aprendiste»}.
+  \item \ruta{Actividad $\rightarrow$ Configuración $\rightarrow$ Aprendizaje asistido}:
+    \begin{itemize}
+      \item \textbf{Ejercicio de transferencia} de cada pregunta: un ejercicio validado del banco con el mismo concepto.
+            Para comprobar comprensión, que no sea solo un cambio de números. Sin ejercicio asignado, esa pregunta no
+            tiene paso 4.
+      \item \textbf{Opciones avanzadas}: la ponderación y la verificación posterior (en otra sesión, en una fecha, en
+            clase o en un examen). Si la vincula a una actividad, verá la \emph{retención} de cada estudiante.
+    \end{itemize}
+\end{enumerate}
+Una práctica tradicional también puede convertirse desde esa tarjeta con \boton{Activar el aprendizaje asistido}.
+
+\section{Calificación}
+\begin{center}
+\begin{tabular}{l r l}
+\toprule
+Fase & Peso & Cómo cuenta \\
+\midrule
+Intento inicial & 20\,\% & Por presentarlo (acertar no es necesario) \\
+Corrección & 30\,\% & Resultado de la última versión \\
+Explicación & 20\,\% & Presentada (al menos una frase); usted puede ajustar la calidad \\
+Transferencia & 30\,\% & Resultado del ejercicio nuevo \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+  \item Los pesos son una \textbf{propuesta editable}, no una escala científica validada.
+  \item Sin transferencia, los pesos activos se reparten proporcionalmente (28,6\,\% / 42,9\,\% / 28,6\,\%); la tarjeta
+        de configuración lo muestra.
+  \item \textbf{La declaración de uso de IA no cambia la nota.}
+  \item La nota se integra en el libro de calificaciones como cualquier práctica, y puede corregirla con la
+        calificación manual de la revisión.
+\end{itemize}
+
+\section{Proceso de aprendizaje}
+\ruta{Actividad $\rightarrow$ Resultados $\rightarrow$ Proceso de aprendizaje}.
+
+\textbf{Resumen de la sección}: primeros intentos presentados, porcentaje que declaró haber usado ayuda,
+\emph{rendimiento inicial declarado}, \emph{rendimiento posterior a la asistencia}, explicaciones presentadas,
+transferencia correcta, ayudas más usadas y ejercicios que más correcciones requirieron.
+
+\textbf{Por estudiante} (una tabla por ejercicio): primer intento (con su resultado y la declaración), ayudas, respuesta
+final, qué cambió (valor, unidad, opción, procedimiento), explicación (desplegable, con sus referencias), transferencia
+y retención.
+
+\begin{importante}[Cómo interpretar estos datos]
+\begin{itemize}
+  \item «Rendimiento inicial \emph{declarado}» no es «dominio autónomo verificado»: una práctica en casa no prueba
+        trabajo autónomo.
+  \item Una explicación correcta o bien redactada no prueba quién la escribió, y una que «parece de IA» no prueba nada.
+  \item Ninguna cifra indica quién hizo trampa. Use la información para acompañar el aprendizaje.
+\end{itemize}
+\end{importante}
+
+\section{Lo que garantiza el sistema}
+\begin{itemize}
+  \item \textbf{El primer intento no se puede cambiar}, ni siquiera directamente en la base de datos. Las
+        correcciones y explicaciones son versiones nuevas.
+  \item \textbf{No se puede tantear la respuesta antes del primer intento}: solo se comprueba que la respuesta se
+        pueda leer, con un mensaje genérico; las pistas, la comprobación y la solución clásicas están cerradas.
+  \item \textbf{Las fases van en orden} y cada estudiante solo accede a su propio trabajo.
+  \item \textbf{Reintentos y dos pestañas}: un reenvío no se duplica; un segundo primer intento se rechaza.
+\end{itemize}
+
+\chapter{Revisar, calificar y publicar}
+\begin{enumerate}
+  \item \textbf{Revisión manual}: \menu{Respuestas por revisar} (panel) o la pestaña \menu{Revisión manual} de la
+        sección. En cada respuesta puede poner un crédito manual (en \%) y un comentario.
+  \item \textbf{Publicar notas}: en la configuración de la actividad marque \emph{Calificaciones publicadas} y guarde.
+        Hasta entonces, el estudiante no ve la nota ni los comentarios.
+  \item \textbf{Intentos abiertos tras el cierre}: en Resultados, \boton{Entregar y calificar} los califica con lo
+        guardado a tiempo.
+  \item \textbf{Exportar}: la pestaña Calificaciones exporta un CSV (separador «;» y coma decimal, para Excel en español).
+\end{enumerate}
+
+\chapter{Seguimiento de estudiantes}
+
+\section{Pestaña Seguimiento}
+Lista a quien puede necesitar apoyo, con el motivo y un botón para escribirle o abrir su ficha. Son avisos de apoyo
+académico calculados con entregas y calificaciones, no indicadores de conducta.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{>{\bfseries}l X}
+\toprule
+Aviso & Regla \\
+\midrule
+No entregó & Una actividad publicada de su grupo cerró sin entrega. \\
+Cierra pronto & Una actividad cierra en menos de 48 horas y aún no la entregó. \\
+Promedio bajo & Promedio por debajo del 70\,\%, con al menos dos actividades calificadas. \\
+Notas bajando & Sus dos últimas notas están 20 puntos o más por debajo de las anteriores. \\
+Intento abierto & Quedó un intento sin entregar al cerrar la actividad. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Pendientes de entregar y recordatorios}
+En los Resultados de cada actividad, \textbf{Pendientes de entregar} separa a quien no ha empezado de quien empezó sin
+entregar. \boton{Enviar recordatorio} les manda un mensaje en vivo (texto editable, vigente 24 horas).
+
+\section{Comunicación en vivo}
+\ruta{Herramientas $\rightarrow$ Comunicación en vivo}: mensajes informativos, importantes o urgentes a una selección,
+a una sección o a los conectados. Desde el teléfono, Orbe Control ofrece además el pulso de la clase y la pregunta
+relámpago.
+
+\chapter{Centro de Datos}
+Desde \textbf{Orbe Control $\rightarrow$ Datos} se exportan los datos de una sección, un estudiante o una actividad en
+CSV, JSON Lines, Excel o script SQLite, con un manifiesto (SHA-256), un README y un diccionario de datos.
+
+\begin{itemize}
+  \item \textbf{Modo identificado} o \textbf{modo investigación} (seudónimos generados en el servidor).
+  \item Datos originales en lista blanca, incluidos los del motor de examen: configuración, sesiones, eventos
+        oficiales y tramos de tiempo.
+  \item Métricas derivadas, entre ellas \texttt{tiempos\_examen}: una fila por intento y pregunta con el tiempo de cada
+        categoría, visitas, tiempo observable y prórroga.
+  \item Cada exportación queda registrada.
+\end{itemize}
+
+\chapter{Laboratorio LIEIA}
+Es el laboratorio de investigación sobre integridad académica. Sus indicadores son \textbf{experimentales}: describen
+qué tan inusual sería un patrón si los estudiantes trabajaran de forma independiente, no prueban nada y nunca deciden
+una calificación.
+
+\begin{itemize}
+  \item \textbf{D6 v1} (tiempo insensible a la dificultad) está \textbf{retirado} por defectos metodológicos; sus
+        valores históricos aparecen en gris como «no usar».
+  \item \textbf{D6 v2} es experimental y no se usa con datos reales hasta tener una referencia calibrada y una
+        validación independiente.
+  \item Los indicadores están congelados mientras se consolida la telemetría nueva.
+\end{itemize}
+
+% ============================================================================
+\part{Administración}
+
+\chapter{Puesta en producción}
+Los cambios de base de datos y de funciones del servidor se publican con un procedimiento que protege los datos de
+los estudiantes. Se ejecuta en la terminal, en la carpeta del proyecto:
+
+\begin{enumerate}
+  \item \texttt{npm run respaldo}: respaldo verificado de producción.
+  \item \texttt{npm run probar}: aplica los cambios a una copia local con los datos reales, comprueba que no se
+        pierde ninguna fila y ejecuta todas las pruebas de la base de datos. No se continúa si aparece algún error.
+  \item \texttt{npm run plan}: muestra qué se aplicaría y un código de plan.
+  \item \texttt{npm run aplicar -- --plan CÓDIGO}: nuevo respaldo, cada migración en su transacción y comprobación
+        de los datos protegidos.
+  \item \texttt{git push origin main}: publica la interfaz (GitHub Actions prueba, compila y verifica antes).
+\end{enumerate}
+
+\begin{importante}[Reglas que no se rompen]
+\begin{itemize}
+  \item Las migraciones son \textbf{aditivas}: nunca se borran tablas, columnas ni datos de estudiantes.
+  \item Las credenciales y las claves de respuesta nunca van al repositorio ni a la interfaz.
+  \item Ninguna calificación histórica se recalcula automáticamente.
+\end{itemize}
+\end{importante}
+
+\section{Reversión}
+\begin{itemize}
+  \item \textbf{Motor de examen}: poner las evaluaciones en «Todas en una página»; si hiciera falta, una migración que
+        restaure las reglas anteriores. Las tablas nuevas no se borran.
+  \item \textbf{Prácticas asistidas}: dejar de crearlas; las tradicionales no cambian.
+  \item \textbf{Interfaz}: revertir el commit y publicar.
+\end{itemize}
+El detalle técnico está en \texttt{docs/DESPLIEGUE\_REDISENO.md}.
+
+% ============================================================================
+\appendix
+
+\chapter{Glosario}
+\begin{description}[style=nextline]
+  \item[Intento] Cada vez que un estudiante empieza una actividad.
+  \item[Primer intento (práctica asistida)] La respuesta que el estudiante da antes de consultar ayudas; queda guardada
+        sin cambios.
+  \item[Rendimiento inicial declarado] Proporción de primeros intentos correctos, junto con lo que el estudiante
+        declaró sobre su autonomía. No es una verificación.
+  \item[Rendimiento posterior a la asistencia] Proporción de respuestas finales correctas después de estudiar con
+        ayuda.
+  \item[Transferencia] Ejercicio distinto con el mismo concepto, para comprobar comprensión.
+  \item[Retención] Resultado en una comprobación posterior vinculada al tema.
+  \item[Reloj oficial] La hora del servidor, que decide el límite de un examen.
+  \item[Tramo de tiempo] Periodo del intento clasificado como trabajo, inactividad, pausa, página oculta, desconexión
+        o desconocido.
+  \item[Prórroga] Tiempo extra concedido por el profesor a un intento concreto.
+  \item[Modo concentración] Durante un examen o el asistente, se oculta la navegación del aula en el teléfono.
+\end{description}
+
+\chapter{Preguntas frecuentes}
+\begin{description}[style=nextline]
+  \item[Se me fue la internet en un examen. ¿Pierdo lo que escribí?]
+        No. Lo escrito se guarda en el dispositivo y se envía al volver la red. El reloj oficial sí sigue corriendo.
+  \item[Cerré la página sin querer.]
+        Vuelva a entrar en la evaluación: continúa en la misma pregunta con sus respuestas.
+  \item[¿Me bajan la nota por decir que usé inteligencia artificial en una práctica asistida?]
+        No. La declaración no interviene en la nota.
+  \item[¿Puedo corregir mi primer intento en una práctica asistida?]
+        El primer intento no cambia, pero en el paso «Aprender» puede dar una respuesta corregida, que es la que se
+        califica.
+  \item[Un estudiante tuvo un problema durante el examen. ¿Qué hago?]
+        En \emph{En vivo}, pulse \boton{+5 min} en su fila y anote el motivo.
+  \item[¿Por qué un estudiante aparece «Sin conexión»?]
+        Lleva más de 45 segundos sin contacto con el servidor: red, pantalla apagada o página cerrada. Sus respuestas
+        guardadas no se pierden.
+\end{description}
+
+\end{document}
