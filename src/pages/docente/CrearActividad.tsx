@@ -12,6 +12,7 @@ import { aActividad, borradorDesde, PLANTILLAS, plantilla, resumen, revisar, typ
 import { CATEGORIA, DIFICULTAD, useAction, useAsync } from '@/lib/util';
 import { Badge, ErrorBox, Notice, PageTitle, Spinner } from '@/components/ui';
 import { InlineMd } from '@/components/Markdown';
+import { useModoConcentracion } from '@/components/Layout';
 
 const PASOS = ['Tipo', 'Preguntas', 'Reglas', 'Revisar'] as const;
 const aLocal = (iso: string | null) => (iso ? new Date(new Date(iso).getTime() - new Date(iso).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '');
@@ -24,6 +25,7 @@ export default function CrearActividad() {
   const [paso, setPaso] = useState(0);
   const [b, setB] = useState<Borrador | null>(null);
   const action = useAction();
+  useModoConcentracion();
   if (clase.loading) return <Spinner />;
   if (clase.error) return <ErrorBox error={clase.error} onRetry={clase.reload} />;
   const c = clase.data!;

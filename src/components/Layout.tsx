@@ -154,6 +154,18 @@ export function Layout() {
   );
 }
 
+/**
+ * «Modo concentración»: oculta la navegación inferior del móvil mientras una pantalla usa su propia barra fija abajo
+ * (examen de una pregunta a la vez, asistente de creación). Evita que la tape y que se salga por accidente.
+ */
+export function useModoConcentracion(activo = true) {
+  useEffect(() => {
+    if (!activo) return;
+    document.body.classList.add('modo-concentracion');
+    return () => document.body.classList.remove('modo-concentracion');
+  }, [activo]);
+}
+
 function BottomNav({ docente }: { docente: boolean }) {
   const item = ({ isActive }: { isActive: boolean }) =>
     `flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] ${isActive ? 'text-primario-800 dark:text-acento-300' : 'text-gray-500 dark:text-gray-400'}`;

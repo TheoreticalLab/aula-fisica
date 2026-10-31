@@ -102,3 +102,13 @@
 .katex {
   font-size: 1.08em;
 }
+
+/* Modo concentración (examen, asistente): sin la navegación inferior del móvil, que taparía su barra propia */
+body.modo-concentracion nav[aria-label='Navegación inferior'] {
+  display: none;
+}
+/* …y la cabecera deja de ser fija: la barra propia (reloj, guardado) queda arriba y visible al desplazarse */
+body.modo-concentracion > #root > div > header,
+body.modo-concentracion header.sticky {
+  position: static;
+}

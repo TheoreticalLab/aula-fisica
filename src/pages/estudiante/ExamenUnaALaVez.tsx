@@ -16,6 +16,7 @@ import { almacenLocal, ColaGuardado, ErrorDefinitivo } from '@/lib/examen/guarda
 import { ACCIONES_SERVIDOR, Ejercicio } from '@/components/Ejercicio';
 import { Badge, ErrorBox, Modal, Notice } from '@/components/ui';
 import { useTelemetria } from '@/components/Telemetria';
+import { useModoConcentracion } from '@/components/Layout';
 
 const INACTIVIDAD_MS = 60_000, LATIDO_MS = 5_000, PING_MS = 20_000, DIARIO_MS = 15_000;
 const DEFINITIVO = /terminó|entregado|no se puede modificar|no pertenece|inválid|Sin permiso|no encontrado/i;
@@ -32,6 +33,7 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems }: {
 }) {
   const attemptId = view.attempt.id;
   const cfg = servidor.config;
+  useModoConcentracion();
   const tel = useTelemetria();
   const almacen = useMemo(() => almacenLocal(), []);
   const claveMotor = `examen:${attemptId}:motor`;
