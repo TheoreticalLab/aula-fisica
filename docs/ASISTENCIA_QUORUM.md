@@ -15,6 +15,7 @@ profesor + radio de 100 m, migraciones 24–26) **no cambia**.
 | `attendance_close`, `attendance_set`, `attendance_start`, `attendance_new_code` | control del profesor intacto: cerrar, marcar o quitar a mano, abrir con código (cierra la de quórum), habilitar también un código |
 | `attendance_live`, `attendance_set_location` | misma firma; se añadieron activación, franja, quórum inicial, validación e incidencias, y el registro auditado del cambio de centro |
 | página Asistencia y pestaña Asistencia de la sección | se añadió el panel de quórum y la tarjeta de configuración |
+| Orbe Control · Asistencia (`orbe-control/src/Asistencia.tsx`) | la vista en vivo muestra «Activada por quórum» (hora programada, activación real, quórum inicial, validación de cada presente e incidencias) con los mismos controles (cerrar, marcar, quitar, habilitar también código); y la tarjeta «Asistencia autónoma por quórum» (`QuorumConfig.tsx`) configura la sección elegida con las mismas funciones del servidor que el panel web |
 
 Nuevo: horario semanal por sección (`class_schedules`, hora de America/Santo_Domingo), configuración
 (`attendance_quorum_settings`), solicitudes temporales (`attendance_quorum_requests`) e incidencias
