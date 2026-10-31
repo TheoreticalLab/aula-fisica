@@ -53,6 +53,47 @@ export function desdeV1(filas: FilaV1[]): EventoNorm[] {
   return out;
 }
 
+/** Fila de `telemetry_v2_events` (tal como la devuelve telemetria_v2_intento). */
+export interface FilaV2 {
+  id?: number | string;
+  event_id?: string;
+  session_id: string;
+  tab_id?: string | null;
+  client_seq: number;
+  event_type: string;
+  question_id: string | null;
+  t_mono: number | string;
+  received_at: string;
+  payload: Record<string, unknown> | null;
+}
+
+const TIPOS_V2: Record<string, EventoNorm['tipo']> = {
+  session_started: 'sesion_inicio', session_resumed: 'sesion_inicio', session_ended: 'sesion_fin', clock_sync: 'sincronizacion', heartbeat: 'latido',
+  page_visible: 'visible', page_hidden: 'oculta', focus_gained: 'foco_ganado', focus_lost: 'foco_perdido',
+  idle_started: 'inactividad_inicio', idle_ended: 'inactividad_fin', connection_lost: 'conexion_perdida', connection_restored: 'conexion_restaurada',
+  question_exposure_started: 'exposicion_inicio', question_exposure_ended: 'exposicion_fin', question_activated: 'pregunta_activada', question_deactivated: 'pregunta_desactivada',
+  answer_draft_changed: 'edicion', answer_save_requested: 'guardado_solicitado', answer_save_confirmed: 'guardado_confirmado', answer_save_failed: 'guardado_fallido',
+  answer_checked: 'comprobacion', attempt_submit_requested: 'entrega_solicitada', answer_draft_restored: 'interaccion', simulation_event: 'interaccion',
+};
+
+/** V2 → normalizado (sin pérdidas de información temporal: las muestras de reloj anclan la sesión). */
+export function desdeV2(filas: FilaV2[]): EventoNorm[] {
+  const out: EventoNorm[] = [];
+  for (const f of filas) {
+    const tipo = TIPOS_V2[f.event_type];
+    if (!tipo) continue;
+    const p = f.payload ?? {};
+    const datos: Record<string, unknown> = { ...p, tipo_v2: f.event_type };
+    if (tipo === 'sesion_inicio') Object.assign(datos, { pestana: f.tab_id ?? null, visible: p.visible });
+    if (tipo === 'sincronizacion') Object.assign(datos, { envio_tau: p.envio_tau, servidor: p.servidor_ms, recibo_tau: p.recibo_tau });
+    out.push({
+      sesion: f.session_id, seq: Number(f.client_seq), tipo, fuente: 'cliente', tau: Number(f.t_mono), recibido: Date.parse(f.received_at),
+      pregunta: f.question_id, datos, ...(f.id !== undefined ? { ref: `telemetry_v2_events:${f.id}` } : {}),
+    });
+  }
+  return out;
+}
+
 /**
  * Diario de tramos del motor de examen + hechos del servidor → normalizado. Se concilia primero (lo que contradice al
  * servidor pasa a «desconocido»); los tramos «desconexion» (aplicación cerrada) son intervalos sin observación.
