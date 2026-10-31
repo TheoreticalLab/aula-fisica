@@ -33,8 +33,9 @@ import { TabAsistencia } from './AsistenciaTab';
 import { informeAsistencia } from '@/api/asistencia';
 import { porcentajeAsistencia, tonoAsistencia } from '@/lib/asistencia';
 import { TabEntregas } from './EntregasPdf';
+import { TabSeguimiento } from './SeguimientoTab';
 
-type Tab = 'estudiantes' | 'asistencia' | 'avisos' | 'actividades' | 'entregas' | 'calificaciones' | 'revision' | 'estadisticas';
+type Tab = 'estudiantes' | 'asistencia' | 'avisos' | 'actividades' | 'seguimiento' | 'entregas' | 'calificaciones' | 'revision' | 'estadisticas';
 
 export default function Clase() {
   const { classId = '' } = useParams();
@@ -72,6 +73,7 @@ export default function Clase() {
           { id: 'asistencia', label: 'Asistencia' },
           { id: 'avisos', label: 'Avisos' },
           { id: 'actividades', label: 'Actividades' },
+          { id: 'seguimiento', label: 'Seguimiento' },
           { id: 'entregas', label: 'Entregas en PDF' },
           { id: 'calificaciones', label: 'Calificaciones' },
           { id: 'revision', label: 'Revisión manual' },
@@ -83,6 +85,7 @@ export default function Clase() {
       {tab === 'entregas' && <TabEntregas classId={c.id} />}
       {tab === 'avisos' && <TabAvisos c={c} />}
       {tab === 'actividades' && <TabActividades c={c} />}
+      {tab === 'seguimiento' && <TabSeguimiento classId={c.id} />}
       {tab === 'calificaciones' && <TabCalificaciones c={c} />}
       {tab === 'revision' && <TabRevision c={c} />}
       {tab === 'estadisticas' && <TabEstadisticas c={c} />}

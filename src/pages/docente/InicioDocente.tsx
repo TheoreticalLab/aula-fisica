@@ -5,7 +5,8 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
-import { createClass, isCourseStaff, listCourses, teacherOverview, upcomingActivities } from '@/api/docente';
+import { createClass, gradebook, isCourseStaff, listCourses, teacherOverview, upcomingActivities } from '@/api/docente';
+import { seguimientoSeccion } from '@/lib/seguimiento';
 import { fecha, porcentaje, relativo, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, Empty, ErrorBox, Field, Notice, PageTitle, Spinner } from '@/components/ui';
 
@@ -18,15 +19,19 @@ export default function InicioDocente() {
     const flags = await Promise.all(courses.map((c) => isCourseStaff(c.id)));
     const ownCourses = courses.filter((c, i) => flags[i] && !c.archived);
     const activas = secciones.filter((s) => !s.archived);
-    const cierres = await upcomingActivities(activas.map((s) => s.class_id)).catch(() => []);
-    return { secciones, courses, ownCourses, cierres };
+    const [cierres, apoyo] = await Promise.all([
+      upcomingActivities(activas.map((s) => s.class_id)).catch(() => []),
+      Promise.all(activas.map((s) => gradebook(s.class_id).then((gb) => ({ class_id: s.class_id, n: seguimientoSeccion(gb).length })).catch(() => ({ class_id: s.class_id, n: 0 })))),
+    ]);
+    return { secciones, courses, ownCourses, cierres, apoyo };
   }, [profile?.id]);
   const [form, setForm] = useState({ course_id: '', name: '', term: '' });
   const [verArchivadas, setVerArchivadas] = useState(false);
   const action = useAction();
   if (loading) return <Spinner />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
-  const { secciones, courses, ownCourses, cierres } = data!;
+  const { secciones, courses, ownCourses, cierres, apoyo } = data!;
+  const conApoyo = apoyo.filter((x) => x.n > 0);
   async function crear(e: FormEvent) {
     e.preventDefault();
     const c = await action.run(() => createClass({ course_id: form.course_id || ownCourses[0]?.id, name: form.name.trim(), term: form.term.trim() }));
@@ -46,7 +51,7 @@ export default function InicioDocente() {
       {!courses.length && <Notice tone="warn">No hay ninguna asignatura. Cargue la semilla del curso inicial o cree una en «Asignaturas y contenido».</Notice>}
 
       {/* Lo de hoy: dos acciones principales */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div className="tarjeta">
           <p className="font-semibold">➕ Crear una actividad</p>
           <p className="mb-2 text-sm text-gray-500">Práctica, tarea, quiz o examen en 4 pasos.</p>
@@ -66,6 +71,15 @@ export default function InicioDocente() {
               {porRevisar.map((s) => <Link key={s.class_id} className="btn-secundario min-h-[40px] text-sm" to={`/docente/clases/${s.class_id}?t=revision`}>{s.name} <Badge tone="red">{s.pending_review}</Badge></Link>)}
             </div>
           ) : <p className="text-sm text-emerald-700 dark:text-emerald-300">Nada pendiente. ✓</p>}
+        </div>
+        <div className="tarjeta">
+          <p className="font-semibold">🤝 Pueden necesitar apoyo <span className="text-gray-400">({conApoyo.reduce((s, x) => s + x.n, 0)})</span></p>
+          <p className="mb-2 text-sm text-gray-500">Entregas que faltan, cierres próximos o notas bajas.</p>
+          {conApoyo.length ? (
+            <div className="flex flex-wrap gap-2">
+              {conApoyo.map((x) => <Link key={x.class_id} className="btn-secundario min-h-[40px] text-sm" to={`/docente/clases/${x.class_id}?t=seguimiento`}>{nombreSeccion.get(x.class_id)} <Badge tone="amber">{x.n}</Badge></Link>)}
+            </div>
+          ) : <p className="text-sm text-emerald-700 dark:text-emerald-300">Nadie con avisos. ✓</p>}
         </div>
       </div>
 
