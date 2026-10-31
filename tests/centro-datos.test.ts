@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { celdaCsv, jsonl, sha256, tablaCsv, utf8, type Fila } from '../src/lib/exportacion/formato';
@@ -288,10 +288,15 @@ describe('Centro de Datos · motor de exportación', () => {
 
 describe('Centro de Datos · coherencia con el servidor', () => {
   const sql = readFileSync(join(ROOT, 'supabase/migrations/20261029000034_centro_datos.sql'), 'utf8');
+  // definición VIGENTE de la lista blanca: la última migración que redefine export_fuente
+  const vigente = readdirSync(join(ROOT, 'supabase/migrations')).filter((f) => f.endsWith('.sql')).sort()
+    .map((f) => readFileSync(join(ROOT, 'supabase/migrations', f), 'utf8')).filter((t) => /create or replace function public\.export_fuente\(/.test(t)).pop()!;
 
-  it('cada fuente del catálogo existe en la lista blanca del servidor (y viceversa)', () => {
-    const servidorFuentes = [...sql.matchAll(/when '([a-z_]+)' then grupo := '([a-z]+)'/g)].map((m) => [m[1], m[2]] as [string, string]);
+  it('cada fuente del catálogo existe en la lista blanca vigente del servidor (y viceversa), también en export_begin', () => {
+    const servidorFuentes = [...vigente.matchAll(/when '([a-z_]+)' then grupo := '([a-z]+)'/g)].map((m) => [m[1], m[2]] as [string, string]);
     expect(new Map(servidorFuentes)).toEqual(new Map(FUENTES.map((f) => [f.nombre, f.grupo])));
+    const todas = [...(vigente.match(/todas constant text\[\] := array\[([^\]]+)\]/)?.[1] ?? '').matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    expect(new Set(todas)).toEqual(new Set(FUENTES.map((f) => f.nombre)));
   });
 
   it('Prueba 10 y seguridad · lista blanca, sin SQL a partir de la entrada, permisos y columnas sensibles fuera', () => {

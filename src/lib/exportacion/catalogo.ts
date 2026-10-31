@@ -74,6 +74,10 @@ export const FUENTES: Fuente[] = [
   P('disenos', 'diseno', 'diseno', 'exam_designs', 'Diseño de cada examen: orden (fijo, aleatorio, contrabalanceado) y versiones.', ['activity_id'], { activity_id: 'actividades.id' }),
   P('diseno_items', 'diseno', 'diseno', 'exam_design_items', 'Papel de cada ítem en el diseño (ancla, isomorfo…).', ['activity_id', 'exercise_id'], { activity_id: 'actividades.id', exercise_id: 'ejercicios.id' }),
   P('calibraciones', 'diseno', 'diseno', 'item_calibrations', 'Calibración psicométrica 2PL de los ítems y su modelo de tiempos.', ['exercise_id'], { exercise_id: 'ejercicios.id' }),
+  P('examen_config', 'diseno', 'diseno', 'exam_settings', 'Modo de examen de cada evaluación: presentación, navegación, duración y pausas.', ['activity_id'], { activity_id: 'actividades.id' }),
+  P('examen_sesiones', 'telemetria', 'telemetria', 'exam_sessions', 'Sesión oficial de cada intento con el motor de examen (copia de la configuración, pausas usadas, pregunta activa).', ['attempt_id'], { attempt_id: 'intentos.id', user_id: 'estudiantes.id' }),
+  P('examen_eventos', 'telemetria', 'telemetria', 'exam_events', 'Eventos OFICIALES del servidor en el examen: apertura, cambio de pregunta, pausa, reanudación, entrega y tramos rechazados.', ['id'], { attempt_id: 'intentos.id', user_id: 'estudiantes.id', exercise_id: 'ejercicios.id' }),
+  P('examen_tramos', 'telemetria', 'telemetria', 'exam_intervals', 'Diario de TRAMOS del tiempo del intento (trabajo, inactividad, pausa, oculta, desconexión, desconocido, revisión), en hora del servidor.', ['id'], { attempt_id: 'intentos.id', user_id: 'estudiantes.id', exercise_id: 'ejercicios.id' }),
 ];
 
 export const fuente = (nombre: string) => FUENTES.find((f) => f.nombre === nombre);
