@@ -146,12 +146,39 @@ Cada métrica lleva un estado: `observado` · `reconstruido` · `estimado` · `n
 
 ---
 
-## 3. Plan por etapas
+## 3. Motor de reconstrucción (etapa B)
+
+`reconstruir(entrada)` es puro: no lee el reloj del sistema ni la red. La entrada son **eventos normalizados**
+(`modelo.ts`), que los adaptadores producen a partir de cada fuente sin modificarla (`desdeV1`, `desdeDiarioExamen`;
+cada evento conserva `ref` al registro original). Pasos:
+
+1. Deduplicar por (sesión, secuencia).
+2. Anclar cada sesión al servidor: muestras de sincronización si las hay (menor ida y vuelta, incertidumbre = media ida
+   y vuelta); si no, cota por recepción $\min(r - \tau)$. Se informan huecos de secuencia, duplicados, eventos muy
+   retrasados (> 30 s) y retrocesos del reloj monotónico.
+3. Máquina de estados por sesión (§2.2). Con la página visible y activa, un silencio mayor que $\theta$ + 15 s (el
+   detector de inactividad habría emitido algo) se clasifica como **desconocido** (navegador suspendido). La
+   inactividad empieza $\theta$ después de la última interacción. Una «salida» cierra la observación hasta el siguiente evento.
+4. Partición por prioridad (§2.3) y dimensiones superpuestas (sin red, exposición).
+5. Métricas por pregunta (§2.4) con su estado; visitas reconstruidas con pregunta activa conocida, o «apariciones en
+   pantalla» (estimado) si no; calidad separada por dimensión (temporal con cobertura, atribución, completitud,
+   respuesta, sincronización).
+6. Continuidad entre sesiones consecutivas: `misma_pestana` (recarga: continuidad probable), `otra_pestana`,
+   `simultaneas` (conflicto) o `desconocida`. Nunca se fusionan.
+7. Invariantes (§2.5) en cada ejecución; las violaciones se devuelven en `invariantes`, no se ocultan.
+
+**Datos V1 de la práctica:** varias preguntas en pantalla y sin pregunta activa → foco, trabajo candidato y visitas
+por pregunta son **no identificables**; la exposición es *estimada* (observador poco fiable); la interacción con los
+controles sí es atribuible. Resultado con el respaldo real: la única respuesta «escrita sin confirmar» coincide con la
+encontrada por la auditoría independiente. (Una primera versión marcaba 53 por un artefacto: V1 emite el cambio al
+*cerrar* la ráfaga, 2 s después del último cambio y después del guardado; el motor usa ahora el final real de la ráfaga.)
+
+## 4. Plan por etapas
 
 | Etapa | Contenido | Estado |
 |---|---|---|
 | A | Auditoría y modelo formal (el diccionario de eventos V2 se escribe con la ingesta, etapa C, para documentar solo eventos reales) | ✔ este documento |
-| B | Motor puro de intervalos y reconstrucción (V1 → modelo; examen → modelo), calidad, pruebas de casos e invariantes, determinismo | pendiente |
+| B | Motor puro de intervalos y reconstrucción (V1 → modelo; examen → modelo), calidad, pruebas de casos e invariantes, determinismo | ✔ `src/lib/telemetria/v2/{intervalos,modelo,reconstruir,adaptadores}.ts`, `tests/telemetria-v2.test.ts` (casos A–H, J–M, Q, R, T; propiedades del álgebra; 300 intentos aleatorios). Con los 77 intentos reales del respaldo: 0 invariantes violados, 330 ms en total |
 | C | Ingesta V2: tabla propia versionada e idempotente, sincronización de reloj, bandera de activación | pendiente |
 | D | Respuestas: historial de revisiones del servidor, instantánea de entrega, copia y reintento del borrador en la práctica clásica | pendiente |
 | E–F | Integración con examen (diario existente) y práctica clásica y asistida (pregunta activa por control enfocado, observador corregido) | pendiente |
