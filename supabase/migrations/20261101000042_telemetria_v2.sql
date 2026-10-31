@@ -132,8 +132,9 @@ begin
       end if;
       v_flags := '{}';
       v_wall := case when (e ->> 'wall') ~ '^[0-9]{10,14}$' then to_timestamp((e ->> 'wall')::bigint / 1000.0) end;
-      if v_wall is not null and abs(extract(epoch from v_wall - now())) > 86400 then v_wall := null; v_flags := v_flags || 'hora_cliente_descartada'; end if;
-      if v_att.status <> 'in_progress' then v_flags := v_flags || 'recibido_tras_entrega'; end if;
+      -- array_append (no «||» con un literal: PostgreSQL lo leería como un arreglo y fallaría)
+      if v_wall is not null and abs(extract(epoch from v_wall - now())) > 86400 then v_wall := null; v_flags := array_append(v_flags, 'hora_cliente_descartada'::text); end if;
+      if v_att.status <> 'in_progress' then v_flags := array_append(v_flags, 'recibido_tras_entrega'::text); end if;
       insert into public.telemetry_v2_events (event_id, attempt_id, user_id, session_id, tab_id, client_seq, event_type, question_id, active_question_id,
           t_mono, client_wall, visibility, connectivity, response_rev, payload, quality_flags)
         values ((e ->> 'event_id')::uuid, v_att.id, v_uid, (e ->> 'session_id')::uuid, nullif(e ->> 'tab_id', '')::uuid, (e ->> 'client_seq')::integer,
