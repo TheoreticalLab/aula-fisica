@@ -5,7 +5,9 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { MyActivity, MyGrade } from '@/api/tipos';
-import { fecha, porcentaje, puntaje, relativo } from '@/lib/util';
+import { porcentaje, puntaje, relativo } from '@/lib/util';
+import { ListaActividades } from '@/components/ListaActividades';
+import { estadoActividad, ordenar } from '@/lib/actividades';
 
 export interface CursoPanel {
   classId: string;
@@ -79,10 +81,9 @@ const ICONO_CONTINUAR = { leccion: '📖', practica: '✏️', actividad: '📝'
 
 export function PanelEstudiante({ d, rutaActividad = (id) => `/actividad/${id}`, asistencia }: { d: DatosPanel; rutaActividad?: (id: string) => string; asistencia?: ReactNode }) {
   const ahora = Date.now();
-  const proximas = d.actividades
-    .filter((a) => !a.closes_at || new Date(a.closes_at).getTime() > ahora)
-    .sort((a, b) => (a.closes_at ? new Date(a.closes_at).getTime() : Infinity) - (b.closes_at ? new Date(b.closes_at).getTime() : Infinity))
-    .slice(0, 5);
+  // pendientes (en curso, disponibles o por abrir), ordenadas; cada lista se corta por separado
+  const proximas = ordenar(d.actividades.filter((a) => ['en_curso', 'disponible', 'proxima'].includes(estadoActividad(a, ahora).estado)), ahora);
+  const primeras = (m: 'exam' | 'practice') => proximas.filter((a) => a.mode === m).slice(0, 4);
   const totalDom = d.cursos.reduce((s, c) => s + c.dominados, 0);
   const totalDif = d.cursos.reduce((s, c) => s + c.dificultad, 0);
 
@@ -204,36 +205,15 @@ export function PanelEstudiante({ d, rutaActividad = (id) => `/actividad/${id}`,
         </div>
 
         <div className="space-y-8">
-          {/* Próximas actividades */}
-          <Bloque titulo="Próximas actividades">
-            {proximas.length ? (
-              <ul className="divide-y divide-gray-100 rounded-2xl border border-gray-200 bg-white dark:divide-white/10 dark:border-white/10 dark:bg-white/5">
-                {proximas.map((a) => {
-                  const pronto = a.closes_at && new Date(a.closes_at).getTime() - ahora < 48 * 3600_000;
-                  return (
-                    <li key={a.id}>
-                      <Link to={a.in_progress ? `/intento/${a.in_progress}` : rutaActividad(a.id)} className="block p-4 hover:bg-gray-50 dark:hover:bg-white/5">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="font-medium text-primario-950 dark:text-white">{a.title}</p>
-                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${a.mode === 'exam' ? 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200' : 'bg-primario-100 text-primario-800 dark:bg-primario-800/50 dark:text-primario-100'}`}>
-                            {a.mode === 'exam' ? 'Evaluación' : 'Práctica'}
-                          </span>
-                        </div>
-                        <p className={`mt-1 text-sm ${pronto ? 'font-medium text-red-700 dark:text-red-300' : 'text-gray-500'}`}>
-                          {a.submitted ? 'Entregada · ' : a.in_progress ? 'En curso · ' : ''}
-                          {a.closes_at ? `Cierra ${relativo(a.closes_at)} (${fecha(a.closes_at)})` : 'Sin fecha límite'}
-                        </p>
-                        <p className="text-xs text-gray-500">{a.class_name}</p>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="rounded-2xl border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-white/15">No tiene actividades pendientes. 🎉</p>
-            )}
+          {/* Evaluaciones y prácticas, separadas */}
+          <Bloque titulo="Evaluaciones">
+            <ListaActividades actividades={primeras('exam')} ruta={rutaActividad} vacio="No tiene evaluaciones pendientes." />
+            <Link to="/evaluaciones" className="enlace mt-2 inline-block text-sm">Ver todas las evaluaciones →</Link>
           </Bloque>
-
+          <Bloque titulo="Prácticas">
+            <ListaActividades actividades={primeras('practice')} ruta={rutaActividad} vacio="No tiene prácticas pendientes. 🎉" />
+            <Link to="/practicar" className="enlace mt-2 inline-block text-sm">Ver todas las prácticas →</Link>
+          </Bloque>
           {/* Progreso */}
           {d.cursos.some((c) => c.lecciones > 0) && (
             <Bloque titulo="Mi progreso">

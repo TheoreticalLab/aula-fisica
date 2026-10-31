@@ -18,6 +18,8 @@ const Leccion = lazy(() => import('@/pages/estudiante/Leccion'));
 const Actividad = lazy(() => import('@/pages/estudiante/Actividad'));
 const Intento = lazy(() => import('@/pages/estudiante/Intento'));
 const Calificaciones = lazy(() => import('@/pages/estudiante/Calificaciones'));
+const Evaluaciones = lazy(() => import('@/pages/estudiante/Evaluaciones'));
+const Practicar = lazy(() => import('@/pages/estudiante/Evaluaciones').then((m) => ({ default: m.Practicar })));
 const Progreso = lazy(() => import('@/pages/estudiante/Progreso'));
 const Laboratorio = lazy(() => import('@/pages/estudiante/Laboratorio'));
 const Perfil = lazy(() => import('@/pages/estudiante/Perfil'));
@@ -32,6 +34,7 @@ const LeccionEditor = lazy(() => import('@/pages/docente/LeccionEditor'));
 const Banco = lazy(() => import('@/pages/docente/Banco'));
 const EjercicioEditor = lazy(() => import('@/pages/docente/EjercicioEditor'));
 const ActividadEditor = lazy(() => import('@/pages/docente/ActividadEditor'));
+const CrearActividad = lazy(() => import('@/pages/docente/CrearActividad'));
 const VistaPrevia = lazy(() => import('@/pages/docente/VistaPrevia'));
 const VistaPanel = lazy(() => import('@/pages/docente/VistaPanel'));
 const RevisionIntento = lazy(() => import('@/pages/docente/RevisionIntento'));
@@ -91,6 +94,8 @@ export default function App() {
               <Route path="actividad/:activityId" element={auth(<Actividad />)} />
               <Route path="intento/:attemptId" element={auth(<Intento />)} />
               <Route path="calificaciones" element={auth(<Calificaciones />)} />
+              <Route path="evaluaciones" element={auth(<Evaluaciones />)} />
+              <Route path="practicar" element={auth(<Practicar />)} />
               <Route path="laboratorio" element={auth(<Laboratorio />)} />
               <Route path="laboratorio/:simKey" element={auth(<Laboratorio />)} />
               <Route path="perfil" element={auth(<Perfil />)} />
@@ -105,6 +110,7 @@ export default function App() {
               <Route path="docente/ejercicios" element={teacher(<Banco />)} />
               <Route path="docente/ejercicios/:exerciseId" element={teacher(<EjercicioEditor />)} />
               <Route path="docente/actividades/:activityId" element={teacher(<ActividadEditor />)} />
+              <Route path="docente/clases/:classId/nueva-actividad" element={teacher(<CrearActividad />)} />
               <Route path="docente/actividades/:activityId/vista-previa" element={teacher(<VistaPrevia />)} />
               <Route path="docente/clases/:classId/vista-estudiante" element={teacher(<VistaPanel />)} />
               <Route path="docente/intentos/:attemptId" element={teacher(<RevisionIntento />)} />

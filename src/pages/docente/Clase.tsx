@@ -349,7 +349,13 @@ function TabActividades({ c }: { c: ClassRow }) {
   if (list.loading) return <Spinner />;
   return (
     <div className="space-y-5">
-      <Card title="Nueva actividad">
+      <div className="flex flex-wrap items-center gap-3">
+        <Link to={`/docente/clases/${c.id}/nueva-actividad`} className="btn-primario min-h-[44px] text-base">+ Crear actividad</Link>
+        <span className="text-sm text-gray-500">Asistente en 4 pasos con plantillas: práctica, tarea, quiz, parcial…</span>
+      </div>
+      <details>
+        <summary className="cursor-pointer text-sm text-gray-500">Creación rápida (solo título y modalidad)</summary>
+      <Card className="mt-2">
         <form className="flex flex-wrap items-end gap-3" onSubmit={crear}>
           <div className="min-w-[14rem] flex-1">
             <Field label="Título">{(id) => <input id={id} className="campo" value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={160} placeholder="Práctica 1: MRU" />}</Field>
@@ -362,10 +368,11 @@ function TabActividades({ c }: { c: ClassRow }) {
               </select>
             )}
           </Field>
-          <button className="btn-primario mb-3" disabled={action.busy}>Crear y configurar</button>
+          <button className="btn-secundario mb-3" disabled={action.busy}>Crear y configurar</button>
         </form>
         <ErrorBox error={action.error} />
       </Card>
+      </details>
       {list.data?.length ? (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
