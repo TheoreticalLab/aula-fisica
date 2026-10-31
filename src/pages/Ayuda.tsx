@@ -31,7 +31,8 @@ export default function Ayuda() {
             <li><strong>Aprender</strong>: el temario con la teoría y la práctica de cada lección.</li>
             <li><strong>Practicar</strong>: prácticas asignadas. Puede comprobar, usar pistas y repetir.</li>
             <li><strong>Evaluaciones</strong>: exámenes y quizzes calificables. Se entregan una vez.</li>
-            <li><strong>Asistencia</strong> y <strong>Notas</strong>: su asistencia y sus calificaciones publicadas.</li>
+            <li><strong>Asistencia</strong>: marcar presencia en clase y ver su registro.</li>
+            <li><strong>Mi cuenta</strong>: calificaciones, progreso por asignatura, entregas en PDF, perfil y contraseña.</li>
           </ul>
         </Tema>
         <Tema titulo="Cómo hacer una evaluación de «una pregunta a la vez»">

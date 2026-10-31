@@ -76,21 +76,33 @@ export function Layout() {
   if (loading) return <div className="p-8"><Spinner /></div>;
   return (
     <div className="flex min-h-screen flex-col">
+      <a href="#contenido" onClick={(e) => { e.preventDefault(); document.getElementById('contenido')?.focus(); }}
+        className="sr-only z-50 rounded bg-white px-3 py-2 text-primario-900 focus:not-sr-only focus:fixed focus:left-2 focus:top-2">Saltar al contenido</a>
       <header className="sticky top-0 z-40 bg-primario-900 shadow-md dark:bg-primario-950">
         <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2 sm:px-4">
           <Logo />
           <nav className="ml-auto hidden items-center gap-1 md:flex" aria-label="Principal">
             {session && (
               <>
-                <NavLink to="/" end className={topLink}>Inicio</NavLink>
-                {!isTeacher && <NavLink to="/practicar" className={topLink}>Practicar</NavLink>}
-                {!isTeacher && <NavLink to="/evaluaciones" className={topLink}>Evaluaciones</NavLink>}
-                <NavLink to="/laboratorio" className={topLink}>Laboratorio</NavLink>
-                <NavLink to="/calificaciones" className={topLink}>Calificaciones</NavLink>
-                {!isTeacher && <NavLink to="/asistencia" className={topLink}>Asistencia</NavLink>}
-                {!isTeacher && <NavLink to="/entregas" className={topLink}>Entregas</NavLink>}
-                {isTeacher && <NavLink to="/docente" className={topLink}>Panel docente</NavLink>}
-                {isAdmin && <NavLink to="/docente/cuentas" className={topLink}>Cuentas</NavLink>}
+                {isTeacher ? (
+                  <>
+                    <NavLink to="/docente" end className={topLink}>Panel</NavLink>
+                    <NavLink to="/docente/cursos" className={topLink}>Contenido</NavLink>
+                    <NavLink to="/docente/ejercicios" className={topLink}>Banco</NavLink>
+                    <NavLink to="/docente/comunicacion" className={topLink}>Comunicación</NavLink>
+                    <NavLink to="/" end className={topLink}>Vista de estudiante</NavLink>
+                    {isAdmin && <NavLink to="/docente/cuentas" className={topLink}>Cuentas</NavLink>}
+                  </>
+                ) : (
+                  <>
+                    <NavLink to="/" end className={topLink}>Inicio</NavLink>
+                    <NavLink to="/temario" className={topLink}>Aprender</NavLink>
+                    <NavLink to="/practicar" className={topLink}>Practicar</NavLink>
+                    <NavLink to="/evaluaciones" className={topLink}>Evaluaciones</NavLink>
+                    <NavLink to="/asistencia" className={topLink}>Asistencia</NavLink>
+                    <NavLink to="/cuenta" className={topLink}>Mi cuenta</NavLink>
+                  </>
+                )}
               </>
             )}
           </nav>
@@ -107,11 +119,12 @@ export function Layout() {
                 {menu && (
                   <div role="menu" className="absolute right-0 mt-1 w-56 rounded-lg border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-white/10 dark:bg-primario-950" onClick={() => setMenu(false)}>
                     <p className="px-3 py-2 text-xs text-gray-500">ID: {profile?.login_id ?? '—'}<br />{profile?.role === 'admin' ? 'Administrador' : profile?.role === 'teacher' ? 'Profesor' : 'Estudiante'}</p>
+                    {!isTeacher && <Link role="menuitem" to="/cuenta" className="block px-3 py-2 font-medium hover:bg-gray-100 dark:hover:bg-white/10">Mi cuenta</Link>}
                     <Link role="menuitem" to="/perfil" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Mi perfil</Link>
                     <Link role="menuitem" to="/ayuda" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">❓ Ayuda</Link>
                     {esMonitor && <Link role="menuitem" to="/secretaria" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Secretaría del curso</Link>}
                     <Link role="menuitem" to="/entregas" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Entregas en PDF</Link>
-                    <Link role="menuitem" to="/laboratorio" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10 md:hidden">Laboratorio virtual</Link>
+                    <Link role="menuitem" to="/laboratorio" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Laboratorio virtual</Link>
                     <Link role="menuitem" to="/unirse" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Unirme a una clase</Link>
                     {isTeacher && <Link role="menuitem" to={docente ? '/' : '/docente'} className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10 md:hidden">{docente ? 'Vista de estudiante' : 'Panel docente'}</Link>}
                     {isAdmin && <Link role="menuitem" to="/docente/cuentas" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10 md:hidden">Cuentas</Link>}
@@ -127,7 +140,7 @@ export function Layout() {
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-5 md:pb-10">
+      <main id="contenido" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-5 outline-none md:pb-10">
         {session && profile && !profile.active ? (
           <div className="mx-auto max-w-md tarjeta text-center">
             <h1 className="mb-2 font-serif text-xl font-semibold">Cuenta no habilitada</h1>
@@ -187,7 +200,7 @@ function BottomNav({ docente }: { docente: boolean }) {
           <NavLink to="/practicar" className={item}>{icon(<path d="M14 4l6 6-10 10H4v-6zM12 6l6 6" />)}Practicar</NavLink>
           <NavLink to="/evaluaciones" className={item}>{icon(<path d="M9 4h6a1 1 0 0 1 1 1v1h2a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h2V5a1 1 0 0 1 1-1zM9 13l2 2 4-4" />)}Evaluaciones</NavLink>
           <NavLink to="/asistencia" className={item}>{icon(<path d="M9 11l3 3 8-8M4 4h10M4 9h4M4 14h4M4 19h16" />)}Asistencia</NavLink>
-          <NavLink to="/calificaciones" className={item}>{icon(<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />)}Notas</NavLink>
+          <NavLink to="/cuenta" className={item}>{icon(<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0" />)}Mi cuenta</NavLink>
         </>
       )}
     </nav>

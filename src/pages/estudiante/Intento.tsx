@@ -9,12 +9,39 @@ import { Markdown } from '@/components/Markdown';
 import { REVEAL_TEXT } from './Actividad';
 import { AvisoTelemetria, TelemetriaProvider, useTelemetria } from '@/components/Telemetria';
 import { examOpen, type AperturaExamen } from '@/api/examen';
-import { ExamenUnaALaVez } from './ExamenUnaALaVez';
+import { estaRespondida, ExamenUnaALaVez } from './ExamenUnaALaVez';
 
 /** Botón de entrega con los eventos de envío (solicitado → recibido por el servidor, o error). */
 function BotonEntregar({ entregar, ocupado }: { entregar: (tel: ReturnType<typeof useTelemetria>) => void; ocupado: boolean }) {
   const tel = useTelemetria();
   return <button className="btn-acento" onClick={() => entregar(tel)} disabled={ocupado}>{ocupado ? 'Entregando…' : 'Entregar'}</button>;
+}
+
+/** Progreso y acceso directo a cada ejercicio (verde = respondido; en práctica: ✓ correcto, ✗ cerrado sin acertar). */
+function MapaEjercicios({ items }: { items: AttemptItem[] }) {
+  const hechos = items.filter(estaRespondida).length;
+  const ir = (i: number) => document.getElementById(`ejercicio-${i + 1}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  return (
+    <nav aria-label="Ejercicios" className="tarjeta sticky top-16 z-20 !py-2">
+      <div className="mb-1.5 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+        <span className="font-medium">{hechos} de {items.length} respondidos</span>
+        <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-white/10"><span className="block h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${(100 * hechos) / items.length}%` }} /></span>
+      </div>
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+        {items.map((it, i) => {
+          const st = it.response?.status;
+          const tono = st === 'correct' ? 'border-emerald-500 bg-emerald-500 text-white' : st === 'incorrect' || st === 'revealed' ? 'border-red-300 bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-200'
+            : estaRespondida(it) ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30' : 'border-gray-300 dark:border-white/20';
+          return (
+            <button key={it.exercise.id} type="button" onClick={() => ir(i)} aria-label={`Ir al ejercicio ${i + 1}${estaRespondida(it) ? ' (respondido)' : ''}`}
+              className={`min-h-[36px] min-w-[36px] shrink-0 rounded-lg border text-sm font-medium tabular-nums ${tono}`}>
+              {st === 'correct' ? '✓' : i + 1}
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
 }
 
 export default function Intento() {
@@ -106,8 +133,11 @@ export default function Intento() {
         <Notice tone="warn">El plazo terminó. Ya no puede cambiar respuestas, pero puede entregar lo que guardó a tiempo para que se califique.</Notice>
       )}
       <div className="space-y-4">
+        {view.items.length > 1 && attempt.status === 'in_progress' && flags.is_owner && <MapaEjercicios items={view.items} />}
         {view.items.map((it, i) => (
-          <Ejercicio key={it.exercise.id} index={i} item={it} view={view} onChange={update(i)} onReload={st.reload} />
+          <div key={it.exercise.id} id={`ejercicio-${i + 1}`} className="scroll-mt-20">
+            <Ejercicio index={i} item={it} view={view} onChange={update(i)} onReload={st.reload} />
+          </div>
         ))}
       </div>
       <ErrorBox error={action.error} />

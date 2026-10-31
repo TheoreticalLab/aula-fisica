@@ -19,6 +19,7 @@ const Actividad = lazy(() => import('@/pages/estudiante/Actividad'));
 const Intento = lazy(() => import('@/pages/estudiante/Intento'));
 const Calificaciones = lazy(() => import('@/pages/estudiante/Calificaciones'));
 const Ayuda = lazy(() => import('@/pages/Ayuda'));
+const Cuenta = lazy(() => import('@/pages/estudiante/Cuenta'));
 const Evaluaciones = lazy(() => import('@/pages/estudiante/Evaluaciones'));
 const Practicar = lazy(() => import('@/pages/estudiante/Evaluaciones').then((m) => ({ default: m.Practicar })));
 const Progreso = lazy(() => import('@/pages/estudiante/Progreso'));
@@ -101,6 +102,7 @@ export default function App() {
               <Route path="laboratorio/:simKey" element={auth(<Laboratorio />)} />
               <Route path="perfil" element={auth(<Perfil />)} />
               <Route path="ayuda" element={auth(<Ayuda />)} />
+              <Route path="cuenta" element={auth(<Cuenta />)} />
               <Route path="asistencia" element={auth(<Asistencia />)} />
               <Route path="entregas" element={auth(<Entregas />)} />
 
