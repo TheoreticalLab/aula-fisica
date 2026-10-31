@@ -7,6 +7,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { createActivity, getClass, listExercises, setActivityItems, updateActivity } from '@/api/docente';
 import { getLessonList } from '@/api/estudiante';
 import { examSettingsSave, funcionAusente } from '@/api/examen';
+import { assistedSettingsSave } from '@/api/asistida';
 import type { Exercise } from '@/api/tipos';
 import { aActividad, borradorDesde, PLANTILLAS, plantilla, resumen, revisar, type Borrador, type IdPlantilla } from '@/lib/plantillas';
 import { CATEGORIA, DIFICULTAD, useAction, useAsync } from '@/lib/util';
@@ -43,6 +44,11 @@ export default function CrearActividad() {
       if (final.preguntas.length) await setActivityItems(act.id, final.preguntas);
       // sin el motor en el servidor (migración 35 sin aplicar), la evaluación queda clásica en vez de fallar a medias
       if (final.mode === 'exam' && final.examen) await examSettingsSave(act.id, final.examen).catch((e) => { if (!funcionAusente(e)) throw e; });
+      if (final.asistida) {
+        await assistedSettingsSave(act.id, { transferencia: final.asistida.transferencia }, null).catch((e) => {
+          throw funcionAusente(e) ? new Error('La práctica se creó como borrador, pero el aprendizaje asistido aún no está activado en el servidor (falta aplicar la migración 38).') : e;
+        });
+      }
       if (publicar) await updateActivity(act.id, { published: true });
       return act;
     });
@@ -103,7 +109,7 @@ export default function CrearActividad() {
 
 function PasoTipo({ elegida, onElegir }: { elegida: IdPlantilla | null; onElegir: (id: IdPlantilla) => void }) {
   const grupos: { titulo: string; ids: IdPlantilla[] }[] = [
-    { titulo: 'Para practicar', ids: ['practica_libre', 'tarea'] },
+    { titulo: 'Para practicar', ids: ['practica_libre', 'practica_asistida', 'tarea'] },
     { titulo: 'Para evaluar', ids: ['quiz', 'parcial', 'estricto'] },
     { titulo: 'Desde cero', ids: ['blanco_practica', 'blanco_examen'] },
   ];
@@ -191,6 +197,13 @@ function PasoReglas({ b, set }: { b: Borrador; set: (p: Partial<Borrador>) => vo
         <label className="text-sm"><span className="etiqueta">Cierra {b.reveal_policy === 'after_close' ? '' : '(opcional)'}</span>
           <input type="datetime-local" className="campo" value={aLocal(b.closes_at)} onChange={(e) => set({ closes_at: deLocal(e.target.value) })} /></label>
       </div>
+      {b.asistida && (
+        <div className="rounded-xl border border-primario-200 bg-primario-50 p-3 text-sm dark:border-primario-500/30 dark:bg-primario-900/30">
+          <p className="font-medium">Aprendizaje asistido: Intentar → Aprender → Explicar{b.asistida.transferencia ? ' → Comprobar' : ''}</p>
+          <label className="mt-2 flex items-start gap-2"><input type="checkbox" className="mt-1" checked={b.asistida.transferencia} onChange={(e) => set({ asistida: { transferencia: e.target.checked } })} />
+            <span>Añadir el paso 4 «Demuestra lo que aprendiste»: un ejercicio distinto con el mismo concepto. <span className="text-xs text-gray-500">Después de crear la práctica, elija el ejercicio de transferencia de cada pregunta en Configuración → Aprendizaje asistido.</span></span></label>
+        </div>
+      )}
       {exam && ex && (
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm"><span className="etiqueta">Duración (minutos)</span>
@@ -211,10 +224,10 @@ function PasoReglas({ b, set }: { b: Borrador; set: (p: Partial<Borrador>) => vo
             <input type="number" min={1} max={20} className="campo" value={b.max_tries_per_item} onChange={(e) => set({ max_tries_per_item: Math.max(1, Math.min(20, Number(e.target.value) || 1)) })} /></label>}
           <label className="text-sm"><span className="etiqueta">Soluciones</span>
             <select className="campo" value={b.reveal_policy} onChange={(e) => set({ reveal_policy: e.target.value as Borrador['reveal_policy'] })}>
-              {!exam && <option value="immediate">Al comprobar cada ejercicio</option>}
+              {!exam && !b.asistida && <option value="immediate">Al comprobar cada ejercicio</option>}
               <option value="after_submit">Al entregar</option><option value="after_close">Al cerrar la actividad</option><option value="never">Nunca</option>
             </select></label>
-          {!exam && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={b.hints_enabled} onChange={(e) => set({ hints_enabled: e.target.checked })} /> Pistas disponibles</label>}
+          {!exam && !b.asistida && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={b.hints_enabled} onChange={(e) => set({ hints_enabled: e.target.checked })} /> Pistas disponibles</label>}
           {exam && (
             <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={!!ex} onChange={(e) => set({ examen: e.target.checked ? (plantilla('parcial').examen ? { ...structuredClone(plantilla('parcial').examen!), pausas: { permitidas: false, max_numero: 0, max_total_s: 0, detienen_reloj: false } } : null) : null })} />
               Una pregunta a la vez (reloj oficial, tiempo por pregunta, recuperación tras desconexiones)</label>

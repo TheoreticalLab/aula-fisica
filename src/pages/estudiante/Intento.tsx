@@ -8,7 +8,9 @@ import { Ejercicio } from '@/components/Ejercicio';
 import { Markdown } from '@/components/Markdown';
 import { REVEAL_TEXT } from './Actividad';
 import { AvisoTelemetria, TelemetriaProvider, useTelemetria } from '@/components/Telemetria';
-import { examOpen, type AperturaExamen } from '@/api/examen';
+import { examOpen, funcionAusente, type AperturaExamen } from '@/api/examen';
+import { asistidaEstado } from '@/api/asistida';
+import { PracticaAsistida } from './PracticaAsistida';
 import { estaRespondida, ExamenUnaALaVez } from './ExamenUnaALaVez';
 
 /** Botón de entrega con los eventos de envío (solicitado → recibido por el servidor, o error). */
@@ -52,11 +54,25 @@ export default function Intento() {
   // motor de examen: solo para evaluaciones en curso del propio estudiante; si no está configurado, interfaz clásica
   const usaMotor = !!st.data && st.data.flags.is_owner && st.data.attempt.mode === 'exam' && st.data.attempt.status === 'in_progress';
   const apertura = useAsync(() => (usaMotor ? examOpen(attemptId) : Promise.resolve({ modo: 'clasico' } as AperturaExamen)), [attemptId, usaMotor]);
-  if ((st.loading && !st.data) || (usaMotor && apertura.loading && !apertura.data)) return <Spinner />;
+  // práctica con aprendizaje asistido (si el servidor aún no la tiene, práctica clásica)
+  const posibleAsistida = !!st.data && st.data.flags.is_owner && st.data.attempt.mode === 'practice' && !!st.data.attempt.activity_id && st.data.attempt.status === 'in_progress';
+  const asistida = useAsync(() => (posibleAsistida ? asistidaEstado(attemptId).then((r) => r.asistida).catch((e) => { if (funcionAusente(e)) return false; throw e; }) : Promise.resolve(false)), [attemptId, posibleAsistida]);
+  if ((st.loading && !st.data) || (usaMotor && apertura.loading && !apertura.data) || (posibleAsistida && asistida.loading && asistida.data === undefined)) return <Spinner />;
   if (st.error) return <ErrorBox error={st.error} onRetry={st.reload} />;
   const view = st.data!;
   const { attempt, activity, flags } = view;
   if (usaMotor && apertura.error) return <ErrorBox error={apertura.error} onRetry={apertura.reload} />;
+  if (posibleAsistida && asistida.error) return <ErrorBox error={asistida.error} onRetry={asistida.reload} />;
+  if (posibleAsistida && asistida.data) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <PageTitle title={activity?.title ?? 'Práctica'} subtitle={<Badge tone="blue">Práctica con aprendizaje asistido</Badge>}
+          back={activity ? { to: `/actividad/${activity.id}`, label: 'Actividad' } : undefined} />
+        {activity?.instructions && <div className="tarjeta mb-4"><Markdown>{activity.instructions}</Markdown></div>}
+        <PracticaAsistida view={view} onEntregado={() => { setJustSubmitted(true); void st.reload(); }} />
+      </div>
+    );
+  }
   if (usaMotor && apertura.data?.modo === 'una_a_la_vez') {
     const servidor = apertura.data;
     return (

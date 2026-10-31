@@ -294,7 +294,7 @@ begin
   end if;
   if s.transferencia and v_tr is not null and v_ref then select * into e from public.exercises where id = v_tr; end if;
   return jsonb_build_object(
-    'exercise_id', p_exercise, 'siguiente', v_sig, 'correcciones', v_cor,
+    'exercise_id', p_exercise, 'siguiente', v_sig, 'correcciones', v_cor, 'con_transferencia', coalesce(s.transferencia, false) and v_tr is not null,
     'pasos', (select coalesce(jsonb_agg(jsonb_build_object('fase', x.fase, 'version', x.version, 'answer', x.answer, 'procedimiento', x.procedimiento,
                 'explicacion', x.explicacion, 'no_se', x.no_se, 'declaracion', x.declaracion, 'fuentes', x.fuentes, 'reflexion', x.reflexion,
                 'referencias', x.referencias, 'transfer_exercise_id', x.transfer_exercise_id,

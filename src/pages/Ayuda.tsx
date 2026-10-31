@@ -45,6 +45,15 @@ export default function Ayuda() {
           </Pasos>
           <p>Si el tiempo se acaba, se entrega sola lo que haya guardado.</p>
         </Tema>
+        <Tema titulo="Prácticas con aprendizaje asistido (Intentar → Aprender → Explicar → Comprobar)">
+          <Pasos>
+            <li><strong>Intentar</strong>: resuélvelo primero por tu cuenta (o marca «No sé resolverlo todavía») y di cómo lo hiciste. Tu primera respuesta queda guardada tal cual.</li>
+            <li><strong>Aprender</strong>: ahora puedes usar IA, libros, apuntes o preguntar a alguien. Corrige tu respuesta y pulsa «Guardar mi corrección».</li>
+            <li><strong>Explicar</strong>: con tus palabras, qué aprendiste o dónde estaba el error, y qué ayudas usaste.</li>
+            <li><strong>Comprobar</strong> (si está activado): un ejercicio nuevo con el mismo concepto, una sola vez.</li>
+          </Pasos>
+          <p>No necesitas acertar al principio. Declarar que usaste ayuda no te quita puntos, y decir que no la usaste no te da puntos extra.</p>
+        </Tema>
         <Tema titulo="¿Y si se va la internet o se cierra la página?">
           <p>Siga respondiendo: verá «Sin conexión: guardado en este dispositivo». Las respuestas se envían solas cuando vuelve la red.</p>
           <p>Si se cierra la página o se apaga el teléfono, vuelva a entrar en la evaluación: continúa en la misma pregunta, con sus respuestas. El reloj oficial no se detiene mientras está fuera (salvo durante una pausa permitida).</p>
@@ -70,6 +79,15 @@ export default function Ayuda() {
               <li><strong>Revisar</strong>: lea el resumen y pulse <strong>Crear y publicar</strong> o <strong>Guardar borrador</strong>.</li>
             </Pasos>
             <p>Antes de publicar un examen, ábralo con <strong>👁 Vista previa como estudiante</strong>.</p>
+          </Tema>
+          <Tema titulo="Prácticas con aprendizaje asistido">
+            <p>Para que el uso de IA sirva para aprender: el estudiante intenta solo (y declara cómo), aprende con ayuda y corrige, explica lo aprendido y, si lo activa, resuelve un ejercicio de transferencia.</p>
+            <Pasos>
+              <li>+ Crear actividad → <strong>Práctica con aprendizaje asistido</strong>.</li>
+              <li>Configuración → <strong>Aprendizaje asistido</strong>: elija el ejercicio de transferencia de cada pregunta; en opciones avanzadas, los pesos (20/30/20/30, editables) y una verificación posterior.</li>
+              <li>Resultados → <strong>Proceso de aprendizaje</strong>: primera y segunda respuesta lado a lado, ayudas, cambio, explicación, transferencia y retención.</li>
+            </Pasos>
+            <p>La declaración de uso de IA no cambia la nota y no es una prueba de nada; tampoco una explicación «que parece de IA».</p>
           </Tema>
           <Tema titulo="Durante un examen: seguimiento en vivo y prórrogas">
             <p>En la actividad, pestaña <strong>Resultados</strong>, el panel <strong>En vivo</strong> muestra quién está respondiendo, en pausa o sin conexión, en qué pregunta va y cuánto le queda.</p>

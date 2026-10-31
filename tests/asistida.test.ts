@@ -117,7 +117,7 @@ describe('Pasos visibles y resumen para el profesor', () => {
     expect(pasosVisibles(true).map((p) => p.titulo)).toEqual(['Intentar', 'Aprender', 'Explicar', 'Comprobar']);
   });
   it('resumen: intentos, ayuda declarada, rendimiento inicial declarado y posterior, transferencia', () => {
-    const item = (pasos: Paso[]): EstadoItem => ({ exercise_id: 'q', siguiente: 'completo', correcciones: 1, pasos, transferencia: null, solucion: null, calificacion: null });
+    const item = (pasos: Paso[]): EstadoItem => ({ exercise_id: 'q', siguiente: 'completo', correcciones: 1, con_transferencia: false, pasos, transferencia: null, solucion: null, calificacion: null });
     const r = resumenSeccion([
       { ejercicio: 'q', item: item([paso({ declaracion: 'autonomo', status: 'incorrect' }), paso({ fase: 'corregida', status: 'correct' }), paso({ fase: 'reflexion', reflexion: { error: 'Usé mg/k en vez de energía' }, fuentes: ['ia'] })]) },
       { ejercicio: 'q', item: item([paso({ declaracion: 'consulto_ayuda', status: 'correct' }), paso({ fase: 'corregida', status: 'correct' })]) },

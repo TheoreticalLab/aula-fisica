@@ -22,6 +22,15 @@ describe('Asistente · plantillas', () => {
     expect(borradorDesde('estricto', ahora).examen?.navegacion).toBe('solo_adelante');
     expect(borradorDesde('practica_libre', ahora).examen).toBeNull();
   });
+  it('práctica con aprendizaje asistido: sin solución inmediata ni pistas, y no se puede forzar', () => {
+    const b = conTitulo(borradorDesde('practica_asistida', ahora));
+    expect(b.asistida).toEqual({ transferencia: false });
+    expect(aActividad({ ...b, reveal_policy: 'immediate', hints_enabled: true }, 'k')).toMatchObject({ mode: 'practice', reveal_policy: 'after_submit', hints_enabled: false });
+    expect(revisar({ ...b, reveal_policy: 'immediate' }).errores.join()).toMatch(/después de que el estudiante explica/);
+    expect(revisar({ ...b, mode: 'exam' }).errores.join()).toMatch(/es para prácticas/);
+    expect(resumen(b).join(' ')).toMatch(/Aprendizaje asistido: 1 intento propio/);
+    expect(borradorDesde('practica_libre', ahora).asistida).toBeNull();
+  });
   it('el cierre sugerido es a las 23:59 del día indicado', () => {
     const c = new Date(borradorDesde('tarea', ahora).closes_at!);
     expect([c.getDate(), c.getHours(), c.getMinutes()]).toEqual([9, 23, 59]);

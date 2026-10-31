@@ -6,7 +6,7 @@
 import type { Activity, Mode, RevealPolicy } from '@/api/tipos';
 import type { ConfigExamen } from '@/lib/examen/motor';
 
-export type IdPlantilla = 'practica_libre' | 'tarea' | 'quiz' | 'parcial' | 'estricto' | 'blanco_practica' | 'blanco_examen';
+export type IdPlantilla = 'practica_libre' | 'practica_asistida' | 'tarea' | 'quiz' | 'parcial' | 'estricto' | 'blanco_practica' | 'blanco_examen';
 
 export interface Plantilla {
   id: IdPlantilla;
@@ -21,6 +21,7 @@ export interface Plantilla {
   dias_cierre: number | null;            // cierre sugerido a N días (null = sin cierre)
   examen: ConfigExamen | null;
   preguntas_sugeridas: number;
+  asistida?: boolean;                    // práctica con aprendizaje asistido (intentar → aprender → explicar → comprobar)
 }
 
 const sinPausas = { permitidas: false, max_numero: 0, max_total_s: 0, detienen_reloj: false };
@@ -28,6 +29,8 @@ const sinPausas = { permitidas: false, max_numero: 0, max_total_s: 0, detienen_r
 export const PLANTILLAS: Plantilla[] = [
   { id: 'practica_libre', icono: '🧩', titulo: 'Práctica libre', descripcion: 'Para aprender: ve si acierta al comprobar, con pistas y varios intentos.',
     mode: 'practice', reveal_policy: 'immediate', max_attempts: null, max_tries_per_item: 3, hints_enabled: true, dias_cierre: null, examen: null, preguntas_sugeridas: 8 },
+  { id: 'practica_asistida', icono: '🤝', titulo: 'Práctica con aprendizaje asistido', descripcion: 'Primero intenta solo; luego aprende con ayuda (IA, libros…), corrige y explica lo que aprendió.',
+    mode: 'practice', reveal_policy: 'after_submit', max_attempts: 1, max_tries_per_item: 2, hints_enabled: false, dias_cierre: 7, examen: null, preguntas_sugeridas: 4, asistida: true },
   { id: 'tarea', icono: '📅', titulo: 'Tarea con fecha', descripcion: 'Práctica con fecha de entrega; las soluciones se muestran al cerrar.',
     mode: 'practice', reveal_policy: 'after_close', max_attempts: 1, max_tries_per_item: 2, hints_enabled: true, dias_cierre: 7, examen: null, preguntas_sugeridas: 6 },
   { id: 'quiz', icono: '⚡', titulo: 'Quiz rápido', descripcion: 'Evaluación corta: una pregunta a la vez, 15 minutos, un intento.',
@@ -62,6 +65,7 @@ export interface Borrador {
   examen: ConfigExamen | null;
   preguntas: { exercise_id: string; points: number | null }[];
   publicar: boolean;
+  asistida: { transferencia: boolean } | null;
 }
 
 export function borradorDesde(id: IdPlantilla, ahora: Date): Borrador {
@@ -71,7 +75,7 @@ export function borradorDesde(id: IdPlantilla, ahora: Date): Borrador {
   return {
     plantilla: id, titulo: '', instrucciones: '', mode: p.mode, opens_at: null, closes_at: cierre ? cierre.toISOString() : null,
     max_attempts: p.max_attempts, max_tries_per_item: p.max_tries_per_item, reveal_policy: p.reveal_policy, hints_enabled: p.hints_enabled,
-    examen: p.examen ? structuredClone(p.examen) : null, preguntas: [], publicar: false,
+    examen: p.examen ? structuredClone(p.examen) : null, preguntas: [], publicar: false, asistida: p.asistida ? { transferencia: false } : null,
   };
 }
 
@@ -83,6 +87,8 @@ export function revisar(b: Borrador): { errores: string[]; avisos: string[] } {
   if (b.opens_at && b.closes_at && new Date(b.closes_at) <= new Date(b.opens_at)) errores.push('El cierre debe ser posterior a la apertura.');
   if (b.reveal_policy === 'after_close' && !b.closes_at) errores.push('Para mostrar las soluciones «al cerrar» hace falta una fecha de cierre.');
   if (b.mode === 'exam' && b.reveal_policy === 'immediate') errores.push('En una evaluación no se puede mostrar la solución de inmediato.');
+  if (b.asistida && b.mode !== 'practice') errores.push('El aprendizaje asistido es para prácticas.');
+  if (b.asistida && b.reveal_policy === 'immediate') errores.push('En la práctica asistida la solución se muestra después de que el estudiante explica lo aprendido, no de inmediato.');
   if (b.max_attempts !== null && (b.max_attempts < 1 || b.max_attempts > 50)) errores.push('Los intentos deben estar entre 1 y 50.');
   if (b.max_tries_per_item < 1 || b.max_tries_per_item > 20) errores.push('Las comprobaciones por ejercicio deben estar entre 1 y 20.');
   if (b.examen?.duracion_s !== null && b.examen?.duracion_s !== undefined && (b.examen.duracion_s < 60 || b.examen.duracion_s > 21600)) errores.push('La duración debe estar entre 1 minuto y 6 horas.');
@@ -100,8 +106,8 @@ export function aActividad(b: Borrador, class_id: string): Partial<Activity> & {
     class_id, title: b.titulo.trim(), instructions: b.instrucciones.trim(), mode: b.mode,
     opens_at: b.opens_at, closes_at: b.closes_at,
     max_attempts: b.max_attempts, max_tries_per_item: exam ? 1 : b.max_tries_per_item,
-    reveal_policy: exam && b.reveal_policy === 'immediate' ? 'after_submit' : b.reveal_policy,
-    hints_enabled: exam ? false : b.hints_enabled,
+    reveal_policy: (exam || b.asistida) && b.reveal_policy === 'immediate' ? 'after_submit' : b.reveal_policy,
+    hints_enabled: exam || b.asistida ? false : b.hints_enabled,
     published: b.publicar,
   };
 }
@@ -117,7 +123,11 @@ export function resumen(b: Borrador): string[] {
     l.push(`Una pregunta a la vez, navegación ${b.examen.navegacion === 'libre' ? 'libre' : 'solo hacia adelante'}${b.examen.duracion_s ? `, ${Math.round(b.examen.duracion_s / 60)} minutos` : ', sin límite de tiempo'}.`);
     l.push(b.examen.pausas.permitidas ? `${b.examen.pausas.max_numero} pausa(s), ${Math.round(b.examen.pausas.max_total_s / 60)} min en total${b.examen.pausas.detienen_reloj ? ' (detienen el reloj)' : ''}.` : 'Sin pausas.');
   } else if (b.mode === 'exam') l.push('Todas las preguntas en una página.');
-  else l.push(`${b.max_tries_per_item} comprobación(es) por ejercicio${b.hints_enabled ? ', con pistas' : ''}.`);
+  else if (b.asistida) {
+    l.push('Aprendizaje asistido: 1 intento propio (con declaración) → 2 aprender con ayuda y corregir → 3 explicar lo aprendido'
+      + (b.asistida.transferencia ? ' → 4 ejercicio de transferencia (asígnelo en la actividad).' : '.'));
+    l.push(`${b.max_tries_per_item} comprobación(es) de la corrección por ejercicio. Nota: participación 20 %, corrección 30 %, explicación 20 %, transferencia 30 % (sin transferencia se reparte proporcionalmente; editable).`);
+  } else l.push(`${b.max_tries_per_item} comprobación(es) por ejercicio${b.hints_enabled ? ', con pistas' : ''}.`);
   l.push({ immediate: 'Ve si acierta y la solución al comprobar.', after_submit: 'Ve las soluciones al entregar.', after_close: 'Ve las soluciones cuando cierre la actividad.', never: 'No se muestran las soluciones.' }[b.reveal_policy]);
   l.push(b.publicar ? 'Se publica ahora: los estudiantes la verán.' : 'Se guarda como borrador: los estudiantes no la ven hasta que la publique.');
   return l;

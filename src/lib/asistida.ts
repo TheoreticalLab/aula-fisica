@@ -28,7 +28,7 @@ export interface Paso {
   status: string | null; credit: number | null; messages: string[] | null; created_at: string;
 }
 export interface EstadoItem {
-  exercise_id: string; siguiente: Siguiente; correcciones: number; pasos: Paso[];
+  exercise_id: string; siguiente: Siguiente; correcciones: number; con_transferencia: boolean; pasos: Paso[];
   transferencia: { id: string; prompt: string; format: string; options: string[] | null; multiple: boolean; figure: unknown; unit_hint: string | null; concepts: string[] } | null;
   solucion: { answer: unknown; explanation: string } | null;
   calificacion: { credito: number; inicial: number; correccion: number; justificacion: number; transferencia: number | null; pesos: Pesos; estado_final: string | null } | null;
