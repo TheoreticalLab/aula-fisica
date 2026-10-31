@@ -32,7 +32,11 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
       'Vista previa «como estudiante» de cada práctica o evaluación: los mismos componentes que ve el estudiante, calificados con el mismo motor, sin guardar nada.',
       'Lectura cronometrada antes de los ejercicios: el servidor cuenta el tiempo real de lectura, se detiene si el estudiante sale de la plataforma y los ejercicios se habilitan al cumplir el mínimo.',
     ],
-    pendiente: ['Límite de tiempo por intento.', 'Prórrogas individuales.', 'Orden aleatorio de preguntas y opciones.'],
+    pendiente: [
+      'Evaluaciones de una pregunta a la vez con límite de tiempo oficial, pausas declaradas, navegación configurable, guardado con recuperación y seguimiento en vivo: implementado y probado en local; pendiente de desplegar.',
+      'Asistente «+ Crear actividad» con plantillas: implementado; pendiente de desplegar.',
+      'Prórrogas individuales.', 'Orden aleatorio de opciones.',
+    ],
   },
   {
     area: 'Seguimiento',

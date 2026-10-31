@@ -1,6 +1,6 @@
 /** Configuración del motor de examen de una evaluación (una pregunta a la vez, navegación, duración y pausas). */
 import { useEffect, useState } from 'react';
-import { examSettingsGet, examSettingsSave } from '@/api/examen';
+import { examSettingsGet, examSettingsSave, funcionAusente } from '@/api/examen';
 import type { ConfigExamen } from '@/lib/examen/motor';
 import { useAction, useAsync } from '@/lib/util';
 import { Badge, Card, ErrorBox, Notice, Spinner } from '@/components/ui';
@@ -12,7 +12,7 @@ export function ModoExamen({ activityId }: { activityId: string }) {
   const [ok, setOk] = useState(false);
   useEffect(() => { if (st.data) setCfg({ presentacion: st.data.presentacion, navegacion: st.data.navegacion, duracion_s: st.data.duracion_s, pausas: st.data.pausas }); }, [st.data]);
   if (st.loading && !st.data) return <Spinner />;
-  if (st.error) return <ErrorBox error={st.error} onRetry={st.reload} />;
+  if (st.error) return funcionAusente(st.error) ? null : <ErrorBox error={st.error} onRetry={st.reload} />;
   if (!cfg) return null;
   const set = (p: Partial<ConfigExamen>) => { setCfg({ ...cfg, ...p }); setOk(false); };
   const setP = (p: Partial<ConfigExamen['pausas']>) => set({ pausas: { ...cfg.pausas, ...p } });

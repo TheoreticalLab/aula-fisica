@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createActivity, getClass, listExercises, setActivityItems, updateActivity } from '@/api/docente';
 import { getLessonList } from '@/api/estudiante';
-import { examSettingsSave } from '@/api/examen';
+import { examSettingsSave, funcionAusente } from '@/api/examen';
 import type { Exercise } from '@/api/tipos';
 import { aActividad, borradorDesde, PLANTILLAS, plantilla, resumen, revisar, type Borrador, type IdPlantilla } from '@/lib/plantillas';
 import { CATEGORIA, DIFICULTAD, useAction, useAsync } from '@/lib/util';
@@ -39,7 +39,8 @@ export default function CrearActividad() {
       // se crea oculta, se completa (preguntas y modo de examen) y solo al final se publica
       const act = await createActivity({ ...aActividad(final, c.id), published: false });
       if (final.preguntas.length) await setActivityItems(act.id, final.preguntas);
-      if (final.mode === 'exam' && final.examen) await examSettingsSave(act.id, final.examen);
+      // sin el motor en el servidor (migración 35 sin aplicar), la evaluación queda clásica en vez de fallar a medias
+      if (final.mode === 'exam' && final.examen) await examSettingsSave(act.id, final.examen).catch((e) => { if (!funcionAusente(e)) throw e; });
       if (publicar) await updateActivity(act.id, { published: true });
       return act;
     });

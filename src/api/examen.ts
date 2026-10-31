@@ -15,7 +15,12 @@ export type AperturaExamen = EstadoExamenServidor | { modo: 'clasico' };
 
 export interface ConfigExamenGuardada extends ConfigExamen { configurado: boolean; en_curso?: number }
 
-export const examOpen = (attemptId: string) => rpc<AperturaExamen>('exam_open', { p_attempt: attemptId });
+/** La función no existe en el servidor (frontend publicado antes que la migración 35). */
+export const funcionAusente = (e: unknown) => /Could not find the function|PGRST202|schema cache/i.test(e instanceof Error ? e.message : String(e));
+
+/** Abre el examen. Si el servidor aún no tiene el motor, interfaz clásica; cualquier otro error se propaga. */
+export const examOpen = (attemptId: string) => rpc<AperturaExamen>('exam_open', { p_attempt: attemptId })
+  .catch((e) => { if (funcionAusente(e)) return { modo: 'clasico' } as AperturaExamen; throw e; });
 export const examPing = (attemptId: string) => rpc<{ ahora_ms: number; limite_ms: number | null }>('exam_ping', { p_attempt: attemptId });
 export const examGoto = (attemptId: string, exerciseId: string) => rpc<{ ahora_ms: number; activa: string }>('exam_goto', { p_attempt: attemptId, p_exercise: exerciseId });
 export const examPause = (attemptId: string) => rpc<EstadoExamenServidor>('exam_pause', { p_attempt: attemptId });
