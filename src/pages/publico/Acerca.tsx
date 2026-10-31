@@ -12,6 +12,7 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
     pendiente: [
       'Bloques IV (Energía y cantidad de movimiento), V (Oscilaciones y ondas) y VI (Termodinámica): anunciados en el temario, sin lecciones todavía.',
       'Otras asignaturas: creadas desde el panel; sus lecciones están en preparación.',
+      'Física General I · Unidad 9 «Física de los choques» (en preparación, pendiente de instalar): 15 lecciones del fenómeno al modelo, laboratorio «choque seguido de fricción» y un banco de 135 ejercicios verificados con el motor físico (42 fáciles, 44 intermedios, 49 difíciles), con problemas por etapas.',
     ],
   },
   {
@@ -21,7 +22,11 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
       'Calificación en el servidor: unidades y conversiones, dimensiones, tolerancia, cifras significativas, respuestas equivalentes y diagnóstico de errores típicos.',
       'Pistas progresivas, explicación de la solución, problemas de refuerzo por concepto y registro de cada envío.',
     ],
-    pendiente: ['Respuestas de tipo expresión algebraica.', 'Generación parametrizada de problemas (etapa 3).'],
+    pendiente: [
+      'Respuestas de tipo expresión algebraica.',
+      'Una versión numérica distinta para cada intento: el generador reproducible por semillas ya existe para los choques, pero la plataforma aún no sortea ni guarda los parámetros por intento.',
+      'Arrastre de errores en problemas por etapas: programado y probado; requiere aplicar la migración 41 y desplegar la función «calificar».',
+    ],
   },
   {
     area: 'Actividades y evaluaciones',

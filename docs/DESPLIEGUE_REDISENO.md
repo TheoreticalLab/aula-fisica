@@ -17,6 +17,9 @@ GitHub, así que estos pasos los ejecuta el administrador en su terminal.
 | Función `calificar` | Edge Function: política de mayúsculas en unidades y categorías de error | bajo: afecta solo a respuestas nuevas; no recalifica nada |
 | Frontend | asistente «+ Crear actividad», Practicar/Evaluaciones, motor de examen, seguimiento en vivo, D6 v1 marcado como obsoleto | bajo: si la migración 35 no está, la interfaz cae a la clásica |
 | LIEIA D6 v2 | **no se despliega como indicador**: experimental, no conectado | ninguno |
+| `20261101000041_banco_ejercicios.sql` | migración aditiva: tabla `exercise_bank_meta` (solo profesorado), `svc_respuesta_etapa` (solo service_role) y `banco_rendimiento` | muy bajo: no redefine nada |
+| Función `calificar` (arrastre) | Edge Function: acepta en una etapa la respuesta coherente con la etapa anterior del mismo estudiante | muy bajo: solo actúa en claves con `arrastre` (las de la Unidad 9 nueva) |
+| Datos privados `privado/datos/…_biblioteca-mecanica.sql` | Unidad 9 «Física de los choques» (15 lecciones, 135 ejercicios con claves y metadatos) en Física General I y IA; las unidades `cantidad-movimiento` y `colisiones` pasan a **archivado**; la nueva hereda el estado de la U9 anterior (en FIS-GEN-1 estaba publicada) | bajo: nada se borra; las actividades con ejercicios antiguos siguen funcionando. Reversión en `docs/UNIDAD9_CHOQUES.md` |
 
 ## Pasos
 
@@ -29,6 +32,12 @@ GitHub, así que estos pasos los ejecuta el administrador en su terminal.
 5. `git push origin main` — GitHub Actions prueba, compila, verifica secretos y publica en Pages. Hay 9 commits locales nuevos (de `e049f55` a `2ed204d`, y los que se añadan).
 
 Si `probar` falla, pegue la salida a Claude: no se aplica nada hasta que pase.
+
+**Unidad 9 (choques):** antes del paso 1, genere el archivo de datos de la biblioteca:
+`./node_modules/.bin/vite-node scripts/generar-curso.ts privado/biblioteca/mecanica` (valida todo y escribe
+`privado/datos/<marca>_biblioteca-mecanica.sql`). En `probar` debe aparecer `banco_ejercicios.sql: PRUEBAS PASARON`, y en
+`plan`, la migración 41, la función `calificar` y ese archivo de datos. Después de aplicar, en el panel: Contenido →
+Física General I → «Unidad 9. Física de los choques» (revise el estado) y Banco → filtros del banco pedagógico.
 
 ## Comprobación después de desplegar (10 minutos)
 
