@@ -56,6 +56,15 @@ export function crearMotor(orden: string[]): EstadoMotor {
     visible: true, inactivo: false, en_red: true, abierto: null, tramos: [], ultimo_latido: null };
 }
 
+/**
+ * Examen adaptativo: el servidor añade preguntas al final del orden. Si el orden anterior es un prefijo del nuevo, se
+ * conserva todo el estado (visitadas, tramos, pausas); si no, el orden cambió de verdad y se empieza de nuevo.
+ */
+export function ampliarOrden(e: EstadoMotor, nuevo: string[]): EstadoMotor {
+  const prefijo = e.orden.length <= nuevo.length && e.orden.every((id, i) => nuevo[i] === id);
+  return prefijo ? { ...e, orden: [...nuevo] } : crearMotor(nuevo);
+}
+
 /** Tipo que corresponde al estado actual. */
 function tipoActual(e: EstadoMotor): TipoTramo {
   if (e.fase === 'en_pausa') return 'pausa_declarada';

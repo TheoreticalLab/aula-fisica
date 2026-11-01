@@ -6,6 +6,7 @@
  *  - submit    { attempt_id }                       → entrega y califica un intento completo de una actividad
  *  - finalize  { activity_id }                      → (profesor) entrega y califica los intentos que quedaron abiertos
  *  - variante  { attempt_id, exercise_id }          → parámetros de la versión de ese intento (nunca la respuesta)
+ *  - adaptativo { attempt_id, tras }                → examen adaptativo: siguiente pregunta tras «tras» (sin revelar aciertos)
  *
  * La autorización la deciden las funciones SQL svc_* (reciben el id del usuario verificado por el JWT);
  * este módulo solo interpreta y compara respuestas.
@@ -189,6 +190,21 @@ export async function handle(body: unknown, userId: string, db: Db): Promise<unk
     }
     case 'asistida':
       return pasoAsistido(b, userId, db);
+    case 'adaptativo': {
+      // examen adaptativo: califica aquí, SIN devolverlas, las respuestas ya dadas y pide la siguiente pregunta.
+      // Al estudiante solo le llega qué pregunta sigue (o que terminó); nunca si acertó.
+      const attempt = uuid(b.attempt_id, 'attempt_id');
+      const tras = uuid(b.tras, 'tras');
+      const ctx = await call<{ mode: string; items: SubmitItem[] }>(db, 'svc_submit_context', { p_user: userId, p_attempt: attempt });
+      const creditos = Object.fromEntries(ctx.items.map((it) => {
+        const answer = validateAnswerShape(it.answer ?? {}) ?? {};
+        const r = safeGrade(it.key, answer, it.option_count, null, { attempt, exercise: it.exercise_id });
+        return [it.exercise_id, r.status === 'invalid' || r.status === 'pending_review' ? 0 : r.credit];
+      }));
+      const r = await call<{ siguiente: string | null; fin: boolean; administradas: number; max_items: number }>(db, 'svc_adaptativo_siguiente',
+        { p_user: userId, p_attempt: attempt, p_tras: tras, p_creditos: creditos });
+      return { siguiente: r.siguiente, fin: r.fin, administradas: r.administradas, max_items: r.max_items };
+    }
     case 'variante': {
       // números del enunciado de SU versión (sin respuestas). Autorización: el dueño del intento o su profesorado.
       const attempt = uuid(b.attempt_id, 'attempt_id');

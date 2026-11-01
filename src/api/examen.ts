@@ -1,5 +1,5 @@
 /** Motor de examen (migración 35): sesión oficial, navegación, pausas, diario de tramos y guardado con revisiones. */
-import { rpc } from '@/lib/supabase';
+import { invocar, rpc } from '@/lib/supabase';
 import type { ConfigExamen, Tramo } from '@/lib/examen/motor';
 
 export interface EstadoExamenServidor {
@@ -46,5 +46,15 @@ export const examExtend = (attemptId: string, minutos: number, motivo?: string) 
   rpc<{ extra_s: number; limite_ms: number | null }>('exam_extend', { p_attempt: attemptId, p_minutos: minutos, p_motivo: motivo ?? null });
 export const examMonitor =(activityId: string) => rpc<MonitorExamenDatos>('exam_monitor', { p_activity: activityId });
 export const examRules =(activityId: string) => rpc<ConfigExamen>('exam_rules', { p_activity: activityId });
+// Examen adaptativo (migración 53). Sin la migración, el intento se trata como no adaptativo.
+export interface EstadoAdaptativo { activo: boolean; max_items?: number; administradas?: number; fin?: boolean; theta?: number; se?: number; dominio?: number | null }
+export const adaptativoEstado = (attemptId: string) => rpc<EstadoAdaptativo>('exam_adaptive_estado', { p_attempt: attemptId })
+  .catch((e) => { if (funcionAusente(e)) return { activo: false } as EstadoAdaptativo; throw e; });
+export const adaptativoSiguiente = (attemptId: string, tras: string) =>
+  invocar<{ siguiente: string | null; fin: boolean; administradas: number; max_items: number }>('calificar', { action: 'adaptativo', attempt_id: attemptId, tras });
+export interface ConfigAdaptativa { activo: boolean; max_items: number; min_items: number; se_objetivo: number | null; exposicion: number; incluir_provisionales: boolean }
+export interface InfoAdaptativa { config: ConfigAdaptativa | null; preguntas: number; calibradas: number; provisionales: number; intentos: number; minimo_banco: number }
+export const adaptativoGet = (activityId: string) => rpc<InfoAdaptativa>('exam_adaptive_get', { p_activity: activityId });
+export const adaptativoSave = (activityId: string, cfg: ConfigAdaptativa) => rpc<InfoAdaptativa>('exam_adaptive_save', { p_activity: activityId, p_cfg: cfg });
 export const examSettingsGet =(activityId: string) => rpc<ConfigExamenGuardada>('exam_settings_get', { p_activity: activityId });
 export const examSettingsSave = (activityId: string, cfg: ConfigExamen) => rpc<ConfigExamenGuardada>('exam_settings_save', { p_activity: activityId, p_cfg: cfg });

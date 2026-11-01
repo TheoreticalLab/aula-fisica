@@ -47,8 +47,10 @@ export function credenciales(requeridas: (keyof Credenciales)[] = []): Credencia
     SUPABASE_PROJECT_REF: env.SUPABASE_PROJECT_REF ?? '',
     SUPABASE_ACCESS_TOKEN: env.SUPABASE_ACCESS_TOKEN || undefined,
     SUPABASE_DB_URL: env.SUPABASE_DB_URL || undefined,
-    LOCAL_DB_URL: env.LOCAL_DB_URL || 'postgresql:///aula_prueba?host=/var/run/postgresql',
-    LOCAL_ADMIN_DB_URL: env.LOCAL_ADMIN_DB_URL || 'postgresql:///postgres?host=/var/run/postgresql',
+    // las bases LOCALES pueden venir del entorno (p. ej. un PostgreSQL desechable dentro del sandbox de Claude Code);
+    // probar.ts rechaza igualmente cualquier URL remota
+    LOCAL_DB_URL: process.env.LOCAL_DB_URL || env.LOCAL_DB_URL || 'postgresql:///aula_prueba?host=/var/run/postgresql',
+    LOCAL_ADMIN_DB_URL: process.env.LOCAL_ADMIN_DB_URL || env.LOCAL_ADMIN_DB_URL || 'postgresql:///postgres?host=/var/run/postgresql',
   };
   for (const r of requeridas) if (!c[r]) fallar(`Falta ${r} en privado/credenciales.env.`);
   if (c.SUPABASE_DB_URL?.includes('[YOUR-PASSWORD]')) fallar('SUPABASE_DB_URL todavía contiene [YOUR-PASSWORD].');
@@ -213,6 +215,9 @@ export const TABLAS_PROTEGIDAS = [
   'hist_libre_avisos',
   'lieia_research',
   'item_calibration_history',
+  'exam_adaptive_pool',
+  'exam_adaptive_state',
+  'exam_adaptive_log',
 ];
 
 export async function contarFilas(db: pg.Client, tablas: string[]): Promise<Record<string, number>> {

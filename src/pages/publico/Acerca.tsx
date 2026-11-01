@@ -43,6 +43,7 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
     pendiente: [
       'Probar el modo de una pregunta a la vez en teléfonos reales.',
       'Orden aleatorio de opciones por actividad (programado; pendiente de instalar): solo cambia la presentación, cada opción conserva su letra.',
+      'Exámenes adaptativos (programado; pendiente de instalar y de probar con un banco calibrado real): cada estudiante recibe las preguntas una a una según sus respuestas, y la nota es el dominio estimado en todo el banco, no el número de aciertos.',
       'Números distintos para cada estudiante (programado; pendiente de probar en la base de datos e instalar): en las preguntas con variante, cada intento recibe sus propios datos y el servidor calcula y califica su respuesta, sin enviarla al navegador. Hay un ejercicio piloto en la Unidad 9 (choque totalmente inelástico seguido de frenado).',
     ],
   },

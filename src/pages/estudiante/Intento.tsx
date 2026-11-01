@@ -82,6 +82,7 @@ export default function Intento() {
         {servidor.estado === 'vencido' && <Notice tone="warn">El tiempo oficial terminó. Ya no puede cambiar respuestas; se entregará lo guardado.</Notice>}
         <ExamenUnaALaVez view={view} servidor={servidor}
           onItems={(items) => st.setData({ ...view, items })}
+          recargar={async () => { const v = await getAttempt(attemptId); st.setData(v); return v; }}
           onEntregado={() => { setJustSubmitted(true); void st.reload(); }} />
       </TelemetriaProvider>
     );

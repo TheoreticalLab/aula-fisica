@@ -1,6 +1,6 @@
 /** Configuración del motor de examen de una evaluación (una pregunta a la vez, navegación, duración y pausas). */
 import { useEffect, useState } from 'react';
-import { examSettingsGet, examSettingsSave, funcionAusente } from '@/api/examen';
+import { adaptativoGet, adaptativoSave, examSettingsGet, examSettingsSave, funcionAusente, type ConfigAdaptativa } from '@/api/examen';
 import type { ConfigExamen } from '@/lib/examen/motor';
 import { useAction, useAsync } from '@/lib/util';
 import { Badge, Card, ErrorBox, Notice, Spinner } from '@/components/ui';
@@ -69,6 +69,58 @@ export function ModoExamen({ activityId }: { activityId: string }) {
         <button className="btn-primario" onClick={() => void guardar()} disabled={action.busy}>{action.busy ? 'Guardando…' : 'Guardar modo de examen'}</button>
         {ok && <span className="text-sm text-emerald-700 dark:text-emerald-300">Guardado ✓</span>}
       </div>
+      <ExamenAdaptativo activityId={activityId} onCambio={st.reload} />
     </Card>
+  );
+}
+
+/** Examen adaptativo (migración 53): preguntas elegidas una a una del banco calibrado según las respuestas. */
+function ExamenAdaptativo({ activityId, onCambio }: { activityId: string; onCambio: () => void }) {
+  const st = useAsync(() => adaptativoGet(activityId), [activityId]);
+  const action = useAction();
+  const [cfg, setCfg] = useState<ConfigAdaptativa | null>(null);
+  const [ok, setOk] = useState(false);
+  useEffect(() => { if (st.data) setCfg(st.data.config ?? { activo: false, max_items: 15, min_items: 10, se_objetivo: 0.35, exposicion: 3, incluir_provisionales: false }); }, [st.data]);
+  if (st.loading && !st.data) return <Spinner />;
+  if (st.error) return funcionAusente(st.error) ? null : <ErrorBox error={st.error} onRetry={st.reload} />;
+  if (!cfg || !st.data) return null;
+  const d = st.data;
+  const banco = d.calibradas + (cfg.incluir_provisionales ? d.provisionales : 0);
+  const set = (p: Partial<ConfigAdaptativa>) => { setCfg({ ...cfg, ...p }); setOk(false); };
+  const bloqueado = d.intentos > 0;
+  const guardar = async () => { const r = await action.run(() => adaptativoSave(activityId, cfg)); if (r) { setOk(true); st.setData(r); onCambio(); } };
+  const num = (v: string, min: number, max: number, def: number) => Math.max(min, Math.min(max, Number(v) || def));
+  return (
+    <div className="mt-5 border-t border-gray-200 pt-4 dark:border-white/10">
+      <h3 className="font-semibold">Examen adaptativo {d.config?.activo ? <Badge tone="purple">activo</Badge> : <Badge>no</Badge>}</h3>
+      <p className="text-xs text-gray-500">Cada estudiante recibe las preguntas una a una, elegidas del banco calibrado de esta evaluación según sus respuestas (TRI 2PL, máxima información). La nota no es el número de aciertos, que no sería comparable, sino el <strong>dominio estimado</strong>: la proporción de aciertos que se espera en todo el banco con su habilidad estimada. Navegación siempre solo hacia adelante.</p>
+      <p className="mt-1 text-xs">Banco: {d.preguntas} preguntas en la evaluación · {d.calibradas} calibradas · {d.provisionales} provisionales. Se necesitan al menos {d.minimo_banco} (se calibran en LIEIA → 📐 Calibración de ítems, con exámenes ya aplicados).</p>
+      {bloqueado && <Notice tone="warn">Ya hay {d.intentos} intento(s): la configuración adaptativa no puede cambiar. Para otra configuración, cree otra evaluación.</Notice>}
+      <fieldset disabled={bloqueado} className="mt-2 grid gap-3 sm:grid-cols-2">
+        <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={cfg.activo} onChange={(e) => set({ activo: e.target.checked })} /> Administrar esta evaluación de forma adaptativa</label>
+        {cfg.activo && <>
+          <label className="text-sm"><span className="etiqueta">Máximo de preguntas</span>
+            <input type="number" className="campo" min={5} max={Math.min(60, banco || 60)} value={cfg.max_items} onChange={(e) => set({ max_items: num(e.target.value, 5, 60, 15) })} /></label>
+          <label className="text-sm"><span className="etiqueta">Mínimo de preguntas</span>
+            <input type="number" className="campo" min={3} max={cfg.max_items} value={cfg.min_items} onChange={(e) => set({ min_items: num(e.target.value, 3, cfg.max_items, 10) })} /></label>
+          <label className="text-sm"><span className="etiqueta">Terminar antes si el error típico de la habilidad es ≤</span>
+            <input type="number" className="campo" step={0.05} min={0.2} max={1} placeholder="No terminar antes" value={cfg.se_objetivo ?? ''}
+              onChange={(e) => set({ se_objetivo: e.target.value ? num(e.target.value, 0.2, 1, 0.35) : null })} />
+            <span className="mt-1 block text-xs text-gray-500">Vacío: todos responden el máximo (más parejo). 0,30–0,40 es una precisión habitual.</span></label>
+          <label className="text-sm"><span className="etiqueta">Control de exposición (elegir entre las k mejores)</span>
+            <input type="number" className="campo" min={1} max={5} value={cfg.exposicion} onChange={(e) => set({ exposicion: num(e.target.value, 1, 5, 3) })} />
+            <span className="mt-1 block text-xs text-gray-500">Con 1, estudiantes con las mismas respuestas ven las mismas preguntas; con 3, se reparten (algo menos de precisión).</span></label>
+          <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={cfg.incluir_provisionales} onChange={(e) => set({ incluir_provisionales: e.target.checked })} /> Incluir preguntas con calibración provisional (menos fiable)</label>
+        </>}
+      </fieldset>
+      <ErrorBox error={action.error} />
+      {!bloqueado && (
+        <div className="mt-3 flex items-center gap-3">
+          <button className="btn-secundario" onClick={() => void guardar()} disabled={action.busy || (cfg.activo && banco < d.minimo_banco)}>{action.busy ? 'Guardando…' : 'Guardar modo adaptativo'}</button>
+          {cfg.activo && banco < d.minimo_banco && <span className="text-xs text-acento-700">Faltan {d.minimo_banco - banco} preguntas calibradas.</span>}
+          {ok && <span className="text-sm text-emerald-700 dark:text-emerald-300">Guardado ✓</span>}
+        </div>
+      )}
+    </div>
   );
 }

@@ -155,7 +155,7 @@ tetracórica frente a normales dicotomizadas, autovalores, varimax, KMO; estruct
 |---|---|
 | 5 · Psicometría | rotación oblicua (los factores de un examen suelen correlacionar; varimax los fuerza a ser independientes), análisis factorial confirmatorio y modelos jerárquicos |
 | 7 · Conversacional | el explorador «Preguntar» sigue siendo por palabras clave; la IA solo interpreta el informe (§6), no responde preguntas libres; sin caché de interpretaciones |
-| Motor de examen | administrar exámenes adaptativos y asignar condiciones por estudiante automáticamente |
+| Motor de examen | asignar condiciones experimentales por estudiante automáticamente. (Los exámenes adaptativos ya se administran: migración 53, `docs/EXAMEN_ADAPTATIVO.md`; el modo M del diseñador sigue produciendo solo la especificación simulada) |
 | Generación asistida | crear preguntas nuevas con IA (borrador + validación + revisión). Las variantes por intento (migración 51) ya generan versiones numéricas validadas de las plantillas de choques |
 | Modos | versiones del modo G con el generador de variantes |
 

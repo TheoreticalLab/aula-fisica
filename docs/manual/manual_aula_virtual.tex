@@ -390,6 +390,19 @@ Los intentos ya empezados conservan la configuración con la que empezaron.
 estudiante: \emph{Respondiendo}, \emph{En pausa}, \emph{Sin conexión} (más de 45 segundos sin contacto) o
 \emph{Tiempo vencido}; la pregunta en que va, cuántas lleva respondidas y el tiempo restante. No muestra respuestas.
 
+\section{Examen adaptativo}
+En el Modo de examen de una evaluación, \emph{Examen adaptativo}. Cada estudiante recibe las preguntas una a una,
+elegidas del banco calibrado de la evaluación según sus respuestas: tras un acierto, una más difícil; tras un fallo, una
+más fácil. Requisitos: al menos 15 preguntas calibradas (LIEIA $\rightarrow$ Calibración de ítems) y ningún intento todavía.
+\begin{itemize}
+  \item Se fijan un máximo y un mínimo de preguntas y, si se quiere, una precisión a partir de la cual termina antes.
+  \item La navegación es siempre solo hacia adelante.
+  \item \textbf{La nota no es el número de aciertos}, que no sería comparable entre estudiantes con preguntas de distinta
+        dificultad, sino el \emph{dominio estimado}: la proporción de aciertos que se espera en todo el banco con la
+        habilidad estimada. Las calificaciones manuales posteriores se tienen en cuenta.
+  \item El estudiante nunca ve si acertó durante el examen.
+\end{itemize}
+
 \section{Prórrogas individuales}
 En la fila del estudiante pulse \boton{+5 min}. Puede escribir un motivo (conexión caída, adaptación, incidencia); queda
 registrado quién la dio, cuánto y cuándo. La prórroga nunca pasa del cierre de la actividad. El estudiante ve el aviso

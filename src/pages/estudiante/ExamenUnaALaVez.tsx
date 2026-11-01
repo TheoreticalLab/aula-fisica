@@ -4,11 +4,11 @@
  * tramos de tiempo, guardado automático con revisiones y recuperación tras cerrar, recargar o perder la red.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { examGoto, examJournal, examPause, examPing, examResume, examSave, type EstadoExamenServidor } from '@/api/examen';
+import { adaptativoEstado, adaptativoSiguiente, examGoto, examJournal, examPause, examPing, examResume, examSave, type EstadoAdaptativo, type EstadoExamenServidor } from '@/api/examen';
 import { submitAttempt } from '@/api/estudiante';
 import type { AccionesEjercicio, AttemptItem, AttemptView, StudentAnswer } from '@/api/tipos';
 import {
-  abrir, anterior as motorAnterior, crearMotor, entregar as motorEntregar, inactividad, irA, irRevision, latido, marcar, pausar, puedeIrA, puedePausar,
+  abrir, ampliarOrden, anterior as motorAnterior, crearMotor, entregar as motorEntregar, inactividad, irA, irRevision, latido, marcar, pausar, puedeIrA, puedePausar,
   reanudar, red, siguiente as motorSiguiente, visibilidad, type EstadoMotor, type Resultado,
 } from '@/lib/examen/motor';
 import { estimarDesfase, formatoCuenta, horaLimite, restante, type MuestraReloj } from '@/lib/examen/reloj';
@@ -28,8 +28,10 @@ export const estaRespondida = (it: AttemptItem) => {
 
 interface Persistido { motor: EstadoMotor; seqBase: number }
 
-export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems }: {
+export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems, recargar }: {
   view: AttemptView; servidor: EstadoExamenServidor; onEntregado: () => void; onItems: (items: AttemptItem[]) => void;
+  /** vuelve a pedir el intento (examen adaptativo: aparece la pregunta nueva) */
+  recargar?: () => Promise<AttemptView | null>;
 }) {
   const attemptId = view.attempt.id;
   const cfg = servidor.config;
@@ -71,7 +73,8 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems }: {
     let p: Persistido | null = null;
     try { p = JSON.parse(almacen.leer(claveMotor) ?? 'null') as Persistido | null; } catch { p = null; }
     const t = servidor.ahora_ms;
-    let m = p && JSON.stringify(p.motor.orden) === JSON.stringify(servidor.orden) ? p.motor : crearMotor(servidor.orden);
+    // mismo orden, o el mismo ampliado por el examen adaptativo: se conserva el estado del dispositivo
+    let m = p ? ampliarOrden(p.motor, servidor.orden) : crearMotor(servidor.orden);
     m = { ...m, visitadas: [...new Set([...m.visitadas, ...servidor.visitadas])] };
     m = abrir(m, t, { activa: servidor.activa, incertidumbre_ms: LATIDO_MS });
     const permisivo = { ...cfg, pausas: { permitidas: true, max_numero: 1e6, max_total_s: 1e9, detienen_reloj: cfg.pausas.detienen_reloj } };
@@ -202,6 +205,28 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems }: {
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setOcupado(false); }
   };
+  // ---- examen adaptativo (migración 53): la siguiente pregunta la elige el servidor según las respuestas ya dadas
+  const [adapt, setAdapt] = useState<EstadoAdaptativo>({ activo: false });
+  useEffect(() => { void adaptativoEstado(attemptId).then(setAdapt).catch(() => undefined); }, [attemptId]);
+  const doSiguienteAdaptativo = async (actualId: string) => {
+    setOcupado(true);
+    try {
+      // la selección usa la respuesta GUARDADA en el servidor: primero hay que enviarla
+      await cola.vaciar();
+      const e = cola.estado(actualId);
+      if (e === 'rechazado') throw new Error(cola.mensaje(actualId) ?? 'No se pudo guardar su respuesta');
+      if (e && e !== 'guardado') throw new Error('Sin conexión: espere a que su respuesta se guarde para pasar a la siguiente pregunta.');
+      const r = await adaptativoSiguiente(attemptId, actualId);
+      setAdapt((a) => ({ ...a, administradas: r.administradas, max_items: r.max_items, fin: r.fin }));
+      if (r.fin || !r.siguiente) { aplicar(irRevision(motorRef.current, ahora(), cfg)); return; }
+      const v = recargar ? await recargar() : null;
+      if (v) setMotor(ampliarOrden(motorRef.current, v.items.map((it) => it.exercise.id)));
+      else setMotor(ampliarOrden(motorRef.current, [...motorRef.current.orden, r.siguiente]));
+      await ir(() => irA(motorRef.current, ahora(), r.siguiente!, cfg));
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+    finally { setOcupado(false); }
+  };
+
   const entregando = useRef(false);
   const doEntregar = useCallback(async (automatica = false) => {
     if (entregando.current) return;
@@ -312,11 +337,18 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems }: {
             })}
           </ul>
           {cfg.navegacion === 'solo_adelante' && <p className="mt-2 text-xs text-gray-500">En este examen no se puede volver a las preguntas ya vistas.</p>}
+          {adapt.activo && !adapt.fin && <p className="mt-2 text-xs text-acento-700">Examen adaptativo: aún quedan preguntas. Si entrega ahora, su nota se calculará solo con las {items.length} respondidas.</p>}
+          {adapt.activo && <p className="mt-2 text-xs text-gray-500">En un examen adaptativo cada estudiante recibe preguntas distintas según sus respuestas; la nota no es el número de aciertos sino el dominio estimado en todo el banco de preguntas.</p>}
           <button className="btn-acento mt-4 w-full sm:w-auto" onClick={() => setConfirmar(true)} disabled={ocupado}>Entregar el examen</button>
         </div>
       ) : actual ? (
         <div>
-          <p className="mb-1 text-sm text-gray-500">Pregunta {idx + 1} de {items.length}</p>
+          <p className="mb-1 text-sm text-gray-500">
+            {adapt.activo ? `Pregunta ${idx + 1} (examen adaptativo, hasta ${adapt.max_items ?? '?'} preguntas)` : `Pregunta ${idx + 1} de ${items.length}`}
+          </p>
+          {adapt.activo && idx + 1 >= items.length && !adapt.fin && (
+            <p className="mb-2 text-xs text-gray-500">La siguiente pregunta se elige según sus respuestas. Al pasar no podrá volver a esta; si la deja sin responder, contará como incorrecta.</p>
+          )}
           <Ejercicio key={actual.exercise.id} index={idx} item={actual} view={view} onChange={updateItem} acciones={acciones} />
         </div>
       ) : null}
@@ -334,8 +366,11 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems }: {
             )}
             <span className="hidden flex-1 sm:block" />
             {motor.fase === 'trabajando' && (
-              <button className="btn-primario min-h-[44px] flex-1 sm:flex-none" onClick={() => void ir(() => motorSiguiente(motorRef.current, ahora(), cfg))}>
-                {idx + 1 >= items.length ? 'Revisar y entregar →' : 'Siguiente →'}
+              <button className="btn-primario min-h-[44px] flex-1 sm:flex-none" disabled={ocupado}
+                onClick={() => (adapt.activo && actual && idx + 1 >= items.length && !adapt.fin
+                  ? void doSiguienteAdaptativo(actual.exercise.id)
+                  : void ir(() => motorSiguiente(motorRef.current, ahora(), cfg)))}>
+                {ocupado ? 'Un momento…' : idx + 1 >= items.length && (!adapt.activo || adapt.fin) ? 'Revisar y entregar →' : 'Siguiente →'}
               </button>
             )}
           </div>
