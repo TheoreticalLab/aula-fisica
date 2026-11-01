@@ -357,11 +357,6 @@ calculan también con los números de cada estudiante.
   \item Hoy hay un ejercicio piloto en la Unidad 9 (choque totalmente inelástico seguido de frenado).
 \end{itemize}
 
-\begin{nota}[Disponibilidad]
-El orden aleatorio y las variantes por intento funcionan cuando se instalan sus migraciones (50 y 51) y la función de
-calificación actualizada; hasta entonces no active la casilla (la actividad no se podría guardar) y el ejercicio piloto
-no está en el banco.
-\end{nota}
 
 \chapter{Evaluaciones de una pregunta a la vez}
 
@@ -610,11 +605,22 @@ Cuando los datos no alcanzan (por ejemplo, menos de 20 estudiantes para la discr
 \textbf{se abstiene} y lo dice, en lugar de dar un número poco fiable. Cada resultado indica si es a priori, empírico o
 simulado.
 
-\begin{nota}[Disponibilidad]
-El informe, las relaciones y el diseñador están instalados. \emph{Preguntar}, la TRI, el análisis factorial, el
-simulador y el historial llegan con la próxima publicación de la interfaz; la calibración progresiva entre aplicaciones, el funcionamiento
-diferencial y los modos de diseño nuevos necesitan además la migración 49, y la interpretación con IA, la 52.
-\end{nota}
+\chapter{Orbe IA: inteligencia artificial del aula}
+\ruta{Panel docente $\rightarrow$ Herramientas $\rightarrow$ Orbe IA} (solo administración). Es el único lugar donde se
+decide si el aula usa Claude y cuánto puede gastar. Todos los usos comparten esa configuración:
+\begin{itemize}
+  \item \textbf{Interpretación de exámenes} (LIEIA): recibe enunciados y cifras agregadas, nunca seudónimos ni respuestas.
+  \item \textbf{Orbe Control}: redactar mensajes (el nombre lo pone el teléfono), pulso de la clase y pregunta relámpago.
+  \item \textbf{Humor contextual} para estudiantes, con sus propias opciones, asignaturas y banco de chistes revisados.
+\end{itemize}
+Pestañas: \emph{Resumen} (qué hace cada uso, qué recibe Claude y su consumo del mes), \emph{Configuración general}
+(interruptor general, llamadas reales o simulador, modelo, presupuesto mensual y límite diario), las tres del humor y
+\emph{Consumo} (gasto por uso y últimas llamadas).
+
+\begin{importante}[Llamadas reales]
+Con las llamadas reales apagadas, todos los usos responden con un simulador que no cuesta nada. Al encenderlas, cada
+llamada se cobra; el servidor reserva el coste máximo antes de llamar y la rechaza si superaría el presupuesto del mes.
+\end{importante}
 
 % ============================================================================
 \part{Administración}

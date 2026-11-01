@@ -1,18 +1,31 @@
 /**
- * ORBE IA — HUMOR CONTEXTUAL · panel del administrador. Todo lo decide el profesor: encender o apagar el módulo,
- * dónde funciona, con qué frecuencia, qué chistes se muestran (modo revisión), qué modelo y cuánto se puede gastar.
+ * ORBE IA — centro de inteligencia artificial del aula · panel del administrador.
+ * Una sola configuración de seguridad y gasto (interruptor general, llamadas reales, modelo, presupuesto, límite diario)
+ * para todos los usos: humor contextual para estudiantes, Orbe Control (mensajes, pulso, pregunta relámpago) e
+ * interpretación de exámenes en LIEIA. El humor tiene además sus propias opciones, asignaturas y banco de chistes.
  * Las comprobaciones de permisos y límites se repiten en el servidor (orbe_ia_admin_* y la Edge Function).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { costoLote, leccionesAGenerar, MOTIVOS_PARA_DETENER } from '@/lib/orbeIa';
 import {
   MODELOS_ORBE, orbeAccionChiste, orbeAgregarChiste, orbeChistes, orbeCopiarBanco, orbeEstadoClave, type ResultadoCopia, orbeGenerar, orbeGuardarConfig, orbeGuardarCurso,
-  orbeLecciones, orbePanel, type ChisteOrbe, type ConfigOrbe, type CursoOrbe, type LeccionOrbe, type PanelOrbe, type ResultadoGeneracion,
+  orbeLecciones, orbePanel, type ChisteOrbe, type ConfigOrbe, type CursoOrbe, type LeccionOrbe, type PanelOrbe, type PropositoOrbe, type ResultadoGeneracion,
 } from '@/api/orbeIa';
+import { Link } from 'react-router-dom';
 import { useAction, useAsync } from '@/lib/util';
 import { Badge, Card, ErrorBox, Notice, PageTitle, Spinner, Tabs } from '@/components/ui';
 
-type Tab = 'estado' | 'cursos' | 'chistes' | 'consumo';
+type Tab = 'resumen' | 'estado' | 'humor' | 'cursos' | 'chistes' | 'consumo';
+
+/** Usos de Orbe IA: quién lo usa, dónde y qué recibe el modelo. */
+const USOS: Record<PropositoOrbe, { icono: string; nombre: string; quien: string; donde: string; datos: string; enlace?: { to: string; texto: string } }> = {
+  chistes: { icono: '😄', nombre: 'Humor contextual', quien: 'Estudiantes', donde: 'Mensajes breves mientras estudian (nunca en evaluaciones)', datos: 'Asignatura, lección y apartado; nunca nombres' },
+  mensaje: { icono: '✉️', nombre: 'Redactar mensajes', quien: 'Profesorado', donde: 'Orbe Control (teléfono del profesor)', datos: 'Sus notas; el nombre lo pone el teléfono, no Claude' },
+  pulso: { icono: '📈', nombre: 'Pulso de la clase', quien: 'Profesorado', donde: 'Orbe Control', datos: 'Cifras agregadas y anónimas de la sesión' },
+  pregunta: { icono: '⚡', nombre: 'Pregunta relámpago', quien: 'Profesorado', donde: 'Orbe Control', datos: 'Tema o lección elegida por el profesor' },
+  lieia: { icono: '🔬', nombre: 'Interpretación de exámenes', quien: 'Profesorado', donde: 'LIEIA → Laboratorio científico → Interpretación IA', datos: 'Enunciados y cifras agregadas por pregunta; nunca seudónimos ni respuestas', enlace: { to: '/docente/lieia', texto: 'Abrir LIEIA' } },
+};
+const ORDEN_USOS: PropositoOrbe[] = ['lieia', 'mensaje', 'pulso', 'pregunta', 'chistes'];
 
 const SECCIONES: [string, string][] = [['teoria', 'Teoría'], ['formulas', 'Fórmulas'], ['ejemplos', 'Ejemplos'], ['simulacion', 'Simulación'], ['comprension', 'Comprensión'], ['practica', 'Práctica']];
 const EVENTOS: [string, string][] = [['ejercicio_correcto', 'Ejercicio resuelto'], ['leccion_terminada', 'Lección terminada'], ['actividad_tras_intentos', 'Resuelta tras varios intentos'], ['fin_sesion', 'Fin de la sesión']];
@@ -30,7 +43,7 @@ const MOTIVOS: Record<string, string> = {
 };
 
 export default function OrbeIaPanel() {
-  const [tab, setTab] = useState<Tab>('estado');
+  const [tab, setTab] = useState<Tab>('resumen');
   const panel = useAsync(orbePanel, []);
   const clave = useAsync(() => orbeEstadoClave().catch(() => null), []);
   if (panel.loading && !panel.data) return <Spinner />;
@@ -39,19 +52,21 @@ export default function OrbeIaPanel() {
   const c = p.config;
   return (
     <div className="space-y-4">
-      <PageTitle title="🤖 ORBE IA — HUMOR CONTEXTUAL" subtitle="Chistes de física sobre lo que estudia cada estudiante, generados con Claude, revisados por usted y reutilizados." back={{ to: '/docente', label: 'Panel docente' }} />
+      <PageTitle title="🤖 ORBE IA — Inteligencia artificial del aula" subtitle="Claude al servicio del aula: interpretación de exámenes en LIEIA, Orbe Control (mensajes, pulso de la clase y pregunta relámpago) y humor contextual para estudiantes. Una sola configuración de seguridad y gasto para todo." back={{ to: '/docente', label: 'Panel docente' }} />
       <div className="flex flex-wrap gap-2 text-sm">
-        <Badge tone={c.enabled ? 'green' : 'gray'}>{c.enabled ? 'Módulo encendido' : 'Módulo apagado'}</Badge>
-        <Badge tone={c.students_enabled && c.enabled ? 'green' : 'gray'}>{c.students_enabled && c.enabled ? 'Visible para estudiantes' : 'Oculto a los estudiantes'}</Badge>
-        <Badge tone={c.auto_approve ? 'amber' : 'blue'}>{c.auto_approve ? 'Aprobación automática' : 'Modo revisión'}</Badge>
-        <Badge tone={c.api_real ? 'purple' : 'gray'}>{c.api_real ? `API real · ${c.model}` : 'Simulador (sin coste)'}</Badge>
+        <Badge tone={c.enabled ? 'green' : 'gray'}>{c.enabled ? 'Orbe IA encendido' : 'Orbe IA apagado'}</Badge>
+        <Badge tone={c.api_real ? 'purple' : 'gray'}>{c.api_real ? `Claude real · ${c.model}` : 'Simulador (sin coste)'}</Badge>
         <Badge>{usd(p.estadisticas.gasto_mes_usd)} de {usd(c.monthly_budget_usd)} este mes</Badge>
+        <Badge>{p.estadisticas.llamadas_hoy}/{c.daily_max_calls} llamadas hoy</Badge>
       </div>
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
-        { id: 'estado', label: 'Configuración' }, { id: 'cursos', label: 'Asignaturas y lecciones' },
-        { id: 'chistes', label: `Chistes${p.estadisticas.chistes.pendiente ? ` (${p.estadisticas.chistes.pendiente} por revisar)` : ''}` }, { id: 'consumo', label: 'Estadísticas y consumo' },
+        { id: 'resumen', label: 'Resumen' }, { id: 'estado', label: 'Configuración general' },
+        { id: 'humor', label: '😄 Humor: opciones' }, { id: 'cursos', label: '😄 Humor: asignaturas' },
+        { id: 'chistes', label: `😄 Humor: chistes${p.estadisticas.chistes.pendiente ? ` (${p.estadisticas.chistes.pendiente} por revisar)` : ''}` }, { id: 'consumo', label: 'Consumo' },
       ]} />
+      {tab === 'resumen' && <Resumen p={p} clave={clave.data?.clave_configurada ?? null} irA={setTab} />}
       {tab === 'estado' && <Configuracion c={c} clave={clave.data?.clave_configurada ?? null} onSaved={panel.reload} />}
+      {tab === 'humor' && <ConfigHumor c={c} onSaved={panel.reload} />}
       {tab === 'cursos' && <Cursos p={p} onSaved={panel.reload} />}
       {tab === 'chistes' && <Chistes cursos={p.cursos} onChange={panel.reload} />}
       {tab === 'consumo' && <Consumo p={p} />}
@@ -95,21 +110,11 @@ function Configuracion({ c, clave, onSaved }: { c: ConfigOrbe; clave: boolean | 
   }
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Card title="Interruptores">
-        <Interruptor label="Orbe IA encendido" ayuda="Interruptor general. Apagado: no se genera nada ni se muestra nada a nadie." checked={d.enabled} onChange={(v) => set({ enabled: v })} />
-        <Interruptor label="Mostrar a los estudiantes" ayuda="Con esto apagado puede generar y revisar chistes sin que ningún estudiante los vea." checked={d.students_enabled} onChange={(v) => set({ students_enabled: v })} />
-        <Interruptor label="Modo revisión (recomendado)" ayuda="Los chistes generados esperan su aprobación. Si lo desactiva, los que superen la validación se publican solos." checked={!d.auto_approve} onChange={(v) => set({ auto_approve: !v })} />
-        <Interruptor label="Llamadas reales a la API de Claude" ayuda={clave === false ? 'Primero configure la clave en el servidor (vea las instrucciones abajo).' : 'Apagado: se usa el simulador, que no cuesta nada. Encendido: llamadas de pago, dentro de los límites de abajo.'}
+      <Card title="Interruptores generales (valen para todos los usos)">
+        <Interruptor label="Orbe IA encendido" ayuda="Interruptor general. Apagado: ningún uso funciona (ni LIEIA, ni Orbe Control, ni el humor)." checked={d.enabled} onChange={(v) => set({ enabled: v })} />
+        <Interruptor label="Llamadas reales a la API de Claude" ayuda={clave === false ? 'Primero configure la clave en el servidor (vea las instrucciones abajo).' : 'Apagado: todos los usos responden con el simulador, que no cuesta nada. Encendido: llamadas de pago, dentro de los límites de abajo.'}
           checked={d.api_real} onChange={(v) => set({ api_real: v })} disabled={clave === false && !d.api_real} />
-        <Interruptor label="Reponer automáticamente" ayuda="Si un estudiante ya vio todos los chistes aprobados de una lección, se genera un lote nuevo (con los mismos límites; en modo revisión queda pendiente)." checked={d.auto_generate} onChange={(v) => set({ auto_generate: v })} />
-        <Interruptor label="Eventos académicos (nivel C)" ayuda="Chistes al resolver bien un ejercicio de práctica. Nunca en evaluaciones." checked={d.events_enabled} onChange={(v) => set({ events_enabled: v })} />
-      </Card>
-      <Card title="Frecuencia de aparición">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Numero label="Como máximo un mensaje cada" value={d.interval_minutes} min={1} max={1440} onChange={(v) => set({ interval_minutes: v })} sufijo="minutos" />
-          <Numero label="Actividad mínima antes del primero" value={Math.round(d.min_activity_seconds / 60)} min={0} max={60} onChange={(v) => set({ min_activity_seconds: v * 60 })} sufijo="minutos" />
-        </div>
-        <p className="mt-2 text-xs text-gray-500">Se comprueba en el servidor con el seguimiento de tiempo (actividad en los últimos 20 minutos). Nunca aparece durante una evaluación en curso, ni mientras el estudiante escribe, ni encima de un aviso del profesor.</p>
+        <p className="mt-2 text-xs text-gray-500">Las opciones propias del humor para estudiantes (visibilidad, revisión, frecuencia) están en la pestaña «Humor: opciones».</p>
       </Card>
       <Card title="Modelo y límites de gasto">
         <label className="text-sm">Modelo
@@ -123,12 +128,11 @@ function Configuracion({ c, clave, onSaved }: { c: ConfigOrbe; clave: boolean | 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Numero label="Presupuesto mensual" value={d.monthly_budget_usd} min={0} max={1000} step={0.5} onChange={(v) => set({ monthly_budget_usd: v })} sufijo="US$" />
           <Numero label="Llamadas por día (máximo)" value={d.daily_max_calls} min={0} max={1000} onChange={(v) => set({ daily_max_calls: v })} />
-          <Numero label="Chistes por llamada" value={d.jokes_per_batch} min={1} max={20} onChange={(v) => set({ jokes_per_batch: v })} />
           <Numero label="Tokens de salida por llamada (máximo)" value={d.max_output_tokens} min={512} max={8000} step={100} onChange={(v) => set({ max_output_tokens: v })} />
           <Numero label="Precio de entrada" value={d.price_input_per_mtok} min={0} max={100} step={0.01} onChange={(v) => set({ price_input_per_mtok: v })} sufijo="US$/M tokens" />
           <Numero label="Precio de salida" value={d.price_output_per_mtok} min={0} max={200} step={0.01} onChange={(v) => set({ price_output_per_mtok: v })} sufijo="US$/M tokens" />
         </div>
-        <p className="mt-2 text-xs text-gray-500">Coste estimado por llamada ({d.jokes_per_batch} chistes): típico ≈ {usd(loteTipico)}; máximo {usd(loteMax)}. Antes de cada llamada real el servidor reserva el máximo y la rechaza si superaría el presupuesto del mes.</p>
+        <p className="mt-2 text-xs text-gray-500">Presupuesto y límite diario son COMUNES a todos los usos. Coste estimado por llamada: típico ≈ {usd(loteTipico)}; máximo {usd(loteMax)} (una interpretación de examen en LIEIA puede llevar algo más de entrada). Antes de cada llamada real el servidor reserva el máximo y la rechaza si superaría el presupuesto del mes.</p>
       </Card>
       <Card title="Clave de la API">
         {clave === null ? <p className="text-sm text-gray-500">No se pudo consultar la Edge Function (¿aún no está desplegada?).</p>
@@ -140,6 +144,83 @@ function Configuracion({ c, clave, onSaved }: { c: ConfigOrbe; clave: boolean | 
         <button className="btn-primario" disabled={accion.busy} onClick={() => void guardar()}>{accion.busy ? 'Guardando…' : 'Guardar configuración'}</button>
         {ok && <span className="text-sm text-emerald-700">Guardado ✓</span>}
         <ErrorBox error={accion.error} />
+      </div>
+    </div>
+  );
+}
+
+/** Opciones propias del humor contextual para estudiantes (el resto de usos no las usa). */
+function ConfigHumor({ c, onSaved }: { c: ConfigOrbe; onSaved: () => void }) {
+  const [d, setD] = useState<ConfigOrbe>(c);
+  useEffect(() => setD(c), [c]);
+  const set = (x: Partial<ConfigOrbe>) => setD((v) => ({ ...v, ...x }));
+  const accion = useAction();
+  const [ok, setOk] = useState(false);
+  async function guardar() {
+    setOk(false);
+    // solo las opciones del humor: no se tocan los interruptores generales ni el gasto
+    const r = await accion.run(() => orbeGuardarConfig({ students_enabled: d.students_enabled, auto_approve: d.auto_approve, auto_generate: d.auto_generate,
+      events_enabled: d.events_enabled, interval_minutes: d.interval_minutes, min_activity_seconds: d.min_activity_seconds, jokes_per_batch: d.jokes_per_batch }));
+    if (r) { setOk(true); onSaved(); }
+  }
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      {!c.enabled && <div className="lg:col-span-2"><Notice tone="warn">Orbe IA está apagado (Configuración general): el humor no funciona aunque lo active aquí.</Notice></div>}
+      <Card title="Humor contextual para estudiantes">
+        <Interruptor label="Mostrar a los estudiantes" ayuda="Con esto apagado puede generar y revisar chistes sin que ningún estudiante los vea." checked={d.students_enabled} onChange={(v) => set({ students_enabled: v })} />
+        <Interruptor label="Modo revisión (recomendado)" ayuda="Los chistes generados esperan su aprobación. Si lo desactiva, los que superen la validación se publican solos." checked={!d.auto_approve} onChange={(v) => set({ auto_approve: !v })} />
+        <Interruptor label="Reponer automáticamente" ayuda="Si un estudiante ya vio todos los chistes aprobados de una lección, se genera un lote nuevo (con los mismos límites; en modo revisión queda pendiente)." checked={d.auto_generate} onChange={(v) => set({ auto_generate: v })} />
+        <Interruptor label="Eventos académicos (nivel C)" ayuda="Chistes al resolver bien un ejercicio de práctica. Nunca en evaluaciones." checked={d.events_enabled} onChange={(v) => set({ events_enabled: v })} />
+        <div className="mt-3"><Numero label="Chistes por llamada" value={d.jokes_per_batch} min={1} max={20} onChange={(v) => set({ jokes_per_batch: v })} /></div>
+      </Card>
+      <Card title="Frecuencia de aparición">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Numero label="Como máximo un mensaje cada" value={d.interval_minutes} min={1} max={1440} onChange={(v) => set({ interval_minutes: v })} sufijo="minutos" />
+          <Numero label="Actividad mínima antes del primero" value={Math.round(d.min_activity_seconds / 60)} min={0} max={60} onChange={(v) => set({ min_activity_seconds: v * 60 })} sufijo="minutos" />
+        </div>
+        <p className="mt-2 text-xs text-gray-500">Se comprueba en el servidor con el seguimiento de tiempo (actividad en los últimos 20 minutos). Nunca aparece durante una evaluación en curso, ni mientras el estudiante escribe, ni encima de un aviso del profesor.</p>
+      </Card>
+      <div className="flex items-center gap-3 lg:col-span-2">
+        <button className="btn-primario" disabled={accion.busy} onClick={() => void guardar()}>{accion.busy ? 'Guardando…' : 'Guardar opciones del humor'}</button>
+        {ok && <span className="text-sm text-emerald-700">Guardado ✓</span>}
+        <ErrorBox error={accion.error} />
+      </div>
+    </div>
+  );
+}
+
+/** Resumen: cada uso de Orbe IA, quién lo usa, qué recibe el modelo y su consumo del mes. */
+function Resumen({ p, clave, irA }: { p: PanelOrbe; clave: boolean | null; irA: (t: Tab) => void }) {
+  const c = p.config;
+  const pp = p.estadisticas.por_proposito;
+  const estado = !c.enabled ? { t: 'Apagado', tone: 'gray' as const } : c.api_real ? { t: `Claude real (${c.model})`, tone: 'purple' as const } : { t: 'Simulador, sin coste', tone: 'blue' as const };
+  return (
+    <div className="space-y-4">
+      <Card title="Estado general">
+        <p className="text-sm"><Badge tone={estado.tone}>{estado.t}</Badge> · gasto del mes {usd(p.estadisticas.gasto_mes_usd)} de {usd(c.monthly_budget_usd)} · {p.estadisticas.llamadas_hoy}/{c.daily_max_calls} llamadas hoy
+          {clave === false && <> · <Badge tone="amber">sin clave de API en el servidor</Badge></>}</p>
+        <p className="mt-1 text-xs text-gray-500">El interruptor general, las llamadas reales, el modelo, el presupuesto y el límite diario son comunes a todos los usos. Claude nunca recibe nombres, correos ni identificadores de estudiantes. {!c.enabled || !c.api_real ? 'Para que los usos respondan con Claude, encienda Orbe IA y las llamadas reales en «Configuración general».' : ''}</p>
+        <button className="btn-secundario mt-2 text-sm" onClick={() => irA('estado')}>Configuración general</button>
+      </Card>
+      <div className="grid gap-3 md:grid-cols-2">
+        {ORDEN_USOS.map((k) => {
+          const u = USOS[k], m = pp?.[k];
+          return (
+            <div key={k} className="tarjeta">
+              <p className="font-semibold">{u.icono} {u.nombre} <span className="text-xs font-normal text-gray-500">· {u.quien}</span></p>
+              <p className="text-xs text-gray-600 dark:text-gray-300">Dónde: {u.donde}</p>
+              <p className="text-xs text-gray-600 dark:text-gray-300">Qué recibe Claude: {u.datos}</p>
+              <p className="mt-1 text-xs">{m ? `Este mes: ${m.llamadas} llamada(s), ${m.reales} real(es), ${usd(m.gasto_usd)}${m.errores ? `, ${m.errores} con error` : ''}` : pp ? 'Sin uso este mes.' : 'Consumo por uso disponible al instalar la migración 54.'}</p>
+              <div className="mt-2 flex gap-2">
+                {k === 'chistes' && <>
+                  <Badge tone={c.students_enabled && c.enabled ? 'green' : 'gray'}>{c.students_enabled && c.enabled ? 'Visible para estudiantes' : 'Oculto a los estudiantes'}</Badge>
+                  <button className="btn-texto text-xs" onClick={() => irA('humor')}>Opciones del humor</button>
+                </>}
+                {u.enlace && <Link className="btn-texto text-xs" to={u.enlace.to}>{u.enlace.texto}</Link>}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -482,16 +563,34 @@ function Consumo({ p }: { p: PanelOrbe }) {
         <Dato k="Mostrados" v={e.mostrados} sub={`${e.mostrados_7d} en 7 días · ${e.estudiantes_alcanzados} estudiantes`} />
       </div>
       <div className="grid gap-2 sm:grid-cols-3">
-        <Dato k="Cerrados en menos de 3 s" v={e.cerrados_al_instante} sub="señal de que molestan: suba el intervalo si crece" />
+        <Dato k="Humor: cerrados en menos de 3 s" v={e.cerrados_al_instante} sub="señal de que molestan: suba el intervalo si crece" />
       </div>
+      {e.por_proposito && (
+        <Card title="Este mes, por uso">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b text-left text-xs dark:border-white/10"><th className="py-1">Uso</th><th className="text-right">Llamadas</th><th className="text-right">Reales</th><th className="text-right">Tokens</th><th className="text-right">Gasto</th><th className="text-right">Errores</th></tr></thead>
+              <tbody>{ORDEN_USOS.map((k) => { const m = e.por_proposito?.[k]; return (
+                <tr key={k} className="border-b border-gray-100 dark:border-white/5">
+                  <td className="py-1">{USOS[k].icono} {USOS[k].nombre}</td>
+                  <td className="text-right tabular-nums">{m?.llamadas ?? 0}</td><td className="text-right tabular-nums">{m?.reales ?? 0}</td>
+                  <td className="text-right tabular-nums">{(m?.tokens ?? 0).toLocaleString('es-DO')}</td><td className="text-right tabular-nums">{usd(m?.gasto_usd ?? 0)}</td>
+                  <td className="text-right tabular-nums">{m?.errores ?? 0}</td>
+                </tr>
+              ); })}</tbody>
+            </table>
+          </div>
+        </Card>
+      )}
       <Card title={`Últimas llamadas · ${p.consumo.length}`}>
         {!p.consumo.length ? <p className="text-sm text-gray-500">Aún no se ha generado nada.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="border-b text-left text-xs dark:border-white/10"><th className="py-1">Fecha</th><th>Origen</th><th>Lección</th><th>Modelo</th><th>Estado</th><th className="text-right">Tokens (ent. / sal.)</th><th className="text-right">Coste</th><th className="text-right">Chistes</th></tr></thead>
+              <thead><tr className="border-b text-left text-xs dark:border-white/10"><th className="py-1">Fecha</th><th>Uso</th><th>Origen</th><th>Lección</th><th>Modelo</th><th>Estado</th><th className="text-right">Tokens (ent. / sal.)</th><th className="text-right">Coste</th><th className="text-right">Chistes</th></tr></thead>
               <tbody>{p.consumo.map((x) => (
                 <tr key={x.id} className="border-b border-gray-100 dark:border-white/5">
                   <td className="whitespace-nowrap py-1 text-xs">{fecha(x.created_at)}</td>
+                  <td className="text-xs">{x.purpose ? `${USOS[x.purpose]?.icono ?? ''} ${USOS[x.purpose]?.nombre ?? x.purpose}` : '—'}</td>
                   <td className="text-xs">{x.trigger === 'profesor' ? 'profesor' : 'automática'}</td>
                   <td className="text-xs">{x.leccion ?? '—'}{(x.section || x.evento) && <span className="block text-gray-500">{[nombreSeccion(x.section), x.apartado, nombreEvento(x.evento)].filter(Boolean).join(' · ')}</span>}</td>
                   <td className="text-xs">{x.simulated ? <Badge>simulador</Badge> : x.model}</td>

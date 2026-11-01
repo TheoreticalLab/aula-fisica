@@ -20,7 +20,12 @@ export interface ConsumoOrbe {
   id: number; created_at: string; trigger: 'profesor' | 'automatico'; model: string; simulated: boolean; status: 'reservado' | 'ok' | 'error';
   input_tokens: number; output_tokens: number; cost_usd: number; jokes_generated: number; jokes_rejected: number; error_code: string | null;
   section: string | null; apartado: string | null; evento: string | null; leccion: string | null;
+  /** para qué fue la llamada (migración 54; antes no viene) */
+  purpose?: PropositoOrbe;
 }
+/** Usos de Orbe IA: humor para estudiantes, Orbe Control (mensajes, pulso, pregunta relámpago) e interpretación en LIEIA. */
+export type PropositoOrbe = 'chistes' | 'mensaje' | 'pulso' | 'pregunta' | 'lieia';
+export interface UsoMes { llamadas: number; reales: number; gasto_usd: number; tokens: number; errores: number; ultima: string | null }
 export interface PanelOrbe {
   config: ConfigOrbe;
   cursos: CursoOrbe[];
@@ -28,6 +33,7 @@ export interface PanelOrbe {
     chistes: Record<string, number>; mostrados: number; mostrados_7d: number; estudiantes_alcanzados: number; cerrados_al_instante: number;
     gasto_mes_usd: number; tokens_mes: { entrada: number; salida: number };
     llamadas_hoy: number; llamadas_reales_mes: number; errores_mes: number;
+    por_proposito?: Partial<Record<PropositoOrbe, UsoMes>>;
   };
   consumo: ConsumoOrbe[];
 }

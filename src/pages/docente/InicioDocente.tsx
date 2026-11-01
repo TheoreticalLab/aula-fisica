@@ -178,7 +178,7 @@ export default function InicioDocente() {
           <Herramienta to="/ayuda" icono="❓" titulo="Ayuda" texto="Guía breve: crear exámenes, prórrogas, revisar y seguimiento." />
           <Herramienta to="/" icono="👁" titulo="Vista de estudiante" texto="Vea la plataforma como la ve un estudiante." />
           <Herramienta to="/docente/lieia" icono="🔬" titulo="Laboratorio LIEIA" texto="Investigación de integridad (indicadores experimentales: no son pruebas)." />
-          {isAdmin && <Herramienta to="/docente/orbe-ia" icono="🤖" titulo="Orbe IA" texto="Humor contextual con Claude: banco y límites." />}
+          {isAdmin && <Herramienta to="/docente/orbe-ia" icono="🤖" titulo="Orbe IA" texto="Claude en el aula: LIEIA, Orbe Control y humor. Encendido, gasto y consumo." />}
           {isAdmin && <Herramienta to="/docente/cuentas" icono="👥" titulo="Cuentas" texto="Alta de estudiantes y profesores, accesos." />}
         </div>
       </section>

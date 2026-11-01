@@ -12,7 +12,7 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
     pendiente: [
       'Bloques IV (Energía y cantidad de movimiento), V (Oscilaciones y ondas) y VI (Termodinámica): anunciados en el temario, sin lecciones todavía.',
       'Otras asignaturas: creadas desde el panel; sus lecciones están en preparación.',
-      'Física General I · Unidad 9 «Física de los choques» (en preparación, pendiente de instalar): 15 lecciones del fenómeno al modelo, laboratorio «choque seguido de fricción» y un banco de 135 ejercicios verificados con el motor físico (42 fáciles, 44 intermedios, 49 difíciles), con problemas por etapas.',
+      'Física General I · Unidad 9 «Física de los choques» (instalada; pendiente de revisar en navegador y teléfono): 15 lecciones del fenómeno al modelo, laboratorio «choque seguido de fricción» y un banco de 135 ejercicios verificados con el motor físico (42 fáciles, 44 intermedios, 49 difíciles), con problemas por etapas.',
     ],
   },
   {
@@ -42,9 +42,9 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
     ],
     pendiente: [
       'Probar el modo de una pregunta a la vez en teléfonos reales.',
-      'Orden aleatorio de opciones por actividad (programado; pendiente de instalar): solo cambia la presentación, cada opción conserva su letra.',
-      'Exámenes adaptativos (programado; pendiente de instalar y de probar con un banco calibrado real): cada estudiante recibe las preguntas una a una según sus respuestas, y la nota es el dominio estimado en todo el banco, no el número de aciertos.',
-      'Números distintos para cada estudiante (programado; pendiente de probar en la base de datos e instalar): en las preguntas con variante, cada intento recibe sus propios datos y el servidor calcula y califica su respuesta, sin enviarla al navegador. Hay un ejercicio piloto en la Unidad 9 (choque totalmente inelástico seguido de frenado).',
+      'Orden aleatorio de opciones por actividad (instalado; pendiente de probar en una actividad real): solo cambia la presentación, cada opción conserva su letra.',
+      'Exámenes adaptativos (instalados; pendiente de probar con un banco calibrado real): cada estudiante recibe las preguntas una a una según sus respuestas, y la nota es el dominio estimado en todo el banco, no el número de aciertos.',
+      'Números distintos para cada estudiante (instalado; pendiente de probar el piloto con estudiantes): en las preguntas con variante, cada intento recibe sus propios datos y el servidor calcula y califica su respuesta, sin enviarla al navegador. Hay un ejercicio piloto en la Unidad 9 (choque totalmente inelástico seguido de frenado).',
     ],
   },
   {
@@ -57,16 +57,17 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
     ],
     pendiente: [
       'Personalización del aprendizaje y análisis pedagógico avanzado (etapa 3).',
-      'Asistencia autónoma por quórum de proximidad (programada, pendiente de instalar y de probar con teléfonos en el aula): a la hora de clase, tres estudiantes juntos activan la asistencia sin el profesor; los demás se validan por cercanía a compañeros ya registrados, sin que la zona pueda desplazarse. El profesor conserva todo el control.',
-      'Telemetría V2 (programada y probada, pendiente de instalar y de probar en navegador y teléfono): reconstrucción científica de cada intento por intervalos (lo observado, lo reconstruido, lo estimado y lo desconocido), historial de guardados de respuestas, instantánea de la entrega, exportación por niveles y monitor. Nace apagada; se activa por asignatura.',
+      'Asistencia autónoma por quórum de proximidad (instalada; pendiente de probar con teléfonos en el aula): a la hora de clase, tres estudiantes juntos activan la asistencia sin el profesor; los demás se validan por cercanía a compañeros ya registrados, sin que la zona pueda desplazarse. El profesor conserva todo el control.',
+      'Telemetría V2 (instalada; pendiente de probar en navegador y teléfono): reconstrucción científica de cada intento por intervalos (lo observado, lo reconstruido, lo estimado y lo desconocido), historial de guardados de respuestas, instantánea de la entrega, exportación por niveles y monitor. Nace apagada; se activa por asignatura.',
       'Regularización de prácticas anteriores (instalada; pendiente de probar con teléfonos reales): los estudiantes indican qué prácticas entregaron antes del aula, por qué medio y cuándo, con una captura del envío (no el documento); el profesor las localiza en su propio correo con el texto de búsqueda que genera la plataforma, las verifica y las convalida, sin que eso cree notas.',
-      'Prácticas realizadas sin envío por correo (programada; pendiente de probar en la base de datos, instalar y probar con teléfonos): cada estudiante registra libremente las prácticas hechas en el cuaderno, en clase o en la pizarra (nombre, total de ejercicios, cuántos hizo y una foto representativa o una explicación); el profesor consolida los nombres equivalentes con sugerencias que él confirma, detecta posibles omisiones, pide evidencia y valida la cantidad verificada. El «cumplimiento declarado» no es una nota.',
-      'LIEIA · laboratorio científico (pendiente de probar con exámenes reales): analiza un examen sin clasificación manual, mide lo que los datos permiten (y se abstiene cuando no), ajusta la TRI cuando hay muestra, propone investigaciones que el profesor no había pedido, simula diseños antes de aplicarlos y crea exámenes nuevos como borradores. Programado y pendiente de publicar: preguntas en lenguaje corriente (por reglas, sin IA), análisis factorial (¿una dimensión o varias?), funcionamiento diferencial entre grupos y calibración progresiva entre aplicaciones (esta última con la migración 49), e interpretación con IA a través de Orbe IA (migración 52): Claude recibe solo cifras agregadas, y el servidor descarta lo que cite datos inexistentes, afirme causas o hable de conducta.',
+      'Prácticas realizadas sin envío por correo (instalada; pendiente de probar con teléfonos): cada estudiante registra libremente las prácticas hechas en el cuaderno, en clase o en la pizarra (nombre, total de ejercicios, cuántos hizo y una foto representativa o una explicación); el profesor consolida los nombres equivalentes con sugerencias que él confirma, detecta posibles omisiones, pide evidencia y valida la cantidad verificada. El «cumplimiento declarado» no es una nota.',
+      'LIEIA · laboratorio científico (pendiente de probar con exámenes reales): analiza un examen sin clasificación manual, mide lo que los datos permiten (y se abstiene cuando no), ajusta la TRI cuando hay muestra, propone investigaciones que el profesor no había pedido, simula diseños antes de aplicarlos y crea exámenes nuevos como borradores. También instalados: preguntas en lenguaje corriente (por reglas, sin IA), análisis factorial (¿una dimensión o varias?), funcionamiento diferencial entre grupos, calibración progresiva entre aplicaciones e interpretación con IA a través de Orbe IA (Claude recibe solo cifras agregadas, y el servidor descarta lo que cite datos inexistentes, afirme causas o hable de conducta). El diseñador elige preguntas existentes del banco, por defecto solo de los temas de lo analizado.',
     ],
   },
   {
-    area: 'Orbe IA (humor contextual)',
+    area: 'Orbe IA (inteligencia artificial del aula)',
     hecho: [
+      'Un solo panel para todos los usos de Claude en el aula (interpretación de exámenes en LIEIA, Orbe Control y humor contextual): interruptor general, llamadas reales o simulador sin coste, modelo, presupuesto mensual y límite diario comunes, y consumo por uso (el desglose por uso llega con la migración 54, pendiente de instalar). A Claude nunca le llegan nombres ni identificadores de estudiantes.',
       'En funcionamiento: chistes de física por lección, subsección y apartado de la teoría, generados con Claude, revisados por el profesor y reutilizados con todos los estudiantes. A la IA solo le llega el contenido académico, nunca datos personales. Se activa solo desde el panel del profesor.',
       'Reglas en el servidor: un mensaje como máximo cada 10 minutos (configurable), solo tras actividad reciente comprobada, nunca durante una evaluación ni mientras el estudiante escribe, sin repetir chistes; presupuesto mensual y límite diario de llamadas.',
       'Copiar el banco de chistes entre asignaturas con el mismo contenido (por ejemplo, Física General 1 y 1-A).',
