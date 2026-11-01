@@ -29,7 +29,7 @@ function MapaEjercicios({ items }: { items: AttemptItem[] }) {
         <span className="font-medium">{hechos} de {items.length} respondidos</span>
         <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-white/10"><span className="block h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${(100 * hechos) / items.length}%` }} /></span>
       </div>
-      <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+      <div className="flex flex-wrap gap-1.5 pb-0.5">
         {items.map((it, i) => {
           const st = it.response?.status;
           const tono = st === 'correct' ? 'border-emerald-500 bg-emerald-500 text-white' : st === 'incorrect' || st === 'revealed' ? 'border-red-300 bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-200'

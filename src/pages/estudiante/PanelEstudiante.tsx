@@ -97,18 +97,22 @@ export function PanelEstudiante({ d, rutaActividad = (id) => `/actividad/${id}`,
           {d.cursos.length ? `${d.cursos.length === 1 ? 'Su curso' : `Sus ${d.cursos.length} cursos`}: ${d.cursos.map((c) => c.curso).join(' · ')}` : 'Todavía no está en ningún curso.'}
           {d.esProfesor && <> · <Link to="/docente" className="underline">Panel docente</Link></>}
         </p>
-        <nav className="mt-4 flex gap-2 overflow-x-auto pb-1" aria-label="Acceso rápido">
+        {/* Accesos en cuadrícula: todos visibles a la vez, sin deslizar hacia los lados */}
+        <nav className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-8" aria-label="Acceso rápido">
           {[
-            ['Mis cursos', '/temario'],
-            ['Asistencia', '/asistencia'],
-            ['Entregas en PDF', '/entregas'],
-            ['Prácticas anteriores', '/practicas-anteriores'],
-            ['Laboratorio', '/laboratorio'],
-            ['Calificaciones', '/calificaciones'],
-            ...(d.cursos[0] ? [['Mi progreso', `/curso/${d.cursos[0].courseId}/progreso`]] : []),
-            ['Mi perfil', '/perfil'],
-          ].map(([t, to]) => (
-            <Link key={to} to={to} className="whitespace-nowrap rounded-full bg-white/10 px-4 py-2 text-sm font-medium hover:bg-white/20">{t}</Link>
+            ['📚', 'Mis cursos', '/temario'],
+            ['✅', 'Asistencia', '/asistencia'],
+            ['📊', 'Calificaciones', '/calificaciones'],
+            ...(d.cursos[0] ? [['📈', 'Mi progreso', `/curso/${d.cursos[0].courseId}/progreso`]] : []),
+            ['📎', 'Entregas en PDF', '/entregas'],
+            ['🗂️', 'Prácticas anteriores', '/practicas-anteriores'],
+            ['🧪', 'Laboratorio', '/laboratorio'],
+            ['👤', 'Mi perfil', '/perfil'],
+          ].map(([icono, t, to]) => (
+            <Link key={to} to={to} className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-xl bg-white/10 px-1 py-2 text-center text-[11px] font-medium leading-tight hover:bg-white/20 sm:text-xs">
+              <span className="text-xl leading-none" aria-hidden="true">{icono}</span>
+              <span>{t}</span>
+            </Link>
           ))}
         </nav>
       </header>

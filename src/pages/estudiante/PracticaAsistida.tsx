@@ -75,7 +75,7 @@ export function PracticaAsistida({ view, onEntregado }: { view: AttemptView; onE
         <strong> 3 Explicar</strong> lo que aprendió{e.config.transferencia ? <> · <strong>4 Comprobar</strong> con un ejercicio nuevo</> : null}. Lo que importa es entender, no solo acertar.
       </Notice>
       {items.length > 1 && (
-        <nav aria-label="Ejercicios" className="flex gap-1.5 overflow-x-auto pb-1">
+        <nav aria-label="Ejercicios" className="flex flex-wrap gap-1.5 pb-1">
           {items.map((x, i) => (
             <button key={x.exercise_id} onClick={() => setSel(i)} aria-current={i === sel ? 'step' : undefined}
               className={`min-h-[40px] min-w-[40px] shrink-0 rounded-lg border text-sm font-medium ${i === sel ? 'border-primario-600 bg-primario-600 text-white' : x.siguiente === 'completo' ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30' : 'border-gray-300 dark:border-white/20'}`}>

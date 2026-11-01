@@ -123,8 +123,9 @@ export function Field({ label, children, hint }: { label: string; children: (id:
 
 export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: string; disabled?: boolean }[]; value: T; onChange: (t: T) => void }) {
   return (
-    <div className="-mx-4 mb-4 overflow-x-auto border-b border-gray-200 px-4 dark:border-white/10 sm:mx-0 sm:px-0" role="tablist">
-      <div className="flex min-w-max gap-1">
+    // En el teléfono, cuadrícula de botones (todas las pestañas visibles, sin deslizar); en pantallas anchas, pestañas subrayadas.
+    <div className="mb-4 border-b border-gray-200 pb-2 dark:border-white/10 sm:pb-0" role="tablist">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(6.5rem,1fr))] gap-1.5 sm:flex sm:flex-wrap sm:gap-1">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -132,10 +133,10 @@ export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: 
             aria-selected={value === t.id}
             disabled={t.disabled}
             onClick={() => onChange(t.id)}
-            className={`min-h-[44px] whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition disabled:opacity-40 ${
+            className={`min-h-[44px] rounded-lg border px-2 py-1.5 text-sm font-medium leading-tight transition disabled:opacity-40 sm:rounded-none sm:border-0 sm:border-b-2 sm:px-3 sm:py-2 sm:whitespace-nowrap ${
               value === t.id
-                ? 'border-acento-500 text-primario-900 dark:text-white'
-                : 'border-transparent text-gray-500 hover:text-primario-800 dark:text-gray-400 dark:hover:text-gray-200'
+                ? 'border-acento-500 bg-acento-500/10 text-primario-900 dark:text-white sm:bg-transparent'
+                : 'border-gray-200 text-gray-600 hover:text-primario-800 dark:border-white/15 dark:text-gray-300 dark:hover:text-gray-200 sm:border-transparent'
             }`}
           >
             {t.label}

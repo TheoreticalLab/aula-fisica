@@ -24,13 +24,13 @@ export default function Calificaciones() {
               <h2 className="text-lg font-semibold">{cls}</h2>
               <span className="text-sm">Promedio: <strong>{porcentaje(avg)}</strong></span>
             </div>
-            <div className="overflow-x-auto">
+            <div>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase text-gray-500">
                     <th className="py-1 pr-2">Actividad</th>
-                    <th className="py-1 pr-2">Tipo</th>
-                    <th className="py-1 pr-2">Cierre</th>
+                    <th className="hidden py-1 pr-2 sm:table-cell">Tipo</th>
+                    <th className="hidden py-1 pr-2 sm:table-cell">Cierre</th>
                     <th className="py-1 pr-2 text-right">Nota</th>
                     <th className="py-1" />
                   </tr>
@@ -38,9 +38,15 @@ export default function Calificaciones() {
                 <tbody>
                   {rows!.map((g) => (
                     <tr key={g.activity_id} className="border-t border-gray-100 dark:border-white/10">
-                      <td className="py-2 pr-2">{g.title}</td>
-                      <td className="py-2 pr-2"><Badge tone={g.mode === 'exam' ? 'purple' : 'blue'}>{g.mode === 'exam' ? 'Evaluación' : 'Práctica'}</Badge></td>
-                      <td className="py-2 pr-2 text-gray-500">{fecha(g.closes_at)}</td>
+                      <td className="py-2 pr-2">
+                        {g.title}
+                        {/* en el teléfono, tipo y cierre debajo del título (sin columnas que obliguen a deslizar) */}
+                        <span className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-gray-500 sm:hidden">
+                          <Badge tone={g.mode === 'exam' ? 'purple' : 'blue'}>{g.mode === 'exam' ? 'Evaluación' : 'Práctica'}</Badge> {fecha(g.closes_at)}
+                        </span>
+                      </td>
+                      <td className="hidden py-2 pr-2 sm:table-cell"><Badge tone={g.mode === 'exam' ? 'purple' : 'blue'}>{g.mode === 'exam' ? 'Evaluación' : 'Práctica'}</Badge></td>
+                      <td className="hidden py-2 pr-2 text-gray-500 sm:table-cell">{fecha(g.closes_at)}</td>
                       <td className="py-2 pr-2 text-right font-medium tabular-nums">
                         {g.attempts ? puntaje(g.best_score, g.max_score) : 'No entregada'}
                         {g.pending_review && <span className="block text-xs font-normal text-gray-500">revisión pendiente</span>}

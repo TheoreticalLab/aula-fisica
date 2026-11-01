@@ -272,7 +272,7 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems }: {
       <ErrorBox error={error} />
 
       {/* navegador de preguntas */}
-      <nav aria-label="Preguntas" className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
+      <nav aria-label="Preguntas" className="mb-3 flex flex-wrap gap-1.5 pb-1">
         {items.map((it, i) => {
           const id = it.exercise.id, es = id === motor.activa && motor.fase === 'trabajando', bloqueada = !!puedeIrA(motor, id, cfg) && !es;
           const marcada = motor.marcadas.includes(id), resp = estaRespondida(it);
