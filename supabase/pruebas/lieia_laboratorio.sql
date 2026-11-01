@@ -12,8 +12,8 @@ insert into public.classes (id, course_id, name, join_code, created_by) values
   ('eb000000-0000-4000-8000-000000000031', 'eb000000-0000-4000-8000-000000000021', 'Sección laboratorio', 'LABOR001', 'eb000000-0000-4000-8000-000000000001');
 insert into public.class_teachers (class_id, user_id) values ('eb000000-0000-4000-8000-000000000031', 'eb000000-0000-4000-8000-000000000001') on conflict do nothing;
 insert into public.enrollments (class_id, user_id) values ('eb000000-0000-4000-8000-000000000031', 'eb000000-0000-4000-8000-000000000011');
-insert into public.activities (id, class_id, title, mode, published) values
-  ('eb000000-0000-4000-8000-000000000041', 'eb000000-0000-4000-8000-000000000031', 'Examen base', 'exam', true);
+insert into public.activities (id, class_id, title, mode, published, reveal_policy, hints_enabled) values
+  ('eb000000-0000-4000-8000-000000000041', 'eb000000-0000-4000-8000-000000000031', 'Examen base', 'exam', true, 'after_submit', false);
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"eb000000-0000-4000-8000-000000000001","role":"authenticated"}', true);
