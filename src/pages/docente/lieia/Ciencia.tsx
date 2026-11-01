@@ -15,7 +15,7 @@ import { asignarCondiciones, comparar, disenar, MODOS, type Diseno, type ItemBan
 import { COGNITIVAS, MINIMOS, RELACIONES, type Cognitiva } from '@/lib/lieia/ciencia/modelo';
 import type { Revision } from '@/lib/lieia/ciencia/contenido';
 import type { TRI } from '@/lib/lieia/ciencia/tri';
-import { Historial, itemsParaSimular, Simulador, VistaTRI } from './CienciaAvanzada';
+import { Historial, InterpretacionIA, itemsParaSimular, Simulador, VistaTRI } from './CienciaAvanzada';
 import { useAction, useAsync } from '@/lib/util';
 import { Badge, Card, Empty, ErrorBox, Notice, Spinner, Tabs } from '@/components/ui';
 
@@ -26,7 +26,7 @@ const TONO_EST = { analizable: 'green', datos_insuficientes: 'amber', requiere_n
 const TONO_DIM = { bien: 'green', atencion: 'amber', problema: 'red', sin_datos: 'gray' } as const;
 const TEXTO_DIM = { bien: 'bien', atencion: 'atención', problema: 'problema', sin_datos: 'sin datos' } as const;
 
-type Vista = 'resumen' | 'explorar' | 'preguntas' | 'relaciones' | 'investigar' | 'disenar' | 'tri' | 'simular' | 'historial' | 'metodo';
+type Vista = 'resumen' | 'explorar' | 'preguntas' | 'relaciones' | 'investigar' | 'disenar' | 'tri' | 'simular' | 'historial' | 'ia' | 'metodo';
 interface Contexto { classId: string; courseId: string; activityId: string; titulo: string }
 
 // ------------------------------------------------------------------------------------------------------------------
@@ -483,7 +483,7 @@ export function Ciencia() {
           <Tabs<Vista> value={vista} onChange={setVista} tabs={[
             { id: 'resumen', label: 'Informe' }, { id: 'explorar', label: 'Preguntar' }, { id: 'preguntas', label: `Preguntas (${inf.preguntas.length})` }, { id: 'relaciones', label: 'Relaciones' },
             { id: 'investigar', label: `¿Qué puedo investigar? (${inf.fichas.length})` }, { id: 'disenar', label: 'Diseñar nuevo examen' },
-            { id: 'tri', label: 'Psicometría avanzada' }, { id: 'simular', label: 'Simular' }, { id: 'historial', label: 'Historial' }, { id: 'metodo', label: 'Métodos' },
+            { id: 'tri', label: 'Psicometría avanzada' }, { id: 'simular', label: 'Simular' }, { id: 'historial', label: 'Historial' }, { id: 'ia', label: 'Interpretación IA' }, { id: 'metodo', label: 'Métodos' },
           ]} />
           {vista === 'resumen' && (
             <div className="space-y-4">
@@ -525,6 +525,7 @@ export function Ciencia() {
           {vista === 'tri' && <VistaTRI inf={inf} tri={tri} setTri={setTri} courseId={ctx.courseId} activityId={ctx.activityId} />}
           {vista === 'simular' && <Simulador items={itemsParaSimular(inf, tri)} titulo={ctx.titulo} />}
           {vista === 'historial' && <Historial inf={inf} classId={ctx.classId} activityId={ctx.activityId} />}
+          {vista === 'ia' && <InterpretacionIA inf={inf} />}
           {vista === 'metodo' && <Metodo inf={inf} />}
         </>
       )}

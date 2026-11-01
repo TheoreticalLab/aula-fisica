@@ -154,14 +154,28 @@ tetracórica frente a normales dicotomizadas, autovalores, varimax, KMO; estruct
 | Etapa | Falta |
 |---|---|
 | 5 · Psicometría | rotación oblicua (los factores de un examen suelen correlacionar; varimax los fuerza a ser independientes), análisis factorial confirmatorio y modelos jerárquicos |
-| 7 · Conversacional | interpretación de preguntas con IA (Claude) en el servidor; hoy es por palabras clave |
+| 7 · Conversacional | el explorador «Preguntar» sigue siendo por palabras clave; la IA solo interpreta el informe (§6), no responde preguntas libres; sin caché de interpretaciones |
 | Motor de examen | administrar exámenes adaptativos y asignar condiciones por estudiante automáticamente |
 | Generación asistida | crear preguntas nuevas con IA (borrador + validación + revisión). Las variantes por intento (migración 51) ya generan versiones numéricas validadas de las plantillas de choques |
 | Modos | versiones del modo G con el generador de variantes |
 
 ## 6. IA (capa B)
 
-Existe una integración con Claude (`orbe-ia`, claves solo en el servidor, límites de gasto), pero el laboratorio **no**
-la usa todavía: todo el análisis es local y determinista y no envía datos a servicios externos. Cuando se conecte,
-deberá: recibir solo enunciados y metadatos (nunca identidades ni respuestas completas), devolver propuestas marcadas
-como «IA, sin validar», pasar por la capa C y quedar en caché por versión del examen.
+Conectada (migración 52, pendiente de instalar): pestaña **«Interpretación IA»**, acción `lieia` de la Edge Function
+`orbe-ia` (`supabase/functions/orbe-ia/lieia.ts`). Todo lo demás del laboratorio sigue siendo local y determinista.
+
+- **Qué recibe el modelo:** por pregunta, posición, enunciado (≤ 400 caracteres), formato, conceptos, dificultad a
+  priori y cifras agregadas (n, proporción de acierto, discriminación, omisión); del examen, n, KR-20 y la estructura
+  factorial si se calculó. El navegador arma el resumen sin tocar la matriz de respuestas (`resumenIA.ts`) y el
+  servidor lo **reconstruye por lista blanca**: cualquier otro campo (seudónimos, respuestas, ids) se descarta. El
+  profesor ve exactamente lo que se enviará antes de pedirlo.
+- **Gasto y encendido:** comparte el interruptor, el presupuesto mensual, el límite diario y el simulador de Orbe IA
+  (propósito `lieia` en `orbe_ia_usage`). Con las llamadas reales apagadas responde el simulador, sin coste.
+- **Capa C (determinista, en el servidor):** cada propuesta se descarta si cita una cifra decimal o un porcentaje que no
+  está en los datos, una pregunta inexistente, afirma una causa («se debe a», «demuestra»…) o habla de copia, trampa,
+  fraude o uso de IA. Lo descartado se muestra con el motivo. Todo llega etiquetado «IA, sin validar».
+- **No hay caché** por versión del examen todavía: cada petición es una llamada (limitada por Orbe IA).
+
+Pruebas: `tests/lieia-ia.test.ts` (10: lista blanca sin fugas, acotación, resumen del cliente sin la matriz, capa C con
+cifras inventadas, preguntas inexistentes, causas y acusaciones, simulador, permisos, API real y registro de tokens) y
+`supabase/pruebas/lieia_ia.sql` (propósito, apagado, reserva simulada sin coste, permisos, propósitos anteriores).

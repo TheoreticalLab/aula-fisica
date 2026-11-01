@@ -583,6 +583,10 @@ La primera pestaña del laboratorio analiza un examen ya aplicado sin que usted 
         habilidad demostrada.
   \item \textbf{Diseñar nuevo examen}: varios modos (por objetivo, por cobertura, por dificultad\ldots), reproducibles
         con una semilla. El examen se crea como \textbf{borrador oculto}; nunca se publica solo.
+  \item \textbf{Interpretación IA}: Claude propone qué revisar a partir de las cifras agregadas del examen (puede ver
+        antes exactamente qué se envía: nunca nombres, seudónimos ni respuestas). El servidor descarta las propuestas
+        que citan datos inexistentes, afirman causas o hablan de conducta. Todo es «IA, sin validar» y usa el
+        presupuesto de Orbe IA; con las llamadas reales apagadas responde un simulador.
   \item \textbf{Simular} e \textbf{Historial}: tamaños de muestra y potencia antes de aplicar un diseño, y registro de
         hipótesis que separa las planteadas antes de ver los datos de las exploratorias.
 \end{itemize}
@@ -593,7 +597,7 @@ simulado.
 \begin{nota}[Disponibilidad]
 El informe, las relaciones y el diseñador están instalados. \emph{Preguntar}, la TRI, el análisis factorial, el
 simulador y el historial llegan con la próxima publicación de la interfaz; la calibración progresiva entre aplicaciones, el funcionamiento
-diferencial y los modos de diseño nuevos necesitan además la migración 49.
+diferencial y los modos de diseño nuevos necesitan además la migración 49, y la interpretación con IA, la 52.
 \end{nota}
 
 % ============================================================================

@@ -9,6 +9,8 @@ import { difMH, MIN_DIF_GRUPO, type ResultadoDIF } from '@/lib/lieia/ciencia/dif
 import type { Informe } from '@/lib/lieia/ciencia/informe';
 import { ajustarTRI, MIN_TRI, type TRI } from '@/lib/lieia/ciencia/tri';
 import { analisisFactorial, MIN_FACTORIAL, POR_PREGUNTA, type Factorial } from '@/lib/lieia/ciencia/factorial';
+import { resumenParaIA } from '@/lib/lieia/ciencia/resumenIA';
+import { invocar } from '@/lib/supabase';
 import { ESCENARIO_BASE, nCorrelacion, nProporciones, potenciaCorrelacion, simular, type Escenario, type ItemSim, type ResultadoSim } from '@/lib/lieia/ciencia/simulacion';
 import { reabrir } from '@/lib/lieia/ciencia/historial';
 import { ESTADOS } from '@/lib/lieia/ciencia/descubrimiento';
@@ -188,6 +190,61 @@ function VistaFactorial({ inf }: { inf: Informe }) {
         </div>
       )}
     </Card>
+  );
+}
+
+// ------------------------------------------------------------------------------------------------------------------
+interface RespuestaIA {
+  ok: boolean; motivo?: string; simulado?: boolean;
+  resultado?: { resumen: string; hallazgos: { tipo: string; texto: string; preguntas: number[] }[]; limitaciones: string; descartados: { texto: string; motivo: string }[]; etiqueta: string };
+}
+const MOTIVOS_IA: Record<string, string> = {
+  apagado: 'Orbe IA está apagado. Se enciende en el panel de Orbe IA (administración); con las llamadas reales apagadas responde el simulador, sin coste.',
+  limite_diario: 'Se alcanzó el límite diario de llamadas de Orbe IA.', presupuesto: 'Se alcanzaría el presupuesto mensual de Orbe IA.',
+  permiso: 'Su cuenta no puede usar Orbe IA.', sin_clave: 'Las llamadas reales están activadas pero el servidor no tiene clave de API.',
+  formato: 'La respuesta del modelo no tenía el formato pedido; no se muestra nada.', rechazo_modelo: 'El modelo no respondió a esta petición.',
+  proposito: 'Falta instalar la migración 52 (interpretación con IA).',
+};
+const TIPOS_IA: Record<string, string> = { revisar_pregunta: 'Revisar pregunta', concepto_dificil: 'Concepto difícil', estructura: 'Estructura', investigar: 'Para investigar' };
+
+/** Capa B: interpretación con Claude a través de Orbe IA (solo cifras agregadas; capa C de verificación en el servidor). */
+export function InterpretacionIA({ inf }: { inf: Informe }) {
+  const datos = resumenParaIA(inf, null);
+  const [r, setR] = useState<RespuestaIA | null>(null);
+  const accion = useAction();
+  const pedir = () => void accion.run(async () => setR(await invocar<RespuestaIA>('orbe-ia', { action: 'lieia', examen: datos })));
+  return (
+    <div className="space-y-3 text-sm">
+      <Card title="Interpretación con IA (sin validar)">
+        <p className="text-xs text-gray-500">Claude propone interpretaciones pedagógicas a partir de las cifras agregadas del examen. No recibe seudónimos, respuestas individuales ni nombres: solo lo que ve abajo. El servidor descarta las propuestas que citan cifras o preguntas que no están en los datos, afirman causas o hablan de conducta. Usa el presupuesto y los límites de Orbe IA.</p>
+        <details className="mt-2 text-xs"><summary className="cursor-pointer">Datos que se enviarán ({datos.items.length} preguntas, {datos.n} estudiantes)</summary>
+          <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-gray-50 p-2 dark:bg-white/5">{JSON.stringify(datos, null, 1)}</pre>
+        </details>
+        <button className="btn-primario mt-2" disabled={accion.busy} onClick={pedir}>{accion.busy ? 'Consultando…' : 'Pedir interpretación'}</button>
+        <ErrorBox error={accion.error} />
+      </Card>
+      {r && !r.ok && <Notice tone="warn">{MOTIVOS_IA[r.motivo ?? ''] ?? `No se pudo obtener la interpretación (${r.motivo}).`}</Notice>}
+      {r?.ok && r.resultado && (
+        <Card title={r.simulado ? 'Interpretación (SIMULACIÓN: llamadas reales apagadas)' : 'Interpretación de Claude'}>
+          <p><Badge tone="amber">{r.resultado.etiqueta}</Badge></p>
+          {r.resultado.resumen && <p className="mt-2">{r.resultado.resumen}</p>}
+          {r.resultado.hallazgos.length === 0 ? <Empty>Ninguna propuesta superó la verificación.</Empty> : (
+            <ul className="mt-2 space-y-2">{r.resultado.hallazgos.map((h, i) => (
+              <li key={i} className="rounded border border-gray-200 p-2 dark:border-white/10">
+                <Badge>{TIPOS_IA[h.tipo] ?? h.tipo}</Badge> {h.preguntas.length > 0 && <span className="text-xs text-gray-500">{h.preguntas.map((p) => `P${p}`).join(', ')}</span>}
+                <p className="mt-1">{h.texto}</p>
+              </li>
+            ))}</ul>
+          )}
+          {r.resultado.limitaciones && <p className="mt-2 text-xs text-gray-500">Limitaciones: {r.resultado.limitaciones}</p>}
+          {r.resultado.descartados.length > 0 && (
+            <details className="mt-2 text-xs"><summary className="cursor-pointer">Descartadas por la verificación ({r.resultado.descartados.length})</summary>
+              <ul className="mt-1 list-disc pl-5">{r.resultado.descartados.map((d, i) => <li key={i}>«{d.texto}» — {d.motivo}</li>)}</ul>
+            </details>
+          )}
+        </Card>
+      )}
+    </div>
   );
 }
 

@@ -4,6 +4,8 @@
 // simulador) → validar cada chiste → finalizar (SQL: consumo y chistes). El modelo solo recibe datos escritos por
 // el profesor (asignatura, unidad, lección, resumen, apartado); nunca nombres, correos ni identificadores.
 
+import { construirInterpretacion, resumirExamen, simularInterpretacion, validarInterpretacion } from './lieia.ts';
+
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -207,6 +209,8 @@ export interface Cuerpo {
   action?: unknown; lesson_id?: unknown; section?: unknown; apartado?: unknown; evento?: unknown;
   // Orbe Control
   notas?: unknown; tono?: unknown; personalizar?: unknown; pulso?: unknown; tema?: unknown; n?: unknown;
+  // LIEIA (interpretación con IA): cifras agregadas del examen
+  examen?: unknown;
 }
 
 /**
@@ -222,6 +226,13 @@ export async function atender(body: Cuerpo, userId: string, deps: Deps): Promise
   if (accion === 'redactar' || accion === 'pulso' || accion === 'preguntas') {
     if (rol !== 'teacher' && rol !== 'admin') throw new HttpError(403, 'Solo el profesorado');
     return atenderControl(accion, body, userId, deps);
+  }
+  if (accion === 'lieia') {
+    // interpretación con IA del laboratorio LIEIA: solo cifras agregadas por pregunta (lista blanca en lieia.ts)
+    if (rol !== 'teacher' && rol !== 'admin') throw new HttpError(403, 'Solo el profesorado');
+    const resumen = resumirExamen(body.examen);
+    return usarModelo(deps, userId, 'lieia', null, (r) => construirInterpretacion(resumen, r.model, r.max_tokens),
+      () => simularInterpretacion(resumen), (t) => validarInterpretacion(t, resumen));
   }
   if (accion === 'estado') {
     if (rol !== 'admin') throw new HttpError(403, 'Solo el administrador');
@@ -453,7 +464,7 @@ export function simularPreguntas(tema: string, n: number): string {
 }
 
 /** Reserva, genera (Claude o simulador), interpreta y registra el consumo; cualquier fallo cierra la reserva. */
-async function usarModelo<T>(deps: Deps, actor: string, proposito: 'mensaje' | 'pulso' | 'pregunta', leccion: string | null,
+async function usarModelo<T>(deps: Deps, actor: string, proposito: 'mensaje' | 'pulso' | 'pregunta' | 'lieia', leccion: string | null,
   construir: (r: { model: string; max_tokens: number; contexto: Record<string, unknown> | null }) => Peticion,
   simulado: (r: { contexto: Record<string, unknown> | null }) => string, interpretar: (texto: string) => T): Promise<Record<string, unknown>> {
   const r = await rpc<{ ok: boolean; motivo?: string; usage_id?: number; api_real?: boolean; model?: string; max_tokens?: number; contexto?: Record<string, unknown> | null }>(
