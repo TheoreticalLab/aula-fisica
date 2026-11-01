@@ -54,6 +54,7 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
       'Personalización del aprendizaje y análisis pedagógico avanzado (etapa 3).',
       'Asistencia autónoma por quórum de proximidad (programada, pendiente de instalar y de probar con teléfonos en el aula): a la hora de clase, tres estudiantes juntos activan la asistencia sin el profesor; los demás se validan por cercanía a compañeros ya registrados, sin que la zona pueda desplazarse. El profesor conserva todo el control.',
       'Telemetría V2 (programada y probada, pendiente de instalar y de probar en navegador y teléfono): reconstrucción científica de cada intento por intervalos (lo observado, lo reconstruido, lo estimado y lo desconocido), historial de guardados de respuestas, instantánea de la entrega, exportación por niveles y monitor. Nace apagada; se activa por asignatura.',
+      'Regularización de prácticas anteriores (programada; pendiente de probar en la base de datos, instalar y probar con teléfonos): los estudiantes indican qué prácticas entregaron antes del aula, por qué medio y cuándo, con una captura del envío (no el documento); el profesor las localiza en su propio correo con el texto de búsqueda que genera la plataforma, las verifica y las convalida, sin que eso cree notas.',
     ],
   },
   {

@@ -1,9 +1,13 @@
-// Edge Function «entregas» (Deno): subida y descarga de los PDF de las entregas escritas.
+// Edge Function «entregas» (Deno): subida y descarga de los PDF de las entregas escritas, y capturas de la
+// «Regularización de prácticas anteriores» (capturas.ts, almacenamiento privado aparte).
 //
 // Verifica el JWT del usuario y usa la clave service_role (variable de entorno del servidor, nunca expuesta al
-// navegador) para el almacenamiento privado y las funciones svc_upload_*, que deciden la autorización.
+// navegador) para el almacenamiento privado y las funciones svc_*, que deciden la autorización.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { BUCKET, descargar, HttpError, MAX_BYTES_ABSOLUTO, subir, type Deps } from './handler.ts';
+import {
+  BUCKET_CAPTURAS, eliminarBorrador, MAX_BYTES_CAPTURA, MIME_CAPTURA, quitarCaptura, subirCaptura, verCaptura, type DepsCapturas,
+} from './capturas.ts';
 
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '*').split(',').map((s) => s.trim());
 
@@ -61,20 +65,57 @@ Deno.serve(async (req) => {
       sha256: async (bytes) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))).map((b) => b.toString(16).padStart(2, '0')).join(''),
     };
 
+    const depsCapturas: DepsCapturas = {
+      rpc: deps.rpc,
+      ensureBucket: async () => {
+        const { data } = await admin.storage.getBucket(BUCKET_CAPTURAS);
+        if (!data) {
+          const { error } = await admin.storage.createBucket(BUCKET_CAPTURAS, { public: false, fileSizeLimit: MAX_BYTES_CAPTURA, allowedMimeTypes: [...MIME_CAPTURA] });
+          if (error && !/exist/i.test(error.message)) throw error;
+        }
+      },
+      upload: async (path, bytes, mime) => {
+        const { error } = await admin.storage.from(BUCKET_CAPTURAS).upload(path, bytes, { contentType: mime, upsert: false });
+        if (!error) return 'nuevo';
+        if (/exist|duplicate/i.test(error.message)) return 'existe';
+        throw error;
+      },
+      remove: async (paths) => {
+        await admin.storage.from(BUCKET_CAPTURAS).remove(paths);
+      },
+      signedUrl: async (path, seconds) => {
+        const { data, error } = await admin.storage.from(BUCKET_CAPTURAS).createSignedUrl(path, seconds);
+        if (error || !data) throw error ?? new Error('Sin enlace');
+        return data.signedUrl;
+      },
+      newId: deps.newId,
+      sha256: deps.sha256,
+    };
+
     const tipo = req.headers.get('Content-Type') ?? '';
     let out: unknown;
     if (tipo.startsWith('multipart/form-data')) {
       if (Number(req.headers.get('Content-Length') ?? 0) > MAX_BYTES_ABSOLUTO + 100_000) throw new HttpError(413, 'El archivo es demasiado grande');
       const form = await req.formData();
       const f = form.get('archivo');
-      const archivo = f instanceof File ? { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) } : null;
-      out = await subir(form.get('box_id'), archivo, userData.user.id, deps);
+      if (form.get('modulo') === 'regularizacion') {
+        const imagen = f instanceof File && f.size <= MAX_BYTES_CAPTURA ? { bytes: new Uint8Array(await f.arrayBuffer()) } : null;
+        if (f instanceof File && !imagen) throw new HttpError(413, 'La imagen es demasiado grande');
+        out = await subirCaptura({ declaration_id: form.get('declaration_id'), posicion: form.get('posicion'), sha_original: form.get('sha_original'),
+          bytes_original: form.get('bytes_original') }, imagen, userData.user.id, depsCapturas);
+      } else {
+        const archivo = f instanceof File ? { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) } : null;
+        out = await subir(form.get('box_id'), archivo, userData.user.id, deps);
+      }
     } else {
       const raw = await req.text();
       if (raw.length > 10_000) throw new HttpError(413, 'Solicitud demasiado grande');
       const body = JSON.parse(raw);
-      if (body?.action !== 'descargar') throw new HttpError(400, 'Acción no válida');
-      out = await descargar(body.file_id, userData.user.id, deps);
+      if (body?.action === 'descargar') out = await descargar(body.file_id, userData.user.id, deps);
+      else if (body?.action === 'captura_ver') out = await verCaptura(body.capture_id, userData.user.id, depsCapturas);
+      else if (body?.action === 'captura_quitar') out = await quitarCaptura(body.capture_id, userData.user.id, depsCapturas);
+      else if (body?.action === 'borrador_eliminar') out = await eliminarBorrador(body.declaration_id, userData.user.id, depsCapturas);
+      else throw new HttpError(400, 'Acción no válida');
     }
     return new Response(JSON.stringify(out), { status: 200, headers });
   } catch (e) {

@@ -39,6 +39,7 @@ export default function Cuenta() {
           <Acceso to="/calificaciones" icono="📊" titulo="Calificaciones" texto="Notas publicadas por sus profesores." />
           <Acceso to="/asistencia" icono="✅" titulo="Asistencia" texto="Marcar presencia y ver su registro." />
           <Acceso to="/entregas" icono="📎" titulo="Entregas en PDF" texto="Subir trabajos a los buzones de la sección." />
+          <Acceso to="/practicas-anteriores" icono="🗂️" titulo="Prácticas anteriores" texto="Indicar las prácticas que entregó antes del aula virtual (con una captura del envío)." />
           <Acceso to="/laboratorio" icono="🧪" titulo="Laboratorio virtual" texto="Simuladores de física." />
           <Acceso to="/unirse" icono="➕" titulo="Unirme a una clase" texto="Con el código que le dio su profesor." />
         </div>

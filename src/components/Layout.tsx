@@ -124,6 +124,7 @@ export function Layout() {
                     <Link role="menuitem" to="/ayuda" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">❓ Ayuda</Link>
                     {esMonitor && <Link role="menuitem" to="/secretaria" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Secretaría del curso</Link>}
                     <Link role="menuitem" to="/entregas" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Entregas en PDF</Link>
+                    {!isTeacher && <Link role="menuitem" to="/practicas-anteriores" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Prácticas anteriores</Link>}
                     <Link role="menuitem" to="/laboratorio" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Laboratorio virtual</Link>
                     <Link role="menuitem" to="/unirse" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Unirme a una clase</Link>
                     {isTeacher && <Link role="menuitem" to={docente ? '/' : '/docente'} className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10 md:hidden">{docente ? 'Vista de estudiante' : 'Panel docente'}</Link>}
