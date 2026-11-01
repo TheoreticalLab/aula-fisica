@@ -6,10 +6,12 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { teacherOverview } from '@/api/docente';
-import { actividades, cambiarEstado, cargarBanco, cargarExamen, crearBorrador, guardar, listar, type RegistroLab } from '@/api/lieiaCiencia';
+import { actividades, cambiarEstado, cargarBanco, cargarExamen, crearBorrador, guardar, listar, roster, type RegistroLab } from '@/api/lieiaCiencia';
+import { nCorrelacion, potenciaCorrelacionalSimulada, type PotenciaSim } from '@/lib/lieia/ciencia/simulacion';
+import { EJEMPLOS, explorar, type RespuestaExplorador } from '@/lib/lieia/ciencia/explorador';
 import { analizar, type Informe } from '@/lib/lieia/ciencia/informe';
 import { ESTADOS, LINEAS, type Ficha, type Linea } from '@/lib/lieia/ciencia/descubrimiento';
-import { comparar, disenar, MODOS, type Diseno, type ItemBancoCiencia, type Modo } from '@/lib/lieia/ciencia/disenador';
+import { asignarCondiciones, comparar, disenar, MODOS, type Diseno, type ItemBancoCiencia, type Modo } from '@/lib/lieia/ciencia/disenador';
 import { COGNITIVAS, MINIMOS, RELACIONES, type Cognitiva } from '@/lib/lieia/ciencia/modelo';
 import type { Revision } from '@/lib/lieia/ciencia/contenido';
 import type { TRI } from '@/lib/lieia/ciencia/tri';
@@ -24,7 +26,7 @@ const TONO_EST = { analizable: 'green', datos_insuficientes: 'amber', requiere_n
 const TONO_DIM = { bien: 'green', atencion: 'amber', problema: 'red', sin_datos: 'gray' } as const;
 const TEXTO_DIM = { bien: 'bien', atencion: 'atención', problema: 'problema', sin_datos: 'sin datos' } as const;
 
-type Vista = 'resumen' | 'preguntas' | 'relaciones' | 'investigar' | 'disenar' | 'tri' | 'simular' | 'historial' | 'metodo';
+type Vista = 'resumen' | 'explorar' | 'preguntas' | 'relaciones' | 'investigar' | 'disenar' | 'tri' | 'simular' | 'historial' | 'metodo';
 interface Contexto { classId: string; courseId: string; activityId: string; titulo: string }
 
 // ------------------------------------------------------------------------------------------------------------------
@@ -157,9 +159,54 @@ function Investigar({ inf, guardados, onGuardar, onDisenar }: { inf: Informe; gu
   );
 }
 
-function Disenador({ inf, ctx, modoInicial, onGuardado }: { inf: Informe; ctx: Contexto; modoInicial: Modo; onGuardado: (d: Diseno, ids: string[]) => Promise<void> }) {
+function Asignacion({ ctx, d }: { ctx: Contexto; d: Diseno }) {
+  const [res, setRes] = useState<{ nombre: string; condicion: 'A' | 'B'; orden: string }[] | null>(null);
+  const accion = useAction();
+  const et = d.etiquetasVersion ?? { A: 'Forma A', B: 'Forma B' };
+  return (
+    <div className="mt-3 rounded-lg border border-gray-200 p-2 text-xs dark:border-white/10">
+      <p className="font-medium">Asignación cruzada reproducible (semilla {d.semilla})</p>
+      <p className="text-gray-500">Reparte a los estudiantes de la sección en dos mitades equilibradas: una empieza por «{et.A}» y la otra por «{et.B}». Con la misma semilla se obtiene siempre la misma asignación; se guarda con el diseño.</p>
+      {!res ? <button className="btn-secundario mt-1 text-xs" disabled={accion.busy} onClick={() => void accion.run(async () => {
+        const r = await roster(ctx.classId);
+        const nombres = new Map(r.map((x) => [x.user_id, x.profiles?.full_name ?? x.user_id]));
+        const a = asignarCondiciones(r.filter((x) => x.profiles?.active !== false).map((x) => x.user_id), d.semilla);
+        setRes(a.map((x) => ({ nombre: nombres.get(x.id) ?? x.id, condicion: x.condicion, orden: x.orden })));
+        await guardar({ classId: ctx.classId, activityId: ctx.activityId, kind: 'diseno', clave: `${d.modo}:${d.semilla}:asignacion`, version: null, estado: 'guardada',
+          payload: { modo: d.modo, semilla: d.semilla, asignacion: a }, procedencia: { motor: MOTOR, metodo: 'barajado reproducible por semilla y alternancia A/B', semilla: d.semilla } }).catch(() => undefined);
+      })}>Asignar estudiantes</button> : (
+        <ul className="mt-1 grid grid-cols-1 gap-0.5 sm:grid-cols-2">{res.map((x) => <li key={x.nombre}>{x.nombre}: empieza por «{x.condicion === 'A' ? et.A : et.B}»</li>)}</ul>
+      )}
+      <ErrorBox error={accion.error} />
+    </div>
+  );
+}
+
+function Potencia({ d, banco }: { d: Diseno; banco: ItemBancoCiencia[] }) {
+  const [rho, setRho] = useState('0.4'), [n, setN] = useState('40');
+  const [res, setRes] = useState<PotenciaSim | null>(null);
+  const comoSim = (b: ItemBancoCiencia) => ({ id: b.pregunta.id, etiqueta: '', dificultad: b.analisis.dificultadAPriori.valor, formato: b.pregunta.format, tiempoMin: b.analisis.tiempoAPrioriMin, cal: b.cal ?? null });
+  const elegidos = d.items.map((i) => banco.find((b) => b.pregunta.id === i.id)!).filter(Boolean);
+  const grupoA = d.hipotesisFormal ? elegidos.filter((b) => b.analisis.conceptos.some((c) => d.hipotesisFormal!.conceptosA.includes(c))) : elegidos.filter((b) => b.analisis.cognitivas.some((c) => c.valor === 'comprension_conceptual'));
+  const grupoB = elegidos.filter((b) => !grupoA.includes(b));
+  return (
+    <div className="mt-3 rounded-lg border border-gray-200 p-2 text-xs dark:border-white/10">
+      <p className="font-medium">¿Detectaría la relación? (potencia por simulación)</p>
+      <p className="text-gray-500">Supone una correlación verdadera entre las dos habilidades y simula aplicar ESTE diseño ({grupoA.length} + {grupoB.length} preguntas). Recoge la atenuación por medir con pocas preguntas.</p>
+      <div className="mt-1 flex flex-wrap items-end gap-2">
+        <label>Correlación supuesta<input type="number" step={0.05} min={0.05} max={0.95} className="campo w-24" value={rho} onChange={(e) => setRho(e.target.value)} /></label>
+        <label>Estudiantes<input type="number" min={10} max={500} className="campo w-24" value={n} onChange={(e) => setN(e.target.value)} /></label>
+        <button className="btn-secundario text-xs" disabled={!grupoA.length || !grupoB.length} onClick={() => setRes(potenciaCorrelacionalSimulada(grupoA.map(comoSim), grupoB.map(comoSim), Number(rho), Number(n), 300, d.semilla))}>Simular</button>
+      </div>
+      {res && <p className="mt-1">Potencia ≈ <strong>{pct(res.potencia)}</strong>; correlación observada media {res.rMedia.toFixed(2)} (atenuada al {pct(res.atenuacion)} de la verdadera). Analíticamente harían falta ≈ {nCorrelacion(res.rMedia || Number(rho))} estudiantes para la correlación observada. <span className="text-gray-500">{res.supuestos.join(' ')}</span></p>}
+    </div>
+  );
+}
+
+function Disenador({ inf, ctx, modoInicial, hipotesisInicial, onGuardado }: { inf: Informe; ctx: Contexto; modoInicial: Modo; hipotesisInicial?: string; onGuardado: (d: Diseno, ids: string[]) => Promise<void> }) {
   const banco = useAsync(() => cargarBanco(ctx.courseId), [ctx.courseId]);
   const [modo, setModo] = useState<Modo>(modoInicial);
+  const [hipotesis, setHipotesis] = useState(hipotesisInicial ?? '');
   const [n, setN] = useState(Math.max(5, Math.min(15, inf.preguntas.length)));
   const [minutos, setMinutos] = useState('');
   const [conceptos, setConceptos] = useState<string[]>([]);
@@ -178,7 +225,7 @@ function Disenador({ inf, ctx, modoInicial, onGuardado }: { inf: Informe; ctx: C
   function generar(s = semilla) {
     setError(null); setCreados(null); setQuitados(new Set());
     try {
-      setDiseno(disenar(banco.data as ItemBancoCiencia[], { modo, n, minutos: minutos ? Number(minutos) : null, obligatorios: [], conceptos, base: inf.preguntas.map((p) => p.id), habilidades: hab, erroresFrecuentes: errores, semilla: s }));
+      setDiseno(disenar(banco.data as ItemBancoCiencia[], { modo, n, minutos: minutos ? Number(minutos) : null, obligatorios: [], conceptos, base: inf.preguntas.map((p) => p.id), habilidades: hab, erroresFrecuentes: errores, hipotesis, semilla: s }));
     } catch (e) { setDiseno(null); setError(e instanceof Error ? e.message : String(e)); }
   }
   const final = diseno ? { ...diseno, items: diseno.items.filter((i) => !quitados.has(i.id)) } : null;
@@ -206,6 +253,11 @@ function Disenador({ inf, ctx, modoInicial, onGuardado }: { inf: Informe; ctx: C
         <div className="grid gap-2 sm:grid-cols-3">
           <label>Número de preguntas{modo === 'G' ? ' por versión' : ''}<input type="number" min={2} max={40} className="campo" value={n} onChange={(e) => setN(Number(e.target.value))} /></label>
           <label>Duración máxima (min)<input type="number" min={5} className="campo" placeholder="sin límite" value={minutos} onChange={(e) => setMinutos(e.target.value)} /></label>
+          {modo === 'P' && (
+            <label className="sm:col-span-3">Su pregunta científica
+              <textarea className="campo min-h-[3rem]" maxLength={400} placeholder="Quiero investigar si quienes dominan la segunda ley de Newton comprenden mejor el impulso" value={hipotesis} onChange={(e) => setHipotesis(e.target.value)} />
+            </label>
+          )}
           {modo === 'H' && (
             <label>Habilidades a relacionar
               <span className="flex gap-1">{[0, 1].map((k) => (
@@ -241,6 +293,13 @@ function Disenador({ inf, ctx, modoInicial, onGuardado }: { inf: Informe; ctx: C
             <span>Conceptos: <strong>{final.conceptos.length}</strong></span><span>Dificultad prevista: {final.dificultad.basico}/{final.dificultad.intermedio}/{final.dificultad.desafiante}</span>
           </div>
           {[...final.avisos, ...final.riesgos].map((w) => <p key={w} className="text-xs text-amber-700 dark:text-amber-300">⚠ {w}</p>)}
+          {final.hipotesisFormal && <p className="mt-2 rounded bg-gray-100 p-2 text-xs dark:bg-white/10"><strong>Hipótesis formalizada:</strong> {final.hipotesisFormal.texto}</p>}
+          {final.adaptativo && (
+            <div className="mt-2 rounded bg-gray-100 p-2 text-xs dark:bg-white/10">
+              <p><strong>Especificación adaptativa:</strong> banco de {final.adaptativo.pool} preguntas calibradas · inicio: {final.adaptativo.inicio} · selección: {final.adaptativo.seleccion} · parada: {final.adaptativo.parada}.</p>
+              <p className="mt-1"><strong>Rendimiento simulado</strong> ({final.adaptativo.simulacion.estudiantes} estudiantes sintéticos, semilla {final.adaptativo.simulacion.semilla}): {final.adaptativo.simulacion.itemsMedios.toFixed(1)} preguntas de media por estudiante, error típico final medio {final.adaptativo.simulacion.seMedio.toFixed(2)}, correlación con la habilidad verdadera {final.adaptativo.simulacion.correlacion.toFixed(2)}.</p>
+            </div>
+          )}
           <ol className="mt-2 list-decimal space-y-1 pl-5">
             {final.items.map((i) => (
               <li key={i.id}>{i.version && <Badge tone="blue">versión {i.version}</Badge>} {etiqueta(i.id)}… <span className="text-xs text-gray-500">— {i.razon}</span>
@@ -255,6 +314,8 @@ function Disenador({ inf, ctx, modoInicial, onGuardado }: { inf: Informe; ctx: C
             })}>Crear examen borrador</button>
           </div>
           <ErrorBox error={accion.error} />
+          {(final.modo === 'K' || final.modo === 'O') && <Asignacion ctx={ctx} d={final} />}
+          {(final.modo === 'H' || final.modo === 'P') && <Potencia d={final} banco={banco.data ?? []} />}
           {simular && (
             <div className="mt-3">
               {/* con dos versiones se simula la A (mismas condiciones que la B) */}
@@ -284,6 +345,32 @@ function Disenador({ inf, ctx, modoInicial, onGuardado }: { inf: Informe; ctx: C
           <button className="btn-texto mt-2 text-xs" onClick={() => setComparados([])}>Vaciar comparador</button>
         </Card>
       )}
+    </div>
+  );
+}
+
+function Explorador({ inf, onAccion }: { inf: Informe; onAccion: (a: NonNullable<RespuestaExplorador['accion']>) => void }) {
+  const [texto, setTexto] = useState('');
+  const [hist, setHist] = useState<{ q: string; r: RespuestaExplorador }[]>([]);
+  const preguntar = (q: string) => { if (q.trim()) { setHist((h) => [{ q, r: explorar(q, inf) }, ...h]); setTexto(''); } };
+  return (
+    <div className="space-y-3 text-sm">
+      <Card title="Explorador científico">
+        <p className="text-xs text-gray-500">Escriba una pregunta sobre el examen. Se interpreta por palabras clave y se responde con los procedimientos validados del laboratorio; las cifras salen solo de lo calculado. (Sin IA: no se envía nada fuera.)</p>
+        <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); preguntar(texto); }}>
+          <input className="campo flex-1" maxLength={300} placeholder="¿Qué preguntas parecen medir la misma habilidad?" value={texto} onChange={(e) => setTexto(e.target.value)} />
+          <button className="btn-primario" type="submit">Preguntar</button>
+        </form>
+        <div className="mt-2 flex flex-wrap gap-1">{EJEMPLOS.map((e) => <button key={e} className="rounded-full border border-gray-200 px-2 py-0.5 text-xs dark:border-white/15" onClick={() => preguntar(e)}>{e}</button>)}</div>
+      </Card>
+      {hist.map(({ q, r }, k) => (
+        <Card key={k}>
+          <p className="font-medium">{q}</p>
+          <p className="text-xs text-gray-500">Interpretado como: {r.intencion} · Procedimiento: {r.procedimiento}</p>
+          <ul className="mt-1 space-y-0.5">{r.lineas.map((l) => <li key={l}>{l}</li>)}</ul>
+          {r.accion && <button className="btn-secundario mt-2 text-xs" onClick={() => onAccion(r.accion!)}>{r.accion.etiqueta}</button>}
+        </Card>
+      ))}
     </div>
   );
 }
@@ -325,6 +412,7 @@ export function Ciencia() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [vista, setVista] = useState<Vista>('resumen');
   const [modoInicial, setModoInicial] = useState<Modo>('A');
+  const [hipotesisInicial, setHipotesisInicial] = useState<string | undefined>(undefined);
   const [guardados, setGuardados] = useState<Map<string, RegistroLab>>(new Map());
   const [revisiones, setRevisiones] = useState<Revision[]>([]);
   const [persistencia, setPersistencia] = useState(true);
@@ -393,7 +481,7 @@ export function Ciencia() {
           {aviso && <Notice tone="warn">{aviso}</Notice>}
           {!persistencia && <Notice tone="info">El análisis funciona, pero guardar investigaciones y revisiones requiere instalar la migración 48.</Notice>}
           <Tabs<Vista> value={vista} onChange={setVista} tabs={[
-            { id: 'resumen', label: 'Informe' }, { id: 'preguntas', label: `Preguntas (${inf.preguntas.length})` }, { id: 'relaciones', label: 'Relaciones' },
+            { id: 'resumen', label: 'Informe' }, { id: 'explorar', label: 'Preguntar' }, { id: 'preguntas', label: `Preguntas (${inf.preguntas.length})` }, { id: 'relaciones', label: 'Relaciones' },
             { id: 'investigar', label: `¿Qué puedo investigar? (${inf.fichas.length})` }, { id: 'disenar', label: 'Diseñar nuevo examen' },
             { id: 'tri', label: 'Psicometría avanzada' }, { id: 'simular', label: 'Simular' }, { id: 'historial', label: 'Historial' }, { id: 'metodo', label: 'Métodos' },
           ]} />
@@ -432,8 +520,9 @@ export function Ciencia() {
           {vista === 'preguntas' && <Preguntas inf={inf} onRevisar={revisar} />}
           {vista === 'relaciones' && <Relaciones inf={inf} />}
           {vista === 'investigar' && <Investigar inf={inf} guardados={guardados} onGuardar={guardarFicha} onDisenar={(m) => { setModoInicial(m); setVista('disenar'); }} />}
-          {vista === 'disenar' && <Disenador key={modoInicial} inf={inf} ctx={ctx} modoInicial={modoInicial} onGuardado={disenoGuardado} />}
-          {vista === 'tri' && <VistaTRI inf={inf} tri={tri} setTri={setTri} />}
+          {vista === 'explorar' && <Explorador inf={inf} onAccion={(a) => { if (a.modo) setModoInicial(a.modo); setHipotesisInicial(a.hipotesis); setVista(a.vista); }} />}
+          {vista === 'disenar' && <Disenador key={`${modoInicial}|${hipotesisInicial ?? ''}`} inf={inf} ctx={ctx} modoInicial={modoInicial} hipotesisInicial={hipotesisInicial} onGuardado={disenoGuardado} />}
+          {vista === 'tri' && <VistaTRI inf={inf} tri={tri} setTri={setTri} courseId={ctx.courseId} activityId={ctx.activityId} />}
           {vista === 'simular' && <Simulador items={itemsParaSimular(inf, tri)} titulo={ctx.titulo} />}
           {vista === 'historial' && <Historial inf={inf} classId={ctx.classId} activityId={ctx.activityId} />}
           {vista === 'metodo' && <Metodo inf={inf} />}

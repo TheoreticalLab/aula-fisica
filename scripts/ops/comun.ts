@@ -212,6 +212,7 @@ export const TABLAS_PROTEGIDAS = [
   'hist_libre_grupos',
   'hist_libre_avisos',
   'lieia_research',
+  'item_calibration_history',
 ];
 
 export async function contarFilas(db: pg.Client, tablas: string[]): Promise<Record<string, number>> {

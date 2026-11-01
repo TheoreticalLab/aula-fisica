@@ -4,14 +4,15 @@
  */
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listar, type RegistroLab } from '@/api/lieiaCiencia';
+import { gruposExamen, historialCalibracion, listar, type RegistroLab, type VersionCalibracion } from '@/api/lieiaCiencia';
+import { difMH, MIN_DIF_GRUPO, type ResultadoDIF } from '@/lib/lieia/ciencia/dif';
 import type { Informe } from '@/lib/lieia/ciencia/informe';
 import { ajustarTRI, MIN_TRI, type TRI } from '@/lib/lieia/ciencia/tri';
 import { ESCENARIO_BASE, nCorrelacion, nProporciones, potenciaCorrelacion, simular, type Escenario, type ItemSim, type ResultadoSim } from '@/lib/lieia/ciencia/simulacion';
 import { reabrir } from '@/lib/lieia/ciencia/historial';
 import { ESTADOS } from '@/lib/lieia/ciencia/descubrimiento';
-import { useAsync } from '@/lib/util';
-import { Badge, Card, Empty, Notice, Spinner } from '@/components/ui';
+import { useAction, useAsync } from '@/lib/util';
+import { Badge, Card, Empty, ErrorBox, Notice, Spinner } from '@/components/ui';
 
 const pct = (v: number) => `${(100 * v).toFixed(0)} %`;
 const E = (inf: Informe, id: string) => `P${inf.preguntas.find((p) => p.id === id)?.posicion ?? '?'}`;
@@ -28,11 +29,59 @@ export function itemsParaSimular(inf: Informe, tri: TRI | null, ids?: string[]):
 }
 
 // ------------------------------------------------------------------------------------------------------------------
-export function VistaTRI({ inf, tri, setTri }: { inf: Informe; tri: TRI | null; setTri: (t: TRI) => void }) {
+function Calibraciones({ inf, courseId }: { inf: Informe; courseId: string }) {
+  const st = useAsync(() => historialCalibracion(courseId), [courseId]);
+  if (st.loading) return <Spinner label="Cargando calibraciones guardadas…" />;
+  if (st.error) return <p className="text-xs text-gray-500">El historial de calibraciones requiere la migración 49 ({st.error}).</p>;
+  const porItem = new Map<string, VersionCalibracion[]>();
+  for (const v of st.data ?? []) if (inf.preguntas.some((p) => p.id === v.exercise_id)) porItem.set(v.exercise_id, [...(porItem.get(v.exercise_id) ?? []), v]);
+  if (!porItem.size) return <p className="text-xs">Ninguna pregunta de este examen tiene una calibración guardada todavía. Se calibra con todas las respuestas de la asignatura en la pestaña «Calibración de ítems»; cada recalibración queda como una versión nueva.</p>;
+  return (
+    <ul className="space-y-1 text-xs">
+      {[...porItem.entries()].map(([id, vs]) => (
+        <li key={id}><strong>{E(inf, id)}</strong>: {vs.map((v) => `b = ${v.b.toFixed(2)} ± ${v.se_b.toFixed(2)} (n = ${v.n_resp}, ${new Date(v.calibrated_at).toLocaleDateString('es-DO')})`).join(' → ')}
+          {vs.length > 1 && Math.abs(vs[vs.length - 1].b - vs[0].b) > 2 * Math.hypot(vs[0].se_b, vs[vs.length - 1].se_b) && <span className="text-amber-700 dark:text-amber-300"> · el parámetro cambió más de lo que explica su incertidumbre: revise si la pregunta o el grupo cambiaron</span>}</li>
+      ))}
+    </ul>
+  );
+}
+
+function VistaDIF({ inf, activityId }: { inf: Informe; activityId: string }) {
+  const [res, setRes] = useState<ResultadoDIF | null>(null);
+  const accion = useAction();
+  return (
+    <Card title="Funcionamiento diferencial entre subgrupos (DIF)">
+      <p className="text-xs text-gray-500">Compara a estudiantes de igual nivel de dos subgrupos de la sección (Mantel-Haenszel). Un DIF no prueba sesgo: indica que la pregunta funciona distinto y merece revisar su contenido. Mínimo {MIN_DIF_GRUPO} estudiantes por subgrupo. Los subgrupos llegan con los mismos seudónimos, sin nombres.</p>
+      {!res ? <button className="btn-secundario mt-2" disabled={accion.busy} onClick={() => void accion.run(async () => {
+        const g = await gruposExamen(activityId);
+        setRes(difMH(inf.matriz!, new Map(g.map((x) => [x.seudonimo, x.grupo]))));
+      })}>Calcular DIF</button>
+        : !res.ok ? <Notice tone="info">{res.motivo}</Notice> : (
+          <div className="mt-2 text-xs">
+            <p>Subgrupos: <strong>{res.grupos[0]}</strong> (n = {res.n[0]}) y <strong>{res.grupos[1]}</strong> (n = {res.n[1]}). {res.metodo}.</p>
+            <ul className="mt-1 space-y-0.5">{res.items.filter((i) => i.clase && i.clase !== 'A').map((i) => (
+              <li key={i.id}><Badge tone={i.clase === 'C' ? 'red' : 'amber'}>{i.clase}</Badge> {E(inf, i.id)}: delta MH = {i.delta!.toFixed(2)}, q = {i.q!.toFixed(3)}; a igual nivel, rinde mejor el subgrupo «{i.favorece}».</li>
+            ))}</ul>
+            {res.items.every((i) => !i.clase || i.clase === 'A') && <p>Ninguna pregunta muestra DIF moderado o grande (todas en clase A o sin datos).</p>}
+          </div>
+        )}
+      <ErrorBox error={accion.error} />
+    </Card>
+  );
+}
+
+export function VistaTRI({ inf, tri, setTri, courseId, activityId }: { inf: Informe; tri: TRI | null; setTri: (t: TRI) => void; courseId: string; activityId: string }) {
   const [calculando, setCalculando] = useState(false);
-  if (!inf.matriz) return <Notice tone="info">n = 0: no hay respuestas reales; la TRI no puede ajustarse. Los parámetros de las preguntas son estimaciones a priori.</Notice>;
+  if (!inf.matriz) return (
+    <div className="space-y-3 text-sm">
+      <Notice tone="info">n = 0: no hay respuestas reales en este examen; la TRI no puede ajustarse aquí.</Notice>
+      <Card title="Calibración guardada del banco (progresiva)"><Calibraciones inf={inf} courseId={courseId} /></Card>
+    </div>
+  );
   return (
     <div className="space-y-3 text-sm">
+      <Card title="Calibración guardada del banco (progresiva)"><Calibraciones inf={inf} courseId={courseId} /></Card>
+      <VistaDIF inf={inf} activityId={activityId} />
       <Card title="Teoría de respuesta al ítem (2PL) para este examen">
         <p className="text-xs text-gray-500">Mínimo {MIN_TRI} estudiantes; con menos de 200 el ajuste es provisional. El parámetro b está en escala logit (habilidad media = 0): no es la proporción de aciertos. No se ajusta 3PL: con estas muestras el azar no es identificable.</p>
         {!tri ? (
@@ -72,7 +121,6 @@ export function VistaTRI({ inf, tri, setTri }: { inf: Informe; tri: TRI | null; 
               {tri.q3.length === 0 ? <p className="text-xs">Ningún par supera la media de Q3 ({tri.q3Media.toFixed(2)}) + 0,2.</p>
                 : <ul className="list-disc pl-5 text-xs">{tri.q3.map((p) => <li key={p.a + p.b}>{E(inf, p.a)} — {E(inf, p.b)}: Q3 = {p.q3.toFixed(2)} (media {tri.q3Media.toFixed(2)}). Indicio de que comparten algo más que la habilidad general (mismo método, misma figura, etapas encadenadas); revíselo.</li>)}</ul>}
             </div>
-            <p className="text-xs text-gray-500">Funcionamiento diferencial (DIF): no se calcula porque los datos seudonimizados no incluyen una variable de grupo; requeriría definirla de antemano.</p>
           </div>
         )}
       </Card>

@@ -99,6 +99,46 @@ export function simular(items: ItemSim[], e: Escenario, replicas = 200, semilla 
 }
 
 // ----------------------------------------------------------------------------------------------------------------
+// Potencia por simulación de una investigación correlacional concreta
+// ----------------------------------------------------------------------------------------------------------------
+export interface PotenciaSim { n: number; rho: number; potencia: number; rMedia: number; atenuacion: number; replicas: number; semilla: number; supuestos: string[] }
+
+/**
+ * Dos habilidades con correlación verdadera ρ, medidas con las preguntas de cada grupo (2PL calibrado o a priori).
+ * Potencia = fracción de réplicas en que la correlación entre subpuntuaciones es significativa (α = 0,05 bilateral).
+ * La correlación observada media sale ATENUADA por el error de medida de usar pocas preguntas.
+ */
+export function potenciaCorrelacionalSimulada(grupoA: ItemSim[], grupoB: ItemSim[], rho: number, n: number, replicas = 300, semilla = 7): PotenciaSim {
+  const rnd = mulberry32(semilla);
+  const par = (i: ItemSim) => { const ap = aPriori({ dificultad: i.dificultad, formato: i.formato }); const c = i.cal && i.cal.estado !== 'no_calibrado' ? i.cal : null; return { a: c?.a ?? ap.a, b: c?.b ?? ap.b }; };
+  const pa = grupoA.map(par), pb = grupoB.map(par);
+  const zc = probit(0.975);
+  let sig = 0, sumR = 0, validas = 0;
+  for (let r = 0; r < replicas; r++) {
+    const xa: number[] = [], xb: number[] = [];
+    for (let s = 0; s < n; s++) {
+      const u = normal(rnd), v = normal(rnd);
+      const ta = u, tb = rho * u + Math.sqrt(1 - rho * rho) * v;
+      xa.push(pa.reduce((t, p) => t + (rnd() < logistica(p.a * (ta - p.b)) ? 1 : 0), 0));
+      xb.push(pb.reduce((t, p) => t + (rnd() < logistica(p.a * (tb - p.b)) ? 1 : 0), 0));
+    }
+    const ma = xa.reduce((t, v) => t + v, 0) / n, mb = xb.reduce((t, v) => t + v, 0) / n;
+    let sab = 0, saa = 0, sbb = 0;
+    for (let s = 0; s < n; s++) { sab += (xa[s] - ma) * (xb[s] - mb); saa += (xa[s] - ma) ** 2; sbb += (xb[s] - mb) ** 2; }
+    if (!(saa > 0 && sbb > 0)) continue;
+    const rr = sab / Math.sqrt(saa * sbb);
+    validas++; sumR += rr;
+    if (Math.abs(Math.atanh(Math.max(-0.999, Math.min(0.999, rr)))) * Math.sqrt(n - 3) > zc) sig++;
+  }
+  const rMedia = validas ? sumR / validas : 0;
+  return {
+    n, rho, potencia: validas ? sig / validas : 0, rMedia, atenuacion: rho ? rMedia / rho : 1, replicas, semilla,
+    supuestos: [`Correlación verdadera entre habilidades ρ = ${rho}; ${grupoA.length} y ${grupoB.length} preguntas; ${n} estudiantes por réplica; ${replicas} réplicas; semilla ${semilla}.`,
+      `Parámetros: ${[...grupoA, ...grupoB].filter((i) => i.cal && i.cal.estado !== 'no_calibrado').length ? 'en parte calibrados' : 'a priori (no calibrados)'}. Estudiantes sintéticos: no describe al grupo real.`],
+  };
+}
+
+// ----------------------------------------------------------------------------------------------------------------
 // Tamaño muestral (analítico)
 // ----------------------------------------------------------------------------------------------------------------
 /** Inversa de la normal estándar (Acklam, error < 1,2·10⁻⁹). */

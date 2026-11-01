@@ -98,14 +98,34 @@ omisión por posición; y negativos: n pequeño, respuestas al azar) y `supabase
 
 Pruebas: `tests/lieia-ciencia-etapas.test.ts` (9, con parámetros verdaderos conocidos y valores de referencia).
 
+### Completado después (migración 49 y módulos nuevos)
+
+- **Calibración progresiva** (migración 49): `item_calibration_history` guarda cada versión de la calibración (disparador
+  que nunca bloquea; las actuales se copian como primera versión). El diseñador y el simulador usan la calibración
+  guardada más reciente; «Psicometría avanzada» muestra la evolución de b ± ET y avisa si cambia más de lo que explica
+  su incertidumbre.
+- **DIF** (`dif.ts`): Mantel-Haenszel entre los dos subgrupos más numerosos (estratos por puntuación en el resto),
+  clases A/B/C del ETS, BH; mínimo 20 por subgrupo. Los subgrupos llegan por `lieia_exam_groups` con los mismos
+  seudónimos que `lieia_exam_data`, sin nombres.
+- **Modos de diseño K, M, N, O, P, R**: antes/después con formas paralelas; adaptativo (solo con ≥ 15 calibradas:
+  especificación + rendimiento simulado; el motor de examen aún no lo administra y se dice); robustez (mismo concepto
+  en otro tipo o formato); asistencia externa (formas A/B, consentimiento, asignación cruzada reproducible guardada);
+  por hipótesis escrita (conceptos detectados por palabras, sin IA); exploratorio (máxima reducción esperada de la
+  varianza de los parámetros: Σ ET(b)² × información de Fisher esperada).
+- **Potencia por simulación** de un diseño correlacional concreto (con la atenuación por pocas preguntas).
+- **Explorador** (`explorador.ts`, pestaña «Preguntar»): intenciones por palabras clave → procedimientos validados;
+  las cifras salen solo del informe; sin IA.
+
+Pruebas: `tests/lieia-ciencia-pendientes.test.ts` (11: DIF con ítem sesgado conocido y negativo, modos, asignación,
+potencia simulada frente a analítica, explorador con n = 0) y `supabase/pruebas/lieia_calibracion.sql`.
+
 ## 5. Pendiente (no implementado)
 
 | Etapa | Falta |
 |---|---|
-| 5 · Psicometría | DIF (requiere una variable de grupo definida de antemano), análisis factorial, modelos jerárquicos |
-| 6 · Simulación | potencia de una investigación concreta por simulación (hoy: fórmulas analíticas) |
-| 7 · Conversacional | explorador en lenguaje natural (requiere la capa B de IA) |
-| 8 · Aprendizaje | guardar los parámetros calibrados por versión y reutilizarlos entre aplicaciones (calibración progresiva) |
+| 5 · Psicometría | análisis factorial y modelos jerárquicos |
+| 7 · Conversacional | interpretación de preguntas con IA (Claude) en el servidor; hoy es por palabras clave |
+| Motor de examen | administrar exámenes adaptativos y asignar condiciones por estudiante automáticamente |
 | Generación asistida | crear preguntas nuevas (borrador + validación matemática, unidades, soluciones, revisión) |
 | Modos | K, M, N, O, P, R; versiones del modo G con el generador de variantes |
 

@@ -1,6 +1,7 @@
 /** LIEIA · laboratorio científico: carga de datos (existentes) y persistencia (migración 48). */
 import { rpc, supabase } from '@/lib/supabase';
-import { bankPerformance, createActivity, listBankMeta, setActivityItems } from './docente';
+import { bankPerformance, createActivity, listBankMeta, roster, setActivityItems } from './docente';
+import type { Calibracion } from '@/lib/lieia/diseno';
 import type { DatosRealesExamen } from '@/lib/lieia/datosReales';
 import type { Exercise } from './tipos';
 import type { MetaBanco } from '@/lib/banco';
@@ -41,22 +42,31 @@ export async function cargarExamen(activityId: string, courseId: string): Promis
   return { preguntas, datos, avisoDatos };
 }
 
-/** Banco de la asignatura para el diseñador, con el rendimiento histórico agregado (todas las secciones del profesor). */
+/** Banco de la asignatura para el diseñador, con el rendimiento histórico agregado y la calibración TRI guardada (la más reciente). */
 export async function cargarBanco(courseId: string): Promise<ItemBancoCiencia[]> {
-  const [{ data: ex, error }, metas, rend] = await Promise.all([
+  const [{ data: ex, error }, metas, rend, cals] = await Promise.all([
     supabase.from('exercises').select('*').eq('course_id', courseId),
     listBankMeta(courseId).catch(() => [] as { exercise_id: string; meta: MetaBanco }[]),
     bankPerformance(courseId).catch(() => []),
+    rpc<{ exercise_id: string; calibracion: Calibracion | null }[]>('calibration_bank', { p_course: courseId }).catch(() => []),
   ]);
   if (error) throw new Error(error.message);
   const meta = new Map(metas.map((m) => [m.exercise_id, m.meta]));
   const r = new Map(rend.map((x) => [x.exercise_id, x]));
+  const cal = new Map((cals ?? []).filter((c) => c.calibracion).map((c) => [c.exercise_id, c.calibracion]));
   return (ex as Exercise[]).filter((e) => e.published).map((e, k) => {
     const p = aPregunta(e, k + 1, meta.get(e.id) ?? null);
     const h = r.get(e.id);
-    return { pregunta: p, analisis: analizarContenido(p), historico: h && h.respuestas ? { p: h.correctas / h.respuestas, n: h.respuestas, discriminacion: null } : null };
+    return { pregunta: p, analisis: analizarContenido(p), historico: h && h.respuestas ? { p: h.correctas / h.respuestas, n: h.respuestas, discriminacion: null } : null, cal: cal.get(e.id) ?? null };
   });
 }
+
+export interface VersionCalibracion { exercise_id: string; a: number; b: number; se_a: number; se_b: number; n_resp: number; estado: string; metodo: string; calibrated_at: string }
+/** Versiones sucesivas de la calibración de cada pregunta (migración 49). */
+export const historialCalibracion = (courseId: string) => rpc<VersionCalibracion[]>('calibration_history', { p_course: courseId });
+/** Subgrupo de cada seudónimo del examen (mismos seudónimos que lieia_exam_data; sin nombres). */
+export const gruposExamen = (activityId: string) => rpc<{ seudonimo: string; grupo: string | null }[]>('lieia_exam_groups', { p_activity: activityId });
+export { roster };
 
 // --- persistencia ------------------------------------------------------------------------------------------------
 export type Kind = 'investigacion' | 'diseno' | 'revision' | 'informe';
@@ -73,7 +83,7 @@ export async function crearBorrador(classId: string, d: Diseno, metodologia: str
   const ids: string[] = [];
   for (const v of versiones) {
     const act = await createActivity({
-      class_id: classId, title: `${d.titulo}${v ? ` · versión ${v}` : ''}`, mode: 'exam', published: false, reveal_policy: 'after_submit', hints_enabled: false,
+      class_id: classId, title: `${d.titulo}${v ? ` · ${d.etiquetasVersion?.[v] ?? `versión ${v}`}` : ''}`, mode: 'exam', published: false, reveal_policy: 'after_submit', hints_enabled: false,
       instructions: metodologia,
     });
     await setActivityItems(act.id, d.items.filter((i) => !v || i.version === v).map((i) => ({ exercise_id: i.id, points: null })));
