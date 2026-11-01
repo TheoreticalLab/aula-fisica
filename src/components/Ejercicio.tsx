@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ordenOpciones } from '@/lib/opciones';
+import { rpc } from '@/lib/supabase';
 import { Link } from 'react-router-dom';
 import { describeKey, interpretNumeric } from '@calif/calificar.ts';
 import type { AccionesEjercicio, AttemptItem, AttemptView, GradeResult, Solution, StudentAnswer } from '@/api/tipos';
@@ -70,25 +72,45 @@ export function EnunciadoEjercicio({ ex }: { ex: AttemptItem['exercise'] }) {
   );
 }
 
+/** ¿Baraja opciones esta actividad? (migración 50; si no está instalada o falla, no se baraja). Una consulta por actividad. */
+const cacheBarajar = new Map<string, Promise<boolean>>();
+function useOpcionesAleatorias(activityId: string | null): boolean {
+  const [v, setV] = useState(false);
+  useEffect(() => {
+    if (!activityId) return;
+    let vivo = true;
+    if (!cacheBarajar.has(activityId)) cacheBarajar.set(activityId, rpc<boolean>('opciones_aleatorias', { p_activity: activityId }).then((x) => !!x).catch(() => false));
+    void cacheBarajar.get(activityId)!.then((x) => { if (vivo) setV(x); });
+    return () => { vivo = false; };
+  }, [activityId]);
+  return v;
+}
+
 export function EntradaRespuesta({
   ex,
   answer,
   onChange,
   disabled,
+  orden,
 }: {
   ex: AttemptItem['exercise'];
   answer: StudentAnswer;
   onChange: (a: StudentAnswer) => void;
   disabled: boolean;
+  /** orden de presentación de los índices ORIGINALES (opciones aleatorias); cada opción conserva su letra y su índice */
+  orden?: number[];
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   if (ex.format === 'choice') {
     const sel = answer.selected ?? [];
+    const opciones = ex.options ?? [];
+    const indices = orden && orden.length === opciones.length ? orden : opciones.map((_, i) => i);
     return (
       <fieldset className="space-y-2" disabled={disabled}>
         <legend className="sr-only">Opciones</legend>
         {ex.multiple && <p className="text-xs text-gray-500">Marque todas las opciones correctas.</p>}
-        {(ex.options ?? []).map((o, i) => {
+        {indices.map((i) => {
+          const o = opciones[i];
           const checked = sel.includes(i);
           return (
             <label key={i} className={`flex min-h-[44px] cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 ${checked ? 'border-primario-500 bg-primario-50 dark:bg-primario-900/40' : 'border-gray-200 dark:border-white/10'}`}>
@@ -196,6 +218,8 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
   const tel = useTelemetria();
   const tel2 = useTelemetriaV2();
   const tarjeta = useRef<HTMLElement>(null);
+  const barajar = useOpcionesAleatorias(view.flags.is_owner && ex.format === 'choice' ? view.attempt.activity_id : null);
+  const orden = useMemo(() => ordenOpciones(ex.options ?? [], `${view.attempt.id}:${ex.id}`, barajar), [ex.options, ex.id, view.attempt.id, barajar]);
 
   const locked = item.locked || !view.flags.editable;
   const status = response?.status ?? null;
@@ -407,7 +431,7 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
       </header>
       <EnunciadoEjercicio ex={ex} />
       <div className="mt-3">
-        <EntradaRespuesta ex={ex} answer={answer} onChange={change} disabled={locked || !view.flags.is_owner || busy} />
+        <EntradaRespuesta ex={ex} answer={answer} onChange={change} disabled={locked || !view.flags.is_owner || busy} orden={orden} />
       </div>
 
       {item.hints && item.hints.length > 0 && (

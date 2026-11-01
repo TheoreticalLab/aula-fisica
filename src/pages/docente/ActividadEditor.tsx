@@ -102,9 +102,11 @@ export default function ActividadEditor() {
     const lectura = d.reading_min_seconds || act.reading_min_seconds
       ? { reading_text: d.reading_min_seconds ? d.reading_text : null, reading_min_seconds: d.reading_min_seconds || null }
       : {};
+    // igual que la lectura: la columna de opciones aleatorias solo se envía si se usa (migración 50)
+    const barajar = d.shuffle_options || act.shuffle_options ? { shuffle_options: !!d.shuffle_options } : {};
     const r = await action.run(() => updateActivity(activityId, {
       title, instructions, mode, opens_at, closes_at, max_attempts, max_tries_per_item, reveal_policy,
-      hints_enabled: mode === 'exam' ? false : hints_enabled, published, grades_published, group_id, lesson_id, ...lectura,
+      hints_enabled: mode === 'exam' ? false : hints_enabled, published, grades_published, group_id, lesson_id, ...lectura, ...barajar,
     }));
     if (r) { setSaved(true); st.setData({ ...st.data!, act: r }); }
   }
@@ -174,6 +176,11 @@ export default function ActividadEditor() {
           {draft.mode === 'practice' && draft.reveal_policy === 'immediate' && (
             <label className="mb-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.hints_enabled} onChange={(e) => set({ hints_enabled: e.target.checked })} /> Permitir pistas</label>
           )}
+          <label className="mb-2 flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={!!draft.shuffle_options} onChange={(e) => set({ shuffle_options: e.target.checked })} />
+            <span>Orden aleatorio de las opciones en las preguntas de selección
+              <span className="block text-xs text-gray-500">Cada estudiante ve las opciones en otro orden (siempre el mismo al recargar); cada opción conserva su letra, así que las claves y la calificación no cambian. No se barajan las preguntas con «todas las anteriores», «a y b», etc.</span></span>
+          </label>
           {draft.mode === 'practice' && draft.reveal_policy !== 'immediate' && (
             <Notice>Sin retroalimentación inmediata, la práctica funciona como una tarea: el estudiante guarda y entrega, y se califica al entregar.</Notice>
           )}
