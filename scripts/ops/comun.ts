@@ -206,6 +206,7 @@ export const TABLAS_PROTEGIDAS = [
   'hist_captures',
   'hist_suggestions',
   'hist_events',
+  'hist_cierres',
 ];
 
 export async function contarFilas(db: pg.Client, tablas: string[]): Promise<Record<string, number>> {

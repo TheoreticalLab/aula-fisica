@@ -78,6 +78,19 @@ papel con `auth.uid()`. Las funciones `svc_hist_*` solo las puede llamar la func
 - «Revertir convalidación» (con nota) y «Volver a pendiente» deshacen errores; todo queda en el historial.
 - Una **incidencia** (perdió la evidencia) se ve aparte y se trata igual, pero nunca cuenta sola como entrega acreditada.
 
+## «Terminé» y aviso al entrar (migración 46)
+
+- **Terminé: ya registré todo lo que tengo.** El estudiante lo marca por sección. Para terminar no puede dejar
+  borradores; si no registró nada, debe marcar expresamente «No tengo prácticas anteriores que regularizar» (eso no es
+  una nota ni un cero). Después ya no crea registros nuevos, pero sí responde a las aclaraciones. El profesor ve quién
+  terminó (pestaña «Por estudiante», con fecha y comentario) y puede **reabrírsela** a un estudiante.
+- **Aviso al entrar.** Mientras la regularización esté abierta en su sección y el estudiante no haya marcado «Terminé»
+  (o tenga una aclaración pendiente), le aparece un mensaje **al principio de cada acceso** a la plataforma, con
+  «Regularizar ahora» y «Más tarde» (que solo lo cierra durante esa visita). No aparece durante un examen o una
+  práctica en curso. El profesor puede desactivarlo por sección («Aviso obligatorio al entrar», activado por defecto).
+- Archivos: `supabase/migrations/20261101000046_regularizacion_cierre.sql`, `supabase/pruebas/regularizacion_cierre.sql`,
+  `src/components/RecordatorioRegularizacion.tsx`.
+
 ## Lo que el sistema NO hace
 
 - No interpreta las posiciones provisionales sin declarar como prácticas no entregadas ni crea ceros.

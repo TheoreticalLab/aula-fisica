@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import {
-  eliminarBorrador, guardarRegistro, misSecciones, quitarCaptura, registrar, subirCaptura, sugerir,
+  eliminarBorrador, guardarRegistro, misSecciones, quitarCaptura, registrar, subirCaptura, sugerir, terminar,
   type MiRegistro, type MiSeccion,
 } from '@/api/regularizacion';
 import { optimizarCaptura, type CapturaOptimizada } from '@/lib/imagen';
@@ -271,6 +271,18 @@ function Seccion({ s, recargar, varias }: { s: MiSeccion; recargar: () => void; 
   const enviados = s.registros.filter((r) => r.estado !== 'borrador');
   const revisados = enviados.filter((r) => !['registrada', 'aclaracion'].includes(r.estado));
   const aclarar = s.registros.filter((r) => r.estado === 'aclaracion');
+  const terminado = !!s.terminado_at;
+  const puedeAnadir = s.abierto && !terminado;
+  const [terminarAbierto, setTerminarAbierto] = useState(false);
+  const [sinPracticas, setSinPracticas] = useState(false);
+  const [notaFin, setNotaFin] = useState('');
+  async function confirmarTerminar() {
+    const res = await accion.run(() => terminar(s.class_id, enviados.length === 0 && sinPracticas, notaFin.trim() || null));
+    if (!res) return;
+    setTerminarAbierto(false);
+    setAviso(res.sin_practicas ? 'Listo. Indicaste que no tienes prácticas anteriores que regularizar.' : `Listo. Terminaste la regularización con ${res.registradas} registro(s). El profesor los revisará.`);
+    recargar();
+  }
 
   const listo = (m: string) => { setEdicion(null); setAviso(m); recargar(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   async function registrarMarcados() {
@@ -341,13 +353,56 @@ function Seccion({ s, recargar, varias }: { s: MiSeccion; recargar: () => void; 
         </div>
       )}
 
-      {s.abierto && (
+      {puedeAnadir && (
         <div className="mt-4 flex flex-wrap gap-2">
           <button className="btn-primario" disabled={s.registros.length >= s.max_registros} onClick={() => { setAviso(null); setEdicion({ modo: 'registro', r: null, tipo: 'evidencia' }); }}>+ Registrar una práctica</button>
           <button className="btn-secundario" onClick={() => { setAviso(null); setEdicion({ modo: 'registro', r: null, tipo: 'incidencia' }); }}>Perdí la captura del envío</button>
           <button className="btn-secundario" onClick={() => { setAviso(null); setEdicion({ modo: 'sugerencia' }); }}>Profesor, recuerdo otra práctica</button>
         </div>
       )}
+
+      {terminado ? (
+        <div className="mt-4">
+          <Notice tone="ok">
+            Marcaste que terminaste la regularización el {new Date(s.terminado_at!).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' })}.
+            {s.sin_practicas ? ' Indicaste que no tienes prácticas anteriores que regularizar.' : ''} Ya no puedes añadir registros (sí responder si el profesor pide
+            una aclaración). Si necesitas añadir algo, pide al profesor que te la reabra.
+          </Notice>
+        </div>
+      ) : s.abierto && (
+        <div className="mt-5 rounded-xl border-2 border-emerald-500/60 p-3">
+          <p className="font-semibold">¿Ya registraste todas las prácticas que tienes?</p>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+            Cuando termines, márcalo aquí. Así el profesor sabe que ya subiste todo lo que dispones y dejarás de ver el aviso al entrar.
+          </p>
+          <button className="btn-primario mt-2" onClick={() => { setSinPracticas(false); setTerminarAbierto(true); }}>TERMINÉ: YA REGISTRÉ TODO LO QUE TENGO</button>
+        </div>
+      )}
+
+      <Modal open={terminarAbierto} onClose={() => setTerminarAbierto(false)} title="Terminar la regularización">
+        <div className="space-y-3 text-sm">
+          {borradores.length > 0 ? (
+            <Notice tone="warn">Tienes {borradores.length} borrador(es) sin registrar. Regístralos o elimínalos antes de terminar.</Notice>
+          ) : enviados.length > 0 ? (
+            <p>Vas a indicar que ya registraste todo lo que tienes: <strong>{enviados.length} registro(s)</strong>. Después no podrás añadir más (solo responder a las aclaraciones del profesor).</p>
+          ) : (
+            <>
+              <p>No has registrado ninguna práctica.</p>
+              <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={sinPracticas} onChange={(e) => setSinPracticas(e.target.checked)} /> No tengo prácticas anteriores que regularizar.</label>
+            </>
+          )}
+          {borradores.length === 0 && (
+            <label className="block">Comentario para el profesor (opcional)
+              <textarea className="campo min-h-[3rem]" maxLength={500} value={notaFin} onChange={(e) => setNotaFin(e.target.value)} />
+            </label>
+          )}
+          <ErrorBox error={accion.error} />
+          <div className="flex gap-2">
+            <button className="btn-primario" disabled={accion.busy || borradores.length > 0 || (enviados.length === 0 && !sinPracticas)} onClick={() => void confirmarTerminar()}>Confirmar</button>
+            <button className="btn-texto" onClick={() => setTerminarAbierto(false)}>Cancelar</button>
+          </div>
+        </div>
+      </Modal>
 
       {s.sugerencias.length > 0 && (
         <div className="mt-4 text-sm">

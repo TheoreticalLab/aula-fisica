@@ -6,8 +6,8 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  archivarPractica, configSeccion, configurar, decidirSugerencias, guardarPractica, historial, registros as cargarRegistros, resumen, revisar,
-  sugerencias as cargarSugerencias, unirPracticas, vincularActividad, type ConfigSeccion, type PracticaDocente, type SugerenciaDocente,
+  archivarPractica, configSeccion, configurar, decidirSugerencias, guardarPractica, historial, reabrirEstudiante, recordatorio, registros as cargarRegistros,
+  resumen, revisar, sugerencias as cargarSugerencias, terminados, unirPracticas, vincularActividad, type ConfigSeccion, type PracticaDocente, type SugerenciaDocente,
 } from '@/api/regularizacion';
 import { teacherOverview } from '@/api/docente';
 import {
@@ -267,23 +267,44 @@ function Localizador({ classId, margenInicial }: { classId: string | null; marge
 // Resumen por estudiante
 // ------------------------------------------------------------------------------------------------------------------
 function Resumen({ classId }: { classId: string }) {
-  const st = useAsync(() => resumen(classId), [classId]);
-  if (st.loading) return <Spinner />;
-  const filas = st.data ?? [];
+  const st = useAsync(async () => {
+    const [filas, fin] = await Promise.all([resumen(classId), terminados(classId)]);
+    return { filas, fin: new Map(fin.map((t) => [t.user_id, t])) };
+  }, [classId]);
+  const accion = useAction();
+  if (st.loading && !st.data) return <Spinner />;
+  const filas = st.data?.filas ?? [];
+  const fin = st.data?.fin ?? new Map();
+  const nTerminaron = filas.filter((s) => fin.get(s.user_id)?.finalizado_at).length;
   const n = (v: number) => (v ? v : <span className="text-gray-400">—</span>);
+  const reabrir = (userId: string, nombre: string) => {
+    if (!window.confirm(`¿Reabrir la regularización a ${nombre}? Podrá añadir registros y volverá a ver el aviso al entrar.`)) return;
+    void accion.run(async () => { await reabrirEstudiante(classId, userId, null); void st.reload(); });
+  };
   return (
     <div>
-      <ErrorBox error={st.error} />
+      <ErrorBox error={st.error ?? accion.error} />
+      <p className="mb-2 text-sm"><strong>{nTerminaron} de {filas.length}</strong> estudiantes marcaron que terminaron.</p>
       <p className="mb-2 text-xs text-gray-500">Un estudiante sin declaraciones aparece con guiones: no es un incumplimiento ni un cero, solo que no ha registrado nada.</p>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-gray-500">
-            <tr>{['Estudiante', 'Grupo', 'Con captura', 'Incidencias', 'Por localizar', 'Localizadas', 'Verificadas', 'Convalidadas', 'Observadas / no loc.', 'Aclaración', 'Borradores', 'Sugerencias'].map((h) => <th key={h} className="p-2">{h}</th>)}</tr>
+            <tr>{['Estudiante', 'Terminó', 'Grupo', 'Con captura', 'Incidencias', 'Por localizar', 'Localizadas', 'Verificadas', 'Convalidadas', 'Observadas / no loc.', 'Aclaración', 'Borradores', 'Sugerencias'].map((h) => <th key={h} className="p-2">{h}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-gray-100 tabular-nums dark:divide-white/10">
             {filas.map((s) => (
               <tr key={s.user_id}>
                 <td className="p-2">{s.full_name}{s.student_code && <span className="block text-xs text-gray-500">{s.student_code}</span>}</td>
+                <td className="p-2 text-xs">
+                  {fin.get(s.user_id)?.finalizado_at ? (
+                    <>
+                      <Badge tone="green">Sí</Badge> <span className="text-gray-500">{fechaHora(fin.get(s.user_id)!.finalizado_at)}</span>
+                      {fin.get(s.user_id)!.sin_practicas && <span className="block text-gray-500">Sin prácticas que regularizar</span>}
+                      {fin.get(s.user_id)!.nota && <span className="block text-gray-500">«{fin.get(s.user_id)!.nota}»</span>}
+                      <button className="btn-texto block text-xs" disabled={accion.busy} onClick={() => reabrir(s.user_id, s.full_name)}>Reabrir</button>
+                    </>
+                  ) : fin.get(s.user_id)?.reabierto_at ? <span className="text-amber-700 dark:text-amber-300">Reabierta</span> : <span className="text-gray-400">No</span>}
+                </td>
                 <td className="p-2 text-xs">{s.group_name ?? '—'}</td>
                 <td className="p-2">{n(s.registradas)}</td><td className="p-2">{n(s.incidencias)}</td><td className="p-2">{n(s.pendientes)}</td><td className="p-2">{n(s.localizadas)}</td>
                 <td className="p-2">{n(s.verificadas)}</td><td className="p-2">{n(s.convalidadas)}</td><td className="p-2">{n(s.observadas + s.no_localizadas)}</td>
@@ -421,6 +442,7 @@ function Catalogo({ classId, c, onCambio }: { classId: string; c: ConfigSeccion;
   const [nueva, setNueva] = useState({ titulo: '', descripcion: '' });
   const [resultado, setResultado] = useState<string | null>(null);
   const [verArchivadas, setVerArchivadas] = useState(false);
+  const [recordar, setRecordar] = useState(c.recordar ?? true);
   const accion = useAction();
   const uso = c.almacenamiento.bytes_seccion / (c.cuota_mb * 1048576);
   async function guardar() {
@@ -434,6 +456,11 @@ function Catalogo({ classId, c, onCambio }: { classId: string; c: ConfigSeccion;
       <Card title="Configuración de la sección">
         <div className="grid gap-3 text-sm sm:grid-cols-2">
           <label className="flex items-center gap-2 sm:col-span-2"><input type="checkbox" checked={f.abierto} onChange={(e) => setF({ ...f, abierto: e.target.checked })} /> Abierta: los estudiantes pueden registrar y corregir</label>
+          <label className="flex items-start gap-2 sm:col-span-2">
+            <input type="checkbox" className="mt-1" checked={recordar} disabled={accion.busy} onChange={(e) => { const v = e.target.checked; void accion.run(async () => { await recordatorio(classId, v); setRecordar(v); onCambio(); }); }} />
+            <span>Aviso obligatorio al entrar: a quien no haya marcado «Terminé» le aparece un mensaje cada vez que accede a la plataforma (se guarda al momento).
+              {typeof c.terminados === 'number' && <span className="block text-xs text-gray-500">{c.terminados} estudiante(s) ya marcaron que terminaron.</span>}</span>
+          </label>
           <label className="sm:col-span-2">Mensaje para los estudiantes (opcional)<textarea className="campo min-h-[3rem]" maxLength={1000} value={f.mensaje} onChange={(e) => setF({ ...f, mensaje: e.target.value })} /></label>
           <label>Cantidad de prácticas (estimación)<input type="number" min={0} max={99} className="campo" value={f.espacios} onChange={(e) => setF({ ...f, espacios: Number(e.target.value) })} /></label>
           <label>Margen de búsqueda en el correo (días)<input type="number" min={0} max={60} className="campo" value={f.margen_dias} onChange={(e) => setF({ ...f, margen_dias: Number(e.target.value) })} /></label>

@@ -10,6 +10,7 @@ import { BloqueoPantalla } from '@/components/BloqueoPantalla';
 import { AvisoAsistencia } from '@/components/AvisoAsistencia';
 import { OrbeIa } from '@/components/OrbeIa';
 import { PreguntaRelampago } from '@/components/PreguntaRelampago';
+import { RecordatorioRegularizacion } from '@/components/RecordatorioRegularizacion';
 import { AVISO_PRIVACIDAD } from '@/lib/tiempo';
 import { useTema } from '@/lib/tema';
 import { Spinner } from './ui';
@@ -164,6 +165,7 @@ export function Layout() {
       {session && !isTeacher && <AvisoAsistencia />}
       {session && !isTeacher && <OrbeIa />}
       {session && !isTeacher && <PreguntaRelampago />}
+      {session && !isTeacher && profile?.active && <RecordatorioRegularizacion pausado={introVisible} />}
       {session && <BottomNav docente={docente && isTeacher} />}
     </div>
   );

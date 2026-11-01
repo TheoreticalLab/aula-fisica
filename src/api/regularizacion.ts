@@ -15,6 +15,7 @@ export interface MiRegistro {
 export interface MiSugerencia { id: string; tema: string | null; descripcion: string; fecha_aprox: string | null; comentarios: string; total_estimado: number | null; estado: string; created_at: string }
 export interface MiSeccion {
   class_id: string; class_name: string; course_title: string; abierto: boolean; mensaje: string; max_mb_captura: number; max_registros: number;
+  terminado_at?: string | null; sin_practicas?: boolean;
   practicas: PracticaCatalogo[]; registros: MiRegistro[]; sugerencias: MiSugerencia[];
 }
 export interface DatosRegistro {
@@ -54,7 +55,7 @@ export interface PracticaDocente extends PracticaCatalogo {
   declaraciones: number; borradores: number;
 }
 export interface ConfigSeccion {
-  configurado: boolean; abierto: boolean; mensaje: string; margen_dias: number; max_mb_captura: number; cuota_mb: number; max_registros: number;
+  configurado: boolean; abierto: boolean; recordar?: boolean; terminados?: number; mensaje: string; margen_dias: number; max_mb_captura: number; cuota_mb: number; max_registros: number;
   practicas: PracticaDocente[]; actividades: { id: string; title: string }[];
   almacenamiento: { bytes_seccion: number; archivos_seccion: number; bytes_modulo: number; archivos_modulo: number };
 }
@@ -86,5 +87,16 @@ export const historial = (declId: string) => rpc<Evento[]>('hist_historial', { p
 export const revisar = (ids: string[], accion: AccionDocente, nota: string | null) =>
   rpc<{ aplicadas: number; errores: { id: string; motivo: string }[] }>('hist_revisar', { p_ids: ids, p_accion: accion, p_nota: nota });
 export const sugerencias = (classId: string) => rpc<SugerenciaDocente[]>('hist_sugerencias', { p_class: classId });
+// --- «Ya registré todo lo que tengo» y recordatorio al entrar (migración 46) ----------------------------------------
+export interface Pendiente { class_id: string; class_name: string; course_title: string; sin_terminar: boolean; registradas: number; borradores: number; aclaraciones: number }
+export interface Terminado { user_id: string; finalizado_at: string | null; sin_practicas: boolean; registradas: number; nota: string | null; reabierto_at: string | null }
+
+export const terminar = (classId: string, sinPracticas: boolean, nota: string | null) =>
+  rpc<{ registradas: number; sin_practicas: boolean }>('hist_finalizar', { p_class: classId, p_sin_practicas: sinPracticas, p_nota: nota });
+export const pendientes = () => rpc<Pendiente[]>('hist_pendientes');
+export const terminados = (classId: string) => rpc<Terminado[]>('hist_terminados', { p_class: classId });
+export const reabrirEstudiante = (classId: string, userId: string, nota: string | null) => rpc<void>('hist_reabrir_estudiante', { p_class: classId, p_user: userId, p_nota: nota });
+export const recordatorio = (classId: string, recordar: boolean) => rpc<void>('hist_recordatorio', { p_class: classId, p_recordar: recordar });
+
 export const decidirSugerencias = (ids: string[], decision: 'confirmada' | 'relacionada' | 'descartada' | 'pendiente', practiceId: string | null, titulo: string | null, nota: string | null) =>
   rpc<string | null>('hist_sugerencias_decidir', { p_ids: ids, p_decision: decision, p_practice: practiceId, p_titulo: titulo, p_nota: nota });
