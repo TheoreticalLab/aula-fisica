@@ -81,14 +81,31 @@ Pruebas: `tests/lieia-ciencia.test.ts` (17, con verdad conocida: dos factores la
 omisión por posición; y negativos: n pequeño, respuestas al azar) y `supabase/pruebas/lieia_laboratorio.sql`
 (persistencia, acceso, integridad de notas).
 
+### Etapas 5, 6 y 8 (parcial), añadidas después
+
+- **Psicometría avanzada** (`tri.ts`): 2PL por examen reutilizando la calibración marginal validada; abstención con
+  n < 50, «provisional» con n < 200; a y b con errores típicos; curva de precisión (ET de θ con banda 10–90 %);
+  dependencia local por Q3 de Yen (media + 0,2). Limitación verificada en pruebas: con menos de ~10 preguntas, un par
+  dependiente arrastra θ y Q3 no lo detecta (se avisa). DIF no se calcula: los datos seudonimizados no traen grupo.
+- **Simulador** (`simulacion.ts`): estudiantes sintéticos (habilidad, velocidad, propensión a omitir, límite de
+  tiempo, orden fijo/inverso/aleatorio, quitar preguntas), 200 réplicas reproducibles; puntuación, KR-20 simulado
+  [p10–p90], fracción que termina, omisiones por tiempo y por desconocimiento por pregunta; parámetros calibrados si la
+  TRI está ajustada y a priori si no (se rotula). Comparación de escenarios y «Simular este diseño» en el diseñador.
+  Tamaño muestral analítico (correlación, dos proporciones) contrastado con valores de referencia (85; 93 por grupo).
+- **Historial** (`historial.ts`): reabre investigaciones guardadas, compara el resultado de entonces con el actual y
+  separa las **registradas antes de los datos** (guardadas con n = 0: contraste confirmatorio) de las **exploratorias**
+  (necesitan otra aplicación); lista los diseños con enlaces a sus borradores.
+
+Pruebas: `tests/lieia-ciencia-etapas.test.ts` (9, con parámetros verdaderos conocidos y valores de referencia).
+
 ## 5. Pendiente (no implementado)
 
 | Etapa | Falta |
 |---|---|
-| 5 · Psicometría | TRI (Rasch/2PL) integrada en el informe por examen con su incertidumbre; DIF; dependencia local estimada; análisis factorial |
-| 6 · Simulación | simular un diseño concreto antes de aplicarlo (duración, omisiones, potencia/tamaño muestral) desde esta pantalla |
+| 5 · Psicometría | DIF (requiere una variable de grupo definida de antemano), análisis factorial, modelos jerárquicos |
+| 6 · Simulación | potencia de una investigación concreta por simulación (hoy: fórmulas analíticas) |
 | 7 · Conversacional | explorador en lenguaje natural (requiere la capa B de IA) |
-| 8 · Aprendizaje | calibración progresiva versionada y reapertura de informes guardados con comparación entre versiones |
+| 8 · Aprendizaje | guardar los parámetros calibrados por versión y reutilizarlos entre aplicaciones (calibración progresiva) |
 | Generación asistida | crear preguntas nuevas (borrador + validación matemática, unidades, soluciones, revisión) |
 | Modos | K, M, N, O, P, R; versiones del modo G con el generador de variantes |
 

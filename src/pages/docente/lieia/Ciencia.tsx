@@ -12,6 +12,8 @@ import { ESTADOS, LINEAS, type Ficha, type Linea } from '@/lib/lieia/ciencia/des
 import { comparar, disenar, MODOS, type Diseno, type ItemBancoCiencia, type Modo } from '@/lib/lieia/ciencia/disenador';
 import { COGNITIVAS, MINIMOS, RELACIONES, type Cognitiva } from '@/lib/lieia/ciencia/modelo';
 import type { Revision } from '@/lib/lieia/ciencia/contenido';
+import type { TRI } from '@/lib/lieia/ciencia/tri';
+import { Historial, itemsParaSimular, Simulador, VistaTRI } from './CienciaAvanzada';
 import { useAction, useAsync } from '@/lib/util';
 import { Badge, Card, Empty, ErrorBox, Notice, Spinner, Tabs } from '@/components/ui';
 
@@ -22,7 +24,7 @@ const TONO_EST = { analizable: 'green', datos_insuficientes: 'amber', requiere_n
 const TONO_DIM = { bien: 'green', atencion: 'amber', problema: 'red', sin_datos: 'gray' } as const;
 const TEXTO_DIM = { bien: 'bien', atencion: 'atención', problema: 'problema', sin_datos: 'sin datos' } as const;
 
-type Vista = 'resumen' | 'preguntas' | 'relaciones' | 'investigar' | 'disenar' | 'metodo';
+type Vista = 'resumen' | 'preguntas' | 'relaciones' | 'investigar' | 'disenar' | 'tri' | 'simular' | 'historial' | 'metodo';
 interface Contexto { classId: string; courseId: string; activityId: string; titulo: string }
 
 // ------------------------------------------------------------------------------------------------------------------
@@ -168,6 +170,7 @@ function Disenador({ inf, ctx, modoInicial, onGuardado }: { inf: Informe; ctx: C
   const [comparados, setComparados] = useState<Diseno[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [creados, setCreados] = useState<string[] | null>(null);
+  const [simular, setSimular] = useState(false);
   const accion = useAction();
   const errores = inf.fichas.filter((f) => f.linea === 'errores').flatMap((f) => f.items);
   const todosConceptos = useMemo(() => [...new Set((banco.data ?? []).flatMap((b) => b.analisis.conceptos))].sort(), [banco.data]);
@@ -246,11 +249,22 @@ function Disenador({ inf, ctx, modoInicial, onGuardado }: { inf: Informe; ctx: C
           </ol>
           <div className="mt-3 flex flex-wrap gap-2">
             <button className="btn-secundario" onClick={() => setComparados([...comparados.filter((c) => c.modo !== final.modo || c.semilla !== final.semilla), final])}>Añadir al comparador</button>
+            <button className="btn-secundario" onClick={() => setSimular(!simular)}>{simular ? 'Ocultar simulación' : 'Simular este diseño'}</button>
             <button className="btn-primario" disabled={accion.busy || !final.items.length} onClick={() => void accion.run(async () => {
               const ids = await crearBorrador(ctx.classId, final, metodologia(final)); setCreados(ids); await onGuardado(final, ids);
             })}>Crear examen borrador</button>
           </div>
           <ErrorBox error={accion.error} />
+          {simular && (
+            <div className="mt-3">
+              {/* con dos versiones se simula la A (mismas condiciones que la B) */}
+              <Simulador titulo={`${MODOS[final.modo].nombre}${final.items.some((i) => i.version) ? ' · versión A' : ''}`}
+                items={final.items.filter((i) => !i.version || i.version === 'A').map((i, k) => {
+                  const b = (banco.data ?? []).find((x) => x.pregunta.id === i.id)!;
+                  return { id: i.id, etiqueta: `P${k + 1}`, dificultad: b.analisis.dificultadAPriori.valor, formato: b.pregunta.format, tiempoMin: b.analisis.tiempoAPrioriMin };
+                })} />
+            </div>
+          )}
           {creados && <div className="mt-2"><Notice tone="ok">Borrador creado y oculto para los estudiantes. Revíselo antes de publicarlo: {creados.map((id, k) => <Link key={id} className="enlace ml-1" to={`/docente/actividades/${id}`}>{creados.length > 1 ? `versión ${'AB'[k]}` : 'abrir'}</Link>)}</Notice></div>}
         </Card>
       )}
@@ -315,6 +329,7 @@ export function Ciencia() {
   const [revisiones, setRevisiones] = useState<Revision[]>([]);
   const [persistencia, setPersistencia] = useState(true);
   const [datosCache, setDatosCache] = useState<Awaited<ReturnType<typeof cargarExamen>> | null>(null);
+  const [tri, setTri] = useState<TRI | null>(null);
   const accion = useAction();
   const sec = (secs.data ?? []).find((s) => s.class_id === classId);
 
@@ -329,6 +344,7 @@ export function Ciencia() {
     setGuardados(new Map(regs.filter((r) => r.kind === 'investigacion').map((r) => [r.clave, r])));
     setCtx({ classId, courseId: sec.course_id, activityId, titulo: act.titulo });
     setAviso(d.avisoDatos);
+    setTri(null);
     setInf(analizar(d.preguntas, d.datos, revs)); setVista('resumen');
   }
   async function revisar(r: Revision) {
@@ -378,7 +394,8 @@ export function Ciencia() {
           {!persistencia && <Notice tone="info">El análisis funciona, pero guardar investigaciones y revisiones requiere instalar la migración 48.</Notice>}
           <Tabs<Vista> value={vista} onChange={setVista} tabs={[
             { id: 'resumen', label: 'Informe' }, { id: 'preguntas', label: `Preguntas (${inf.preguntas.length})` }, { id: 'relaciones', label: 'Relaciones' },
-            { id: 'investigar', label: `¿Qué puedo investigar? (${inf.fichas.length})` }, { id: 'disenar', label: 'Diseñar nuevo examen' }, { id: 'metodo', label: 'Métodos' },
+            { id: 'investigar', label: `¿Qué puedo investigar? (${inf.fichas.length})` }, { id: 'disenar', label: 'Diseñar nuevo examen' },
+            { id: 'tri', label: 'Psicometría avanzada' }, { id: 'simular', label: 'Simular' }, { id: 'historial', label: 'Historial' }, { id: 'metodo', label: 'Métodos' },
           ]} />
           {vista === 'resumen' && (
             <div className="space-y-4">
@@ -416,6 +433,9 @@ export function Ciencia() {
           {vista === 'relaciones' && <Relaciones inf={inf} />}
           {vista === 'investigar' && <Investigar inf={inf} guardados={guardados} onGuardar={guardarFicha} onDisenar={(m) => { setModoInicial(m); setVista('disenar'); }} />}
           {vista === 'disenar' && <Disenador key={modoInicial} inf={inf} ctx={ctx} modoInicial={modoInicial} onGuardado={disenoGuardado} />}
+          {vista === 'tri' && <VistaTRI inf={inf} tri={tri} setTri={setTri} />}
+          {vista === 'simular' && <Simulador items={itemsParaSimular(inf, tri)} titulo={ctx.titulo} />}
+          {vista === 'historial' && <Historial inf={inf} classId={ctx.classId} activityId={ctx.activityId} />}
           {vista === 'metodo' && <Metodo inf={inf} />}
         </>
       )}
