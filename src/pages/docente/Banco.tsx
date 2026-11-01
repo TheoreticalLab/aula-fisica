@@ -58,7 +58,10 @@ export default function Banco() {
   return (
     <div>
       <PageTitle title="Banco de ejercicios" subtitle="Filtre, revise y edite los ejercicios y sus claves. Para usarlos en una práctica o evaluación: sección → + Crear actividad."
-        actions={courseId && <Link className="btn-primario" to={`/docente/ejercicios/nuevo?curso=${courseId}${f.lessonId && f.lessonId !== 'none' ? `&leccion=${f.lessonId}` : ''}`}>+ Nuevo ejercicio</Link>} />
+        actions={courseId && <span className="flex flex-wrap gap-2">
+          <Link className="btn-secundario" to={`/docente/generar-preguntas?curso=${courseId}`}>✨ Generar con IA</Link>
+          <Link className="btn-primario" to={`/docente/ejercicios/nuevo?curso=${courseId}${f.lessonId && f.lessonId !== 'none' ? `&leccion=${f.lessonId}` : ''}`}>+ Nuevo ejercicio</Link>
+        </span>} />
       <div className="tarjeta mb-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
         <select className="campo" value={courseId} onChange={(e) => setP('curso', e.target.value)} aria-label="Curso">
           {courses.data?.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}

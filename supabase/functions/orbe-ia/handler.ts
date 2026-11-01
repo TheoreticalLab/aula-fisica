@@ -5,6 +5,7 @@
 // el profesor (asignatura, unidad, lección, resumen, apartado); nunca nombres, correos ni identificadores.
 
 import { construirInterpretacion, resumirExamen, simularInterpretacion, validarInterpretacion } from './lieia.ts';
+import { generarPreguntas } from './generar.ts';
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -56,6 +57,8 @@ export interface Peticion {
   system: string;
   user: string;
   schema: Record<string, unknown>;
+  /** esfuerzo de razonamiento (por defecto «low»; la generación de preguntas usa «medium») */
+  effort?: 'low' | 'medium' | 'high';
 }
 
 export interface RespuestaModelo {
@@ -226,6 +229,11 @@ export async function atender(body: Cuerpo, userId: string, deps: Deps): Promise
   if (accion === 'redactar' || accion === 'pulso' || accion === 'preguntas') {
     if (rol !== 'teacher' && rol !== 'admin') throw new HttpError(403, 'Solo el profesorado');
     return atenderControl(accion, body, userId, deps);
+  }
+  if (accion === 'generar_preguntas') {
+    // banco de preguntas: un lote verificado en el servidor y guardado como borrador (generar.ts)
+    if (rol !== 'teacher' && rol !== 'admin') throw new HttpError(403, 'Solo el profesorado');
+    return generarPreguntas(body as Record<string, unknown>, userId, deps);
   }
   if (accion === 'lieia') {
     // interpretación con IA del laboratorio LIEIA: solo cifras agregadas por pregunta (lista blanca en lieia.ts)

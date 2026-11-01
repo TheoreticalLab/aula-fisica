@@ -23,9 +23,10 @@ const USOS: Record<PropositoOrbe, { icono: string; nombre: string; quien: string
   mensaje: { icono: '✉️', nombre: 'Redactar mensajes', quien: 'Profesorado', donde: 'Orbe Control (teléfono del profesor)', datos: 'Sus notas; el nombre lo pone el teléfono, no Claude' },
   pulso: { icono: '📈', nombre: 'Pulso de la clase', quien: 'Profesorado', donde: 'Orbe Control', datos: 'Cifras agregadas y anónimas de la sesión' },
   pregunta: { icono: '⚡', nombre: 'Pregunta relámpago', quien: 'Profesorado', donde: 'Orbe Control', datos: 'Tema o lección elegida por el profesor' },
+  generar: { icono: '✨', nombre: 'Generar preguntas para el banco', quien: 'Profesorado', donde: 'Banco de ejercicios → Generar con IA', datos: 'Títulos y resúmenes de lecciones, conceptos y el comienzo de enunciados existentes', enlace: { to: '/docente/generar-preguntas', texto: 'Abrir' } },
   lieia: { icono: '🔬', nombre: 'Interpretación de exámenes', quien: 'Profesorado', donde: 'LIEIA → Laboratorio científico → Interpretación IA', datos: 'Enunciados y cifras agregadas por pregunta; nunca seudónimos ni respuestas', enlace: { to: '/docente/lieia', texto: 'Abrir LIEIA' } },
 };
-const ORDEN_USOS: PropositoOrbe[] = ['lieia', 'mensaje', 'pulso', 'pregunta', 'chistes'];
+const ORDEN_USOS: PropositoOrbe[] = ['generar', 'lieia', 'mensaje', 'pulso', 'pregunta', 'chistes'];
 
 const SECCIONES: [string, string][] = [['teoria', 'Teoría'], ['formulas', 'Fórmulas'], ['ejemplos', 'Ejemplos'], ['simulacion', 'Simulación'], ['comprension', 'Comprensión'], ['practica', 'Práctica']];
 const EVENTOS: [string, string][] = [['ejercicio_correcto', 'Ejercicio resuelto'], ['leccion_terminada', 'Lección terminada'], ['actividad_tras_intentos', 'Resuelta tras varios intentos'], ['fin_sesion', 'Fin de la sesión']];

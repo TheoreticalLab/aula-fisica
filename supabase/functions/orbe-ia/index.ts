@@ -23,7 +23,7 @@ function cors(origin: string | null): Record<string, string> {
   };
 }
 
-const cliente = CLAVE ? new Anthropic({ apiKey: CLAVE, timeout: 60_000, maxRetries: 1 }) : null;
+const cliente = CLAVE ? new Anthropic({ apiKey: CLAVE, timeout: 120_000, maxRetries: 1 }) : null;
 
 async function llamarModelo(p: Peticion): Promise<RespuestaModelo> {
   if (!cliente) throw new HttpError(503, 'sin_clave');
@@ -35,7 +35,8 @@ async function llamarModelo(p: Peticion): Promise<RespuestaModelo> {
       system: p.system,
       messages: [{ role: 'user', content: p.user }],
       // chistes cortos: poco razonamiento; salida JSON garantizada por el esquema
-      output_config: { effort: 'low', format: { type: 'json_schema', schema: p.schema } },
+      // por defecto poco razonamiento (chistes, mensajes); la generación de preguntas pide «medium»; salida JSON por esquema
+      output_config: { effort: p.effort ?? 'low', format: { type: 'json_schema', schema: p.schema } },
       ...respaldo,
     });
     const texto = r.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('');
