@@ -56,14 +56,44 @@ La expresión se evalúa con una gramática cerrada (sin `eval`). Si la migraci�
 
 ## Parametrización
 
-`src/lib/fisica/variantes.ts` genera versiones de las familias A, B, C, D, E, G y L a partir de una semilla
+`supabase/functions/_shared/fisica/variantes.ts` (reexportado en `src/lib/fisica/variantes.ts`) genera versiones de las familias A, B, C, D, E, G y L a partir de una semilla
 (mulberry32): mismos parámetros y respuestas para la misma semilla, rangos y rejilla del enunciado, respuestas
 calculadas con el motor a partir de los valores redondeados y reglas de validez (no se aceptan versiones casi en el
 límite, ni ángulos que crearían energía cinética, ni planos en que μk ≥ tan θ). Las pruebas recorren cientos de semillas.
 
-**Limitación:** la plataforma todavía no sortea una versión distinta por intento. Eso exige generar la clave en el
-servidor y guardar los parámetros asignados en cada intento (migración y Edge Function nuevas). Hoy las versiones se usan
-para crear ejercicios distintos del banco y para auditar.
+### Versión distinta por intento (migración 51)
+
+Una clave numérica puede declarar una variante; el enunciado usa marcadores `{{parámetro}}` (fuera de las fórmulas):
+
+```ts
+answer: { format: 'numeric', value: '0 m', variante: {
+  plantilla: 'A', respuesta: 'd', unidad: 'm',
+  errores: [{ expresion: 'v1^2/(2*mu*g)', message: 'Usó la rapidez de antes del choque…' }],
+} },
+verificarVariante: ({ m1, m2, v1, mu }) => ((m1 * v1) / (m1 + m2)) ** 2 / (2 * mu * G),   // SI, fórmulas propias
+```
+
+- **Semilla:** FNV-1a de `intento|pregunta`. No se guarda nada por intento: la versión se reconstruye siempre igual
+  (también para auditar o recalificar).
+- **Servidor** (`calificar`, `_shared/calificacion/variante.ts`): con la semilla obtiene los parámetros y la respuesta
+  del motor, y arma la clave concreta: valor con 3 cifras significativas, tolerancia de la clave y errores típicos
+  evaluados con esos números (gramática cerrada: números, variables de la plantilla, `+ − * / ^`, `sqrt`, `abs`, `g`).
+  Un error típico que en esa versión cae cerca de la respuesta correcta se descarta. `value`, `alternatives` y
+  `commonErrors` fijos de la clave no se usan.
+- **Navegador:** pide solo los parámetros (acción `variante`). La autoriza `svc_variante_info`: el dueño del intento,
+  el profesorado de la sección o de la asignatura, o el administrador; la pregunta debe ser del intento o el ejercicio
+  de transferencia de una de sus preguntas (práctica asistida). Enunciado, pistas y explicación sustituyen
+  `{{parámetro}}`. Cuando la solución ya se puede ver, la caja de la solución carga aparte el cálculo y muestra la
+  respuesta de esa versión; el código principal del estudiante no lo incluye (lo comprueba `tests/variantes-intento.test.ts`).
+- **Validación** (biblioteca y `generar-actividad`): plantilla, respuesta y marcadores existentes; 40 versiones de
+  prueba en que la respuesta se califica como correcta, ningún error típico cae en la tolerancia ni es inútil en todas,
+  y `verificarVariante` (obligatoria en la biblioteca) coincide con el motor al 0.5 %.
+- **Piloto:** `mec-u9c-09-9` (banco, minicapítulo 09): choque totalmente inelástico seguido de frenado; se pide la
+  distancia; tres errores típicos.
+
+Limitaciones: solo hay plantillas de choques (A–E, G, L); el editor del panel conserva la variante pero no la edita (se
+cambia en la biblioteca) y su prueba de respuestas usa el valor fijo; las vistas del profesor sin intento muestran los
+marcadores; las estadísticas por pregunta mezclan versiones de la misma dificultad estructural.
 
 ## Panel docente (Banco de ejercicios)
 

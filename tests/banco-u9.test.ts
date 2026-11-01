@@ -56,7 +56,8 @@ describe.skipIf(!hay)('banco de la Unidad 9 (biblioteca privada)', async () => {
   });
   it('todo numérico tiene comprobación independiente y validación dimensional', () => {
     for (const e of ej.filter((x) => x.format === 'numeric')) {
-      expect(typeof e.verificar, e.id).toBe('function');
+      const variante = e.clave.answer.format === 'numeric' && !!e.clave.answer.variante;
+      expect(typeof (variante ? e.verificarVariante : e.verificar), e.id).toBe('function');
       expect(e.meta?.dimensional?.trim(), e.id).toBeTruthy();
     }
   });

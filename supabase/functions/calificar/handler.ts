@@ -5,12 +5,14 @@
  *  - check     { attempt_id, exercise_id, answer }  → califica un ejercicio de práctica (retroalimentación inmediata)
  *  - submit    { attempt_id }                       → entrega y califica un intento completo de una actividad
  *  - finalize  { activity_id }                      → (profesor) entrega y califica los intentos que quedaron abiertos
+ *  - variante  { attempt_id, exercise_id }          → parámetros de la versión de ese intento (nunca la respuesta)
  *
  * La autorización la deciden las funciones SQL svc_* (reciben el id del usuario verificado por el JWT);
  * este módulo solo interpreta y compara respuestas.
  */
 import { grade, validateAnswerShape } from '../_shared/calificacion/calificar.ts';
 import { gradeConArrastre } from '../_shared/calificacion/arrastre.ts';
+import { claveConcreta, parametrosVariante } from '../_shared/calificacion/variante.ts';
 import type { AnswerKey, GradeResult, StudentAnswer } from '../_shared/calificacion/tipos.ts';
 
 export interface Db {
@@ -40,9 +42,14 @@ async function call<T>(db: Db, fn: string, args: Record<string, unknown>): Promi
   return data as T;
 }
 
-function safeGrade(key: AnswerKey | null, answer: StudentAnswer, optionCount?: number | null, previo?: string | null): GradeResult {
+function safeGrade(key: AnswerKey | null, answer: StudentAnswer, optionCount?: number | null, previo?: string | null, ids?: { attempt: string; exercise: string }): GradeResult {
   if (!key) return { status: 'pending_review', credit: 0, messages: ['El ejercicio no tiene clave; lo revisará el profesor.'], code: 'no_key' };
   try {
+    // variante por intento: la clave concreta (valor y errores típicos con SUS números) se calcula aquí, en el servidor
+    if (key.format === 'numeric' && key.variante) {
+      if (!ids) throw new Error('variante sin intento');
+      key = claveConcreta(key, ids.attempt, ids.exercise);
+    }
     if (key.format === 'numeric' && key.arrastre) return gradeConArrastre(key, answer.text ?? '', previo);
     return grade(key, answer, optionCount ?? undefined);
   } catch {
@@ -86,7 +93,7 @@ async function gradeAndRecordSubmission(db: Db, userId: string, attemptId: strin
   const results = pendientes
     .map((it, i) => {
       const answer = validateAnswerShape(it.answer ?? {}) ?? {};
-      const r = safeGrade(it.key, answer, it.option_count, previos[i]);
+      const r = safeGrade(it.key, answer, it.option_count, previos[i], { attempt: attemptId, exercise: it.exercise_id });
       if (r.status === 'invalid') {
         return { exercise_id: it.exercise_id, answer, status: 'incorrect', credit: 0, code: 'blank', messages: ['Sin respuesta válida: ' + r.messages.join(' ')] };
       }
@@ -117,12 +124,13 @@ async function pasoAsistido(b: Record<string, unknown>, userId: string, db: Db):
   const answer = noSe ? {} : validateAnswerShape(b.answer);
   if (!answer) throw new HttpError(400, 'Respuesta con formato inválido');
   if (fase === 'inicial' && !['autonomo', 'consulto_ayuda', 'no_pudo'].includes(String(b.declaracion))) throw new HttpError(400, 'Indique cómo realizó el primer intento');
-  const ctx = await call<{ repetido?: boolean; estado?: unknown; key: AnswerKey | null; option_count: number | null }>(db, 'svc_asistida_contexto',
+  const ctx = await call<{ repetido?: boolean; estado?: unknown; key: AnswerKey | null; option_count: number | null; transfer_exercise_id?: string | null }>(db, 'svc_asistida_contexto',
     { p_user: userId, p_attempt: attempt, p_exercise: exercise, p_fase: fase, p_client_id: clientId });
   if (ctx.repetido) return { guardado: true, repetido: true, estado: ctx.estado };
   const result: GradeResult = noSe
     ? { status: 'incorrect', credit: 0, messages: ['No supo resolverlo en el primer intento.'], code: 'no_se' }
-    : safeGrade(ctx.key, answer, ctx.option_count);
+    // la transferencia se califica con la clave (y la variante) de SU ejercicio, no la del ejercicio original
+    : safeGrade(ctx.key, answer, ctx.option_count, null, { attempt, exercise: fase === 'transferencia' && ctx.transfer_exercise_id ? ctx.transfer_exercise_id : exercise });
   if (!noSe && result.status === 'invalid') {
     // no se guarda: el estudiante corrige el formato (en el primer intento, sin pistas sobre la respuesta)
     return { guardado: false, mensajes: fase === 'inicial' ? [MENSAJE_FORMATO_INICIAL] : result.messages };
@@ -144,7 +152,7 @@ export async function handle(body: unknown, userId: string, db: Db): Promise<unk
       const answer = validateAnswerShape(b.answer);
       if (!answer) throw new HttpError(400, 'Respuesta con formato inválido');
       const ctx = await call<CheckContext>(db, 'svc_check_context', { p_user: userId, p_attempt: attempt, p_exercise: exercise });
-      const result = safeGrade(ctx.key, answer, ctx.option_count, await respuestaEtapa(db, userId, attempt, exercise, ctx.key));
+      const result = safeGrade(ctx.key, answer, ctx.option_count, await respuestaEtapa(db, userId, attempt, exercise, ctx.key), { attempt, exercise });
       if (result.status === 'invalid') {
         // No se pudo interpretar: no consume intento y se guarda como borrador.
         await call(db, 'svc_save_draft', { p_user: userId, p_attempt: attempt, p_exercise: exercise, p_answer: answer }).catch(() => undefined);
@@ -181,6 +189,14 @@ export async function handle(body: unknown, userId: string, db: Db): Promise<unk
     }
     case 'asistida':
       return pasoAsistido(b, userId, db);
+    case 'variante': {
+      // números del enunciado de SU versión (sin respuestas). Autorización: el dueño del intento o su profesorado.
+      const attempt = uuid(b.attempt_id, 'attempt_id');
+      const exercise = uuid(b.exercise_id, 'exercise_id');
+      const def = await call<{ plantilla: string } | null>(db, 'svc_variante_info', { p_user: userId, p_attempt: attempt, p_exercise: exercise });
+      if (!def?.plantilla) return { parametros: null };
+      return { parametros: parametrosVariante(def.plantilla, attempt, exercise).parametros };
+    }
     default:
       throw new HttpError(400, 'Acción desconocida');
   }

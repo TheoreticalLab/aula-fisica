@@ -343,6 +343,13 @@ export default function EjercicioEditor() {
 
           <Card title="Clave de respuesta (protegida)">
             <p className="mb-2 text-xs text-gray-500">Se guarda en una tabla a la que los estudiantes no tienen acceso. La calificación se hace en el servidor.</p>
+            {key.format === 'numeric' && key.variante && (
+              <p className="mb-2 rounded bg-acento-100/70 px-2 py-1 text-xs dark:bg-acento-700/20">
+                <strong>Variante por intento</strong> (plantilla {key.variante.plantilla}, respuesta «{key.variante.respuesta}»): cada estudiante recibe sus propios
+                números en los marcadores {'{{…}}'} y el servidor calcula su respuesta. El valor de abajo NO se usa para calificar, y la prueba de esta página
+                tampoco refleja las versiones. La variante se conserva al guardar; para cambiarla, edite la biblioteca.
+              </p>
+            )}
             <KeyEditor draft={draft} k={key} onChange={(k) => { setSavedMsg(false); setKey(k); }} />
           </Card>
 

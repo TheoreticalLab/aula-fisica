@@ -125,7 +125,7 @@ function EjercicioAsistido({ index, attemptId, item, ex, config, editable, onAct
           ))}
         </ol>
       </header>
-      <EnunciadoEjercicio ex={ex} />
+      <EnunciadoEjercicio ex={ex} attemptId={attemptId} />
 
       {item.siguiente === 'inicial' && editable && <PasoInicial attemptId={attemptId} item={item} ex={ex} clave={`${base}:inicial`} onActualizar={onActualizar} />}
 
@@ -153,7 +153,7 @@ function EjercicioAsistido({ index, attemptId, item, ex, config, editable, onAct
           {!!ref.fuentes?.length && <p className="text-xs text-gray-500">Ayudas usadas: {ref.fuentes.map((f) => FUENTE[f]).join(', ')}</p>}
         </Recuadro>
       )}
-      {item.solucion && <SolucionBox solution={item.solucion as never} options={ex.options} />}
+      {item.solucion && <SolucionBox solution={item.solucion as never} options={ex.options} ids={{ attempt: attemptId, exercise: ex.id }} />}
 
       {item.siguiente === 'transferencia' && item.transferencia && editable && <PasoTransferencia attemptId={attemptId} item={item} clave={`${base}:transferencia`} onActualizar={onActualizar} />}
       {tra && item.transferencia && (
@@ -350,7 +350,7 @@ function PasoTransferencia({ attemptId, item, clave, onActualizar }: { attemptId
       <Recuadro titulo="4 · Demuestra lo que aprendiste">
         <p>Un ejercicio distinto con el mismo concepto. Tienes una sola oportunidad: intenta resolverlo con lo que acabas de aprender.</p>
       </Recuadro>
-      <EnunciadoEjercicio ex={ex} />
+      <EnunciadoEjercicio ex={ex} attemptId={attemptId} />
       <EntradaRespuesta ex={ex} answer={b.answer} onChange={(a) => set({ answer: a })} disabled={env.estado === 'enviando'} />
       <label className="block text-sm"><span className="etiqueta">Tu procedimiento (opcional)</span>
         <textarea className="campo" rows={2} value={b.procedimiento} maxLength={5000} onChange={(e) => set({ procedimiento: e.target.value })} /></label>

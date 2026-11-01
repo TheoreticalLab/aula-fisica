@@ -3,7 +3,7 @@
  * estudiante ve siempre el mismo orden. Las opciones conservan su índice (y su letra) original, de modo que la respuesta
  * guardada, la calificación y las explicaciones no cambian.
  */
-import { mulberry32 } from './fisica/variantes';
+import { mulberry32 } from './azar';   // no desde fisica/variantes: el estudiante no debe cargar el cálculo de respuestas
 
 /** Opciones cuyo sentido depende de la posición: no se barajan. */
 const DEPENDE_POSICION = /todas las anteriores|ninguna de las anteriores|las dos anteriores|ambas|todas son correctas|ninguna es correcta|\b[a-e]\)?\s*y\s*[a-e]\)?\b|\b(solo|sólo)\s+[a-e]\b|anterior(es)?\b/i;

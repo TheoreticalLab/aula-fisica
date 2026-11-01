@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ordenOpciones } from '@/lib/opciones';
-import { rpc } from '@/lib/supabase';
+import { invocar, rpc } from '@/lib/supabase';
+import { sustituirParametros, tieneParametros } from '@calif/marcadores.ts';
 import { Link } from 'react-router-dom';
 import { describeKey, interpretNumeric } from '@calif/calificar.ts';
 import type { AccionesEjercicio, AttemptItem, AttemptView, GradeResult, Solution, StudentAnswer } from '@/api/tipos';
@@ -40,27 +41,68 @@ function esVacia(f: string, a: StudentAnswer): boolean {
   return !a.text?.trim();
 }
 
-export function SolucionBox({ solution, options }: { solution: Solution; options?: string[] | null }) {
+/** Ids que identifican la versión (variante por intento) de una pregunta. */
+export interface IdsVariante { attempt: string; exercise: string }
+
+export function SolucionBox({ solution, options, ids }: { solution: Solution; options?: string[] | null; ids?: IdsVariante }) {
+  const a = solution.answer;
+  const conVariante = a.format === 'numeric' && !!a.variante;
+  const v = useParametrosVariante(ids?.attempt, ids?.exercise ?? '', conVariante || tieneParametros(solution.explanation ?? ''));
+  // la respuesta concreta de ESA versión: el cálculo se carga aparte y solo cuando ya se puede ver la solución
+  const [concreta, setConcreta] = useState<{ texto: string } | null>(null);
+  useEffect(() => {
+    if (!conVariante || !ids) return;
+    let vivo = true;
+    import('@calif/variante.ts').then((m) => vivo && setConcreta({ texto: describeKey(m.claveConcreta(a, ids.attempt, ids.exercise)) }))
+      .catch(() => vivo && setConcreta({ texto: 'No se pudo calcular la respuesta de esta versión.' }));
+    return () => { vivo = false; };
+  }, [conVariante, a, ids?.attempt, ids?.exercise]);
+  const respuesta = !conVariante ? describeKey(a, options ?? undefined)
+    : !ids ? `Depende de los números de cada versión (plantilla ${a.format === 'numeric' ? a.variante?.plantilla : ''}).`
+    : concreta?.texto ?? 'Calculando la respuesta de esta versión…';
   return (
     <div className="mt-3 rounded-lg border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-700/60 dark:bg-emerald-900/20">
       <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">Respuesta correcta</p>
       <div className="text-sm">
-        <InlineMd>{describeKey(solution.answer, options ?? undefined)}</InlineMd>
+        <InlineMd>{respuesta}</InlineMd>
       </div>
       {solution.explanation && (
         <>
           <p className="mt-2 text-sm font-semibold text-emerald-900 dark:text-emerald-200">Explicación</p>
-          <Markdown className="text-sm">{solution.explanation}</Markdown>
+          <Markdown className="text-sm">{v.sustituir(solution.explanation)}</Markdown>
         </>
       )}
     </div>
   );
 }
 
-export function EnunciadoEjercicio({ ex }: { ex: AttemptItem['exercise'] }) {
+/** Parámetros de la versión de este intento (variante por intento): los da el servidor, sin la respuesta. */
+const cacheVariante = new Map<string, Promise<Record<string, number> | null>>();
+export function useParametrosVariante(attemptId: string | undefined, exerciseId: string, activo: boolean) {
+  const [estado, setEstado] = useState<{ params: Record<string, number> | null; error: string | null; cargando: boolean }>({ params: null, error: null, cargando: activo && !!attemptId });
+  useEffect(() => {
+    if (!activo || !attemptId) return;
+    const k = `${attemptId}|${exerciseId}`;
+    if (!cacheVariante.has(k)) cacheVariante.set(k, invocar<{ parametros: Record<string, number> | null }>('calificar', { action: 'variante', attempt_id: attemptId, exercise_id: exerciseId }).then((r) => r.parametros));
+    let vivo = true;
+    cacheVariante.get(k)!.then((p) => vivo && setEstado({ params: p, error: null, cargando: false }))
+      .catch((e) => { cacheVariante.delete(k); if (vivo) setEstado({ params: null, error: e instanceof Error ? e.message : String(e), cargando: false }); });
+    return () => { vivo = false; };
+  }, [attemptId, exerciseId, activo]);
+  // sin intento (vista del profesor en el editor) los marcadores quedan a la vista
+  const sustituir = (t: string) => (activo && attemptId && tieneParametros(t) ? sustituirParametros(t, estado.params) : t);
+  return { ...estado, sustituir };
+}
+
+export function EnunciadoEjercicio({ ex, attemptId }: { ex: AttemptItem['exercise']; attemptId?: string }) {
+  const v = { conMarcadores: tieneParametros(ex.prompt), ...useParametrosVariante(attemptId, ex.id, tieneParametros(ex.prompt)) };
   return (
     <>
-      <Markdown>{ex.prompt}</Markdown>
+      {v.conMarcadores && v.cargando ? <p className="text-sm text-gray-500">Preparando su versión de esta pregunta…</p> : (
+        <Markdown>{v.sustituir(ex.prompt)}</Markdown>
+      )}
+      {v.conMarcadores && !attemptId && <p className="text-xs text-gray-500">Pregunta con números distintos para cada estudiante: aquí se muestran los marcadores sin sustituir.</p>}
+      {v.error && <p className="text-xs text-red-700 dark:text-red-400">No se pudieron cargar los números de su versión: {v.error}. Recargue la página.</p>}
       {ex.figure && <Figura figure={ex.figure} />}
       {ex.simulation && (
         <div className="my-3 rounded-lg border border-primario-200 p-3 dark:border-primario-700">
@@ -208,6 +250,7 @@ interface Props {
 export function Ejercicio({ index, item, view, onChange, onReload, acciones = ACCIONES_SERVIDOR }: Props) {
   const { exercise: ex, response } = item;
   const practice = view.attempt.mode === 'practice';
+  const textoVariante = useParametrosVariante(view.attempt.id, ex.id, tieneParametros(ex.prompt));
   const [answer, setAnswer] = useState<StudentAnswer>(response?.answer ?? {});
   const [result, setResult] = useState<GradeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -429,7 +472,7 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
         <span className="text-xs text-gray-500">{item.points} pt</span>
         <span className="ml-auto"><StatusBadge status={status} /></span>
       </header>
-      <EnunciadoEjercicio ex={ex} />
+      <EnunciadoEjercicio ex={ex} attemptId={view.attempt.id} />
       <div className="mt-3">
         <EntradaRespuesta ex={ex} answer={answer} onChange={change} disabled={locked || !view.flags.is_owner || busy} orden={orden} />
       </div>
@@ -439,7 +482,7 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
           {item.hints.map((h, i) => (
             <div key={i} className="rounded-lg bg-acento-100/70 px-3 py-2 text-sm dark:bg-acento-700/20">
               <span className="font-semibold">Pista {i + 1}: </span>
-              <InlineMd>{h}</InlineMd>
+              <InlineMd>{textoVariante.sustituir(h)}</InlineMd>
             </div>
           ))}
         </div>
@@ -518,7 +561,7 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
         </div>
       )}
 
-      {item.solution && <SolucionBox solution={item.solution} options={ex.options} />}
+      {item.solution && <SolucionBox solution={item.solution} options={ex.options} ids={{ attempt: view.attempt.id, exercise: ex.id }} />}
 
       {similares && similares.length > 0 && view.flags.is_owner && (
         <div className="mt-3 rounded-lg bg-violet-50 px-3 py-2 text-sm dark:bg-violet-900/20">

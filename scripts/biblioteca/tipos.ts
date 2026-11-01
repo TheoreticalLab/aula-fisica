@@ -47,6 +47,11 @@ export interface EjercicioBiblioteca extends Omit<ExerciseDef, 'role'> {
    * El validador lo compara con la clave: así se detectan errores aritméticos, de unidades o de signo.
    */
   verificar?: () => number;
+  /**
+   * En lugar de `verificar`, en las claves con variante por intento: recalcula el resultado EN UNIDADES SI desde los
+   * parámetros de cada versión, con fórmulas propias (no con el motor de choques). Se compara en muchas versiones.
+   */
+  verificarVariante?: (p: Record<string, number>) => number;
 }
 
 export interface MiniCapitulo {

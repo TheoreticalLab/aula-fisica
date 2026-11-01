@@ -40,7 +40,11 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
       'Asistente «+ Crear actividad» en cuatro pasos con plantillas (práctica, tarea, quiz, parcial, examen estricto).',
       'Seguimiento de estudiantes que pueden necesitar apoyo y recordatorios a quien no ha entregado.',
     ],
-    pendiente: ['Probar el modo de una pregunta a la vez en teléfonos reales.', 'Orden aleatorio de opciones.'],
+    pendiente: [
+      'Probar el modo de una pregunta a la vez en teléfonos reales.',
+      'Orden aleatorio de opciones por actividad (programado; pendiente de instalar): solo cambia la presentación, cada opción conserva su letra.',
+      'Números distintos para cada estudiante (programado; pendiente de probar en la base de datos e instalar): en las preguntas con variante, cada intento recibe sus propios datos y el servidor calcula y califica su respuesta, sin enviarla al navegador. Hay un ejercicio piloto en la Unidad 9 (choque totalmente inelástico seguido de frenado).',
+    ],
   },
   {
     area: 'Seguimiento',

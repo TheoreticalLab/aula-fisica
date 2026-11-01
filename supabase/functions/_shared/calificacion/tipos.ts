@@ -40,6 +40,8 @@ export interface NumericKey {
   expectUnit?: string;
   /** Otras respuestas equivalentes aceptadas como correctas. */
   alternatives?: string[];
+  /** Variante por intento: los números los decide el servidor (calificacion/variante.ts); `value` queda como referencia. */
+  variante?: { plantilla: string; respuesta: string; unidad: string; errores?: { expresion: string; message: string }[] };
   /** Respuestas erróneas típicas con un mensaje que explica el error. */
   commonErrors?: { value: string; message: string }[];
   /**

@@ -8,6 +8,8 @@ import { sameDims, toSI } from '../../supabase/functions/_shared/calificacion/un
 import type { ExerciseDef } from '../../contenido/tipos';
 import { checkExercise, checkMarkdown, checkSimRef, checkTex } from '../validar-contenido';
 import { evaluarExpresion } from '../../supabase/functions/_shared/calificacion/arrastre';
+import { claveConcreta, parametrosVariante, validarVariante } from '../../supabase/functions/_shared/calificacion/variante';
+import { generarVariante, PLANTILLAS } from '../../supabase/functions/_shared/fisica/variantes';
 import type { BibliotecaCargada } from './cargar';
 import { FAMILIAS, TIPOS_PREGUNTA, type EjercicioBiblioteca, type MiniCapitulo } from './tipos';
 
@@ -45,6 +47,8 @@ export function validarEjercicio(where: string, e: EjercicioBiblioteca, concepto
     }
     const sinComentario = Array.from({ length: n }, (_, i) => i).filter((i) => !a.correct.includes(i) && !a.optionFeedback?.[i]);
     if (sinComentario.length) p.push(`${where}: opciones incorrectas sin retroalimentación: ${sinComentario.join(', ')}`);
+  } else if (a.format === 'numeric' && a.variante) {
+    validarClaveVariante(where, e, p);
   } else if (a.format === 'numeric') {
     for (const m of validateNumericKey(a)) p.push(`${where}: ${m}`);
     // ángulos: la tolerancia debe ser ABSOLUTA (≈1°); una relativa crece con el ángulo y no tiene sentido físico
@@ -84,6 +88,56 @@ export function validarEjercicio(where: string, e: EjercicioBiblioteca, concepto
   }
 }
 
+/** Intentos sintéticos con los que se prueba una clave con variante (versiones distintas). */
+export const INTENTOS_PRUEBA = Array.from({ length: 40 }, (_, i) => `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`);
+
+/**
+ * Variante por intento: la plantilla, la respuesta y los marcadores existen; en cada versión de prueba la respuesta
+ * calculada se califica como correcta, la clave concreta es válida y los errores típicos no caen en la tolerancia
+ * (claveConcreta ya descarta los que coinciden; si se descartan en TODAS las versiones, el error típico no sirve).
+ */
+export function validarClaveVariante(where: string, e: EjercicioBiblioteca, p: string[], exigirVerificacion = true) {
+  const a = e.clave.answer;
+  if (a.format !== 'numeric' || !a.variante) return;
+  const def = a.variante;
+  for (const m of validarVariante(def, e.prompt)) p.push(`${where}: variante: ${m}`);
+  // las pistas y la explicación también pueden usar {{parámetro}}, pero solo parámetros de la plantilla
+  const nombres = new Set(Object.keys(generarVariante(def.plantilla in PLANTILLAS ? def.plantilla : 'A', 1).parametros));
+  for (const t of [...e.clave.hints, e.clave.explanation]) {
+    for (const m of t.matchAll(/\{\{\s*(\w+)\s*\}\}/g)) if (!nombres.has(m[1])) p.push(`${where}: variante: pista/explicación con «{{${m[1]}}}», que no es un parámetro`);
+  }
+  if (a.arrastre) p.push(`${where}: variante: no se combina con arrastre entre etapas`);
+  if (a.alternatives?.length || a.commonErrors?.length) p.push(`${where}: variante: las alternativas y errores típicos fijos no se usan; escriba los errores como expresiones en variante.errores`);
+  if (!(def.plantilla in PLANTILLAS)) return;
+  const utiles = new Array(def.errores?.length ?? 0).fill(0);
+  for (const id of INTENTOS_PRUEBA) {
+    let k;
+    try { k = claveConcreta(a, id, e.id); } catch (err) { p.push(`${where}: variante: ${(err as Error).message}`); return; }
+    for (const m of validateNumericKey(k)) { p.push(`${where}: variante (versión ${id.slice(-2)}): ${m}`); return; }
+    if (grade(k, { text: k.value }).status !== 'correct') { p.push(`${where}: variante (versión ${id.slice(-2)}): «${k.value}» no se califica como correcta`); return; }
+    for (const ce of k.commonErrors ?? []) {
+      if (grade(k, { text: ce.value }).status === 'correct') p.push(`${where}: variante (versión ${id.slice(-2)}): el error típico «${ce.value}» cae dentro de la tolerancia`);
+      const i = (def.errores ?? []).findIndex((x) => x.message === ce.message);
+      if (i >= 0) utiles[i]++;
+    }
+    // comprobación independiente con fórmulas propias, contra el valor SIN redondear del motor
+    if (e.verificarVariante) {
+      const { parametros, respuestas } = parametrosVariante(def.plantilla, id, e.id);
+      try {
+        const esperado = valorSI(`${respuestas[def.respuesta]} ${def.unidad}`.trim());
+        const calculado = e.verificarVariante(parametros);
+        const rel = Math.abs(calculado - esperado) / Math.max(Math.abs(esperado), 1e-12);
+        if (!Number.isFinite(calculado) || rel > TOL_VERIFICACION) {
+          p.push(`${where}: variante (versión ${id.slice(-2)}): el motor da ${esperado.toPrecision(6)} SI y la comprobación independiente ${calculado.toPrecision(6)} SI`);
+          return;
+        }
+      } catch (err) { p.push(`${where}: variante: ${(err as Error).message}`); return; }
+    }
+  }
+  if (exigirVerificacion && !e.verificarVariante) p.push(`${where}: variante sin comprobación independiente (verificarVariante)`);
+  utiles.forEach((n, i) => { if (n === 0) p.push(`${where}: variante: el error típico «${def.errores![i].expresion}» coincide con la respuesta en todas las versiones`); });
+}
+
 const CHOQUES = ['elastico', 'totalmente_inelastico', 'parcialmente_inelastico', 'rebote', 'general', 'ninguno'];
 
 /** Metadatos del banco (unidades con `banco: true`): completos, coherentes y sin la respuesta. */
@@ -107,7 +161,7 @@ export function validarMeta(where: string, e: EjercicioBiblioteca, conceptos: Se
     if (!(q.min <= q.valor && q.valor <= q.max)) p.push(`${where}: parámetro «${q.nombre}» fuera de su rango`);
   }
   // la respuesta no debe colarse en los metadatos (los lee el profesorado, pero no son el lugar de la clave)
-  if (e.clave.answer.format === 'numeric') {
+  if (e.clave.answer.format === 'numeric' && !e.clave.answer.variante) {
     const texto = JSON.stringify(m);
     if (texto.includes(e.clave.answer.value)) p.push(`${where}: meta contiene el valor de la respuesta`);
   }

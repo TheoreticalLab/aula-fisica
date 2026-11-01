@@ -16,6 +16,8 @@ import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import type { Difficulty, ExerciseCategory, ExerciseDef, ExerciseKeyDef } from '../contenido/tipos';
 import { grade, validateNumericKey } from '../supabase/functions/_shared/calificacion/calificar';
+import { validarClaveVariante } from './biblioteca/validar';
+import type { EjercicioBiblioteca } from './biblioteca/tipos';
 import { loadContent, ROOT } from './cargar-contenido';
 import { checkMarkdown } from './validar-contenido';
 import { analizarTexto, MAX_SEGUNDOS, MIN_SEGUNDOS, segundosSugeridos } from '../src/lib/lectura';
@@ -110,6 +112,9 @@ export async function validarActividad(a: ActividadDef): Promise<string[]> {
       for (const i of Object.keys(k.optionFeedback ?? {}).map(Number)) {
         if (k.correct.includes(i)) p.push(`${at} hay retroalimentación de error en una opción correcta (${i})`);
       }
+    } else if (k.format === 'numeric' && k.variante) {
+      // variante por intento: se prueba con muchas versiones (la misma comprobación que la biblioteca)
+      validarClaveVariante(at, e as unknown as EjercicioBiblioteca, p, false);
     } else if (k.format === 'numeric') {
       for (const m of validateNumericKey(k)) p.push(`${at} ${m}`);
       for (const v of [k.value, ...(k.alternatives ?? [])]) {

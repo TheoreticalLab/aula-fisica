@@ -33,7 +33,7 @@ function Eventos({ responseId }: { responseId: string }) {
   );
 }
 
-function ItemRevision({ item, index, onSaved }: { item: AttemptItem; index: number; onSaved: () => void }) {
+function ItemRevision({ item, index, attemptId, onSaved }: { item: AttemptItem; index: number; attemptId: string; onSaved: () => void }) {
   const r = item.response;
   const ex = item.exercise;
   const [credit, setCredit] = useState<string>(r?.manual_credit !== null && r?.manual_credit !== undefined ? String(Math.round(r.manual_credit * 100)) : '');
@@ -50,7 +50,7 @@ function ItemRevision({ item, index, onSaved }: { item: AttemptItem; index: numb
         <span className="text-xs text-gray-500">{item.points} pt · <Link className="enlace" to={`/docente/ejercicios/${ex.id}`}>{ex.slug}</Link></span>
         <span className="ml-auto"><StatusBadge status={r?.status} /></span>
       </header>
-      <EnunciadoEjercicio ex={ex} />
+      <EnunciadoEjercicio ex={ex} attemptId={attemptId} />
       <div className="mt-3 rounded-lg bg-gray-50 p-3 dark:bg-white/5">
         <p className="mb-1 text-sm font-semibold">Respuesta del estudiante</p>
         {r ? <EntradaRespuesta ex={ex} answer={r.answer} onChange={() => undefined} disabled /> : <p className="text-sm text-gray-500">Sin respuesta.</p>}
@@ -63,7 +63,7 @@ function ItemRevision({ item, index, onSaved }: { item: AttemptItem; index: numb
         )}
         {r?.messages?.map((m, i) => <p key={i} className="text-xs text-gray-600 dark:text-gray-400">Motor: {m}</p>)}
       </div>
-      {item.solution && <SolucionBox solution={item.solution} options={ex.options} />}
+      {item.solution && <SolucionBox solution={item.solution} options={ex.options} ids={{ attempt: attemptId, exercise: ex.id }} />}
       {item.solution?.answer.format === 'open' && <div className="mt-2 rounded-lg bg-primario-50 p-3 text-sm dark:bg-white/5"><p className="font-semibold">Rúbrica</p><Markdown>{item.solution.answer.rubric}</Markdown></div>}
       {r && (
         <div className="mt-3 grid gap-2 sm:grid-cols-[10rem_1fr]">
@@ -139,7 +139,7 @@ function CuerpoRevision({ v, attemptId, onSaved, conCronologia }: { v: VistaInte
         </details>
       )}
       <div className="space-y-4">
-        {v.items.map((it, i) => <ItemRevision key={it.exercise.id} item={it} index={i} onSaved={onSaved} />)}
+        {v.items.map((it, i) => <ItemRevision key={it.exercise.id} item={it} index={i} attemptId={v.attempt.id} onSaved={onSaved} />)}
       </div>
     </>
   );
