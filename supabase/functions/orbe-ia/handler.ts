@@ -6,6 +6,7 @@
 
 import { construirInterpretacion, resumirExamen, simularInterpretacion, validarInterpretacion } from './lieia.ts';
 import { generarPreguntas } from './generar.ts';
+import { revisarBorrador, turnoAsistente } from './asistente.ts';
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -229,6 +230,11 @@ export async function atender(body: Cuerpo, userId: string, deps: Deps): Promise
   if (accion === 'redactar' || accion === 'pulso' || accion === 'preguntas') {
     if (rol !== 'teacher' && rol !== 'admin') throw new HttpError(403, 'Solo el profesorado');
     return atenderControl(accion, body, userId, deps);
+  }
+  if (accion === 'asistente_actividad' || accion === 'asistente_revisar') {
+    // asistente de actividades (asistente.ts): conversar con Claude, o revisar sin IA un borrador editado a mano
+    if (rol !== 'teacher' && rol !== 'admin') throw new HttpError(403, 'Solo el profesorado');
+    return accion === 'asistente_actividad' ? turnoAsistente(body as Record<string, unknown>, userId, deps) : revisarBorrador(body as Record<string, unknown>, userId, deps);
   }
   if (accion === 'generar_preguntas') {
     // banco de preguntas: un lote verificado en el servidor y guardado como borrador (generar.ts)

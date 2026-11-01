@@ -4,12 +4,11 @@
  */
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { createActivity, getClass, listExercises, setActivityItems, updateActivity } from '@/api/docente';
+import { getClass, listExercises } from '@/api/docente';
 import { getLessonList } from '@/api/estudiante';
-import { examSettingsSave, funcionAusente } from '@/api/examen';
-import { assistedSettingsSave } from '@/api/asistida';
+import { crearDesdeBorrador } from '@/api/crearActividad';
 import type { Exercise } from '@/api/tipos';
-import { aActividad, borradorDesde, PLANTILLAS, plantilla, resumen, revisar, type Borrador, type IdPlantilla } from '@/lib/plantillas';
+import { borradorDesde, PLANTILLAS, plantilla, resumen, revisar, type Borrador, type IdPlantilla } from '@/lib/plantillas';
 import { CATEGORIA, DIFICULTAD, useAction, useAsync } from '@/lib/util';
 import { Badge, ErrorBox, Notice, PageTitle, Spinner } from '@/components/ui';
 import { InlineMd } from '@/components/Markdown';
@@ -38,20 +37,8 @@ export default function CrearActividad() {
     const final = { ...b, publicar };
     const r = revisar(final);
     if (r.errores.length) { action.setError(r.errores.join(' ')); setPaso(publicar && !b.preguntas.length ? 1 : 2); return; }
-    const a = await action.run(async () => {
-      // se crea oculta, se completa (preguntas y modo de examen) y solo al final se publica
-      const act = await createActivity({ ...aActividad(final, c.id), published: false });
-      if (final.preguntas.length) await setActivityItems(act.id, final.preguntas);
-      // sin el motor en el servidor (migración 35 sin aplicar), la evaluación queda clásica en vez de fallar a medias
-      if (final.mode === 'exam' && final.examen) await examSettingsSave(act.id, final.examen).catch((e) => { if (!funcionAusente(e)) throw e; });
-      if (final.asistida) {
-        await assistedSettingsSave(act.id, { transferencia: final.asistida.transferencia }, null).catch((e) => {
-          throw funcionAusente(e) ? new Error('La práctica se creó como borrador, pero el aprendizaje asistido aún no está activado en el servidor (falta aplicar la migración 38).') : e;
-        });
-      }
-      if (publicar) await updateActivity(act.id, { published: true });
-      return act;
-    });
+    // se crea oculta, se completa (preguntas y modo de examen) y solo al final se publica (crearActividad.ts)
+    const a = await action.run(() => crearDesdeBorrador(final, c.id));
     if (a) nav(`/docente/actividades/${a.id}?creada=1`);
   }
 

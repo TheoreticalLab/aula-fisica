@@ -170,6 +170,7 @@ export default function InicioDocente() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Herramienta to="/docente/cursos" icono="📚" titulo="Asignaturas y contenido" texto="Lecciones, teoría y su orden." />
           <Herramienta to="/docente/ejercicios" icono="🗂️" titulo="Banco de ejercicios" texto="Preguntas, claves y dificultad." />
+          <Herramienta to="/docente/centro-ia" icono="🤖" titulo="Centro de IA" texto="Pida una práctica o un examen conversando; la IA pregunta lo que falte." />
           <Herramienta to="/docente/generar-preguntas" icono="✨" titulo="Generar preguntas con IA" texto="Por temas y niveles, con coste estimado; quedan como borradores." />
           <Herramienta to="/docente/comunicacion" icono="📢" titulo="Comunicación en vivo" texto="Mensajes a la sección o a un estudiante." />
           <Herramienta href={`${import.meta.env.BASE_URL}control/`} icono="📱" titulo="Orbe Control" texto="El aula desde el teléfono: pulso, preguntas y datos." />

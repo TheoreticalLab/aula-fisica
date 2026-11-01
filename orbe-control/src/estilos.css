@@ -109,3 +109,13 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--acento); ou
 /* asistencia por quórum: fila del horario (día, hora, quitar) */
 .fila-horario { display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.5rem; align-items: center; }
 .quorum { margin-top: 0.9rem; }
+
+/* ✨ IA: conversación para crear actividades */
+.chat { display: flex; flex-direction: column; gap: 0.4rem; max-height: 22rem; overflow-y: auto; margin: 0.6rem 0; }
+.burbuja { margin: 0; max-width: 88%; white-space: pre-wrap; background: var(--marino); border: 1px solid var(--borde); border-radius: 12px; padding: 0.5rem 0.7rem; font-size: 0.92rem; }
+.burbuja.propia { align-self: flex-end; background: var(--acento); border-color: var(--acento); color: #fff; }
+.borrador { margin-top: 0.8rem; display: flex; flex-direction: column; gap: 0.45rem; }
+.borrador h3 { margin: 0; font-size: 1rem; display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.etiqueta-aviso, .etiqueta-ok { font-size: 0.75rem; font-weight: 600; border-radius: 999px; padding: 0.1rem 0.5rem; }
+.etiqueta-aviso { background: #2b230a; color: #fde68a; }
+.etiqueta-ok { background: #0f2e1d; color: #bbf7d0; }

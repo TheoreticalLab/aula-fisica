@@ -24,7 +24,7 @@ export interface ConsumoOrbe {
   purpose?: PropositoOrbe;
 }
 /** Usos de Orbe IA: humor para estudiantes, Orbe Control (mensajes, pulso, pregunta relámpago) e interpretación en LIEIA. */
-export type PropositoOrbe = 'chistes' | 'mensaje' | 'pulso' | 'pregunta' | 'lieia' | 'generar';
+export type PropositoOrbe = 'chistes' | 'mensaje' | 'pulso' | 'pregunta' | 'lieia' | 'generar' | 'asistente';
 export interface UsoMes { llamadas: number; reales: number; gasto_usd: number; tokens: number; errores: number; ultima: string | null }
 export interface PanelOrbe {
   config: ConfigOrbe;

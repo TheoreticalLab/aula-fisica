@@ -36,6 +36,7 @@ const CursoEditor = lazy(() => import('@/pages/docente/CursoEditor'));
 const LeccionEditor = lazy(() => import('@/pages/docente/LeccionEditor'));
 const Banco = lazy(() => import('@/pages/docente/Banco'));
 const GenerarPreguntas = lazy(() => import('@/pages/docente/GenerarPreguntas'));
+const CentroIA = lazy(() => import('@/pages/docente/CentroIA'));
 const EjercicioEditor = lazy(() => import('@/pages/docente/EjercicioEditor'));
 const ActividadEditor = lazy(() => import('@/pages/docente/ActividadEditor'));
 const CrearActividad = lazy(() => import('@/pages/docente/CrearActividad'));
@@ -120,6 +121,7 @@ export default function App() {
               <Route path="docente/lecciones/:lessonId" element={teacher(<LeccionEditor />)} />
               <Route path="docente/ejercicios" element={teacher(<Banco />)} />
               <Route path="docente/generar-preguntas" element={teacher(<GenerarPreguntas />)} />
+              <Route path="docente/centro-ia" element={teacher(<CentroIA />)} />
               <Route path="docente/ejercicios/:exerciseId" element={teacher(<EjercicioEditor />)} />
               <Route path="docente/actividades/:activityId" element={teacher(<ActividadEditor />)} />
               <Route path="docente/clases/:classId/nueva-actividad" element={teacher(<CrearActividad />)} />
