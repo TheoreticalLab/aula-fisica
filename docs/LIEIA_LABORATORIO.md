@@ -119,15 +119,45 @@ Pruebas: `tests/lieia-ciencia-etapas.test.ts` (9, con parámetros verdaderos con
 Pruebas: `tests/lieia-ciencia-pendientes.test.ts` (11: DIF con ítem sesgado conocido y negativo, modos, asignación,
 potencia simulada frente a analítica, explorador con n = 0) y `supabase/pruebas/lieia_calibracion.sql`.
 
+### Análisis factorial exploratorio (`factorial.ts`, sin migración)
+
+Pregunta: ¿el examen mide una dimensión o varias? Es el supuesto de la TRI 2PL. En «Psicometría avanzada».
+
+- **Correlaciones tetracóricas**, no phi: con preguntas 0/1 la phi depende de la dificultad y produce «factores de
+  dificultad». Máxima verosimilitud por tabla 2×2 con la normal bivariada de Genz (BVND; comprobada contra integración
+  numérica en sus tres ramas) y bisección en ρ; corrección de 0,5 si hay celdas vacías; datos por pares (omitida = 0,
+  sin calificar = fuera del par). Matriz no definida positiva → suavizado por autovalores, con aviso.
+- **Número de factores: análisis paralelo de Horn** (percentil 95 de los autovalores de 50 conjuntos independientes con
+  las mismas proporciones de acierto y el mismo n; semilla fija). Si ningún autovalor supera al azar, se dice que no hay
+  estructura común detectable.
+- **Extracción por ejes principales** iterada (comunalidades iniciales = correlación múltiple al cuadrado; casos Heywood
+  acotados y avisados) y **varimax** con normalización de Kaiser. Asignación con |carga| ≥ 0,4; carga cruzada si la
+  segunda es ≥ 0,3 y la diferencia < 0,2.
+- **Unidimensionalidad esencial**: un factor en el análisis paralelo y razón entre el primer y el segundo autovalor ≥ 3.
+- **KMO y Bartlett solo con matriz bien condicionada** (menor autovalor ≥ 0,1). Hallazgo de la simulación: ambos usan la
+  inversa de R y, con ruido de muestreo, se vuelven arbitrarios aunque las cargas sean buenas (un factor con KMO
+  poblacional 0,995 dio 0,53 con n = 400 y K = 40, con comunalidades estimadas 0,355 frente a 0,36). Informarlos habría
+  desaconsejado interpretar estructuras fuertes; por eso se omiten y se explica.
+- **Abstención**: n ≥ 100 y ≥ 5 estudiantes por pregunta; se excluyen preguntas con acierto < 5 % o > 95 % o con menos
+  de la mitad calificadas. Confianza «media» solo con n ≥ 300, matriz bien condicionada, KMO ≥ 0,7 y sin Heywood; si no,
+  «baja». Nunca «alta».
+- **Interpretación**: un factor es un patrón de correlación, no una habilidad demostrada. La etiqueta propuesta sale de
+  los conceptos compartidos por la mayoría de sus preguntas (a priori, confianza baja).
+- Coste medido: ≈ 1,5 s para 40 preguntas y 200 estudiantes en el navegador (se calcula al pulsar el botón).
+
+Pruebas: `tests/lieia-factorial.test.ts` (16): normal bivariada frente a fórmula cerrada e integración numérica,
+tetracórica frente a normales dicotomizadas, autovalores, varimax, KMO; estructuras conocidas de 1, 2 y 0 factores
+(recupera las cargas y agrupa las preguntas), reproducibilidad, abstenciones y el caso de matriz mal condicionada.
+
 ## 5. Pendiente (no implementado)
 
 | Etapa | Falta |
 |---|---|
-| 5 · Psicometría | análisis factorial y modelos jerárquicos |
+| 5 · Psicometría | rotación oblicua (los factores de un examen suelen correlacionar; varimax los fuerza a ser independientes), análisis factorial confirmatorio y modelos jerárquicos |
 | 7 · Conversacional | interpretación de preguntas con IA (Claude) en el servidor; hoy es por palabras clave |
 | Motor de examen | administrar exámenes adaptativos y asignar condiciones por estudiante automáticamente |
-| Generación asistida | crear preguntas nuevas (borrador + validación matemática, unidades, soluciones, revisión) |
-| Modos | K, M, N, O, P, R; versiones del modo G con el generador de variantes |
+| Generación asistida | crear preguntas nuevas con IA (borrador + validación + revisión). Las variantes por intento (migración 51) ya generan versiones numéricas validadas de las plantillas de choques |
+| Modos | versiones del modo G con el generador de variantes |
 
 ## 6. IA (capa B)
 

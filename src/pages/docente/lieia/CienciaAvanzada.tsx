@@ -8,6 +8,7 @@ import { gruposExamen, historialCalibracion, listar, type RegistroLab, type Vers
 import { difMH, MIN_DIF_GRUPO, type ResultadoDIF } from '@/lib/lieia/ciencia/dif';
 import type { Informe } from '@/lib/lieia/ciencia/informe';
 import { ajustarTRI, MIN_TRI, type TRI } from '@/lib/lieia/ciencia/tri';
+import { analisisFactorial, MIN_FACTORIAL, POR_PREGUNTA, type Factorial } from '@/lib/lieia/ciencia/factorial';
 import { ESCENARIO_BASE, nCorrelacion, nProporciones, potenciaCorrelacion, simular, type Escenario, type ItemSim, type ResultadoSim } from '@/lib/lieia/ciencia/simulacion';
 import { reabrir } from '@/lib/lieia/ciencia/historial';
 import { ESTADOS } from '@/lib/lieia/ciencia/descubrimiento';
@@ -82,6 +83,7 @@ export function VistaTRI({ inf, tri, setTri, courseId, activityId }: { inf: Info
     <div className="space-y-3 text-sm">
       <Card title="Calibración guardada del banco (progresiva)"><Calibraciones inf={inf} courseId={courseId} /></Card>
       <VistaDIF inf={inf} activityId={activityId} />
+      <VistaFactorial inf={inf} />
       <Card title="Teoría de respuesta al ítem (2PL) para este examen">
         <p className="text-xs text-gray-500">Mínimo {MIN_TRI} estudiantes; con menos de 200 el ajuste es provisional. El parámetro b está en escala logit (habilidad media = 0): no es la proporción de aciertos. No se ajusta 3PL: con estas muestras el azar no es identificable.</p>
         {!tri ? (
@@ -125,6 +127,67 @@ export function VistaTRI({ inf, tri, setTri, courseId, activityId }: { inf: Info
         )}
       </Card>
     </div>
+  );
+}
+
+// ------------------------------------------------------------------------------------------------------------------
+/** Análisis factorial exploratorio: ¿una dimensión o varias? (la TRI supone una sola). */
+function VistaFactorial({ inf }: { inf: Informe }) {
+  const [r, setR] = useState<Factorial | null>(null);
+  const [calculando, setCalculando] = useState(false);
+  return (
+    <Card title="Estructura del examen: ¿una dimensión o varias? (análisis factorial exploratorio)">
+      <p className="text-xs text-gray-500">Mínimo {MIN_FACTORIAL} estudiantes y {POR_PREGUNTA} por pregunta. Usa correlaciones tetracóricas (las adecuadas para preguntas correcta/incorrecta) y decide el número de factores comparando con datos al azar (análisis paralelo). Un factor es un grupo de preguntas que covarían: no es una habilidad demostrada.</p>
+      {!r ? (
+        <button className="btn-primario mt-2" disabled={calculando} onClick={() => { setCalculando(true); setTimeout(() => { setR(analisisFactorial(inf.matriz!, inf.preguntas)); setCalculando(false); }, 10); }}>
+          {calculando ? 'Calculando…' : 'Analizar la estructura'}
+        </button>
+      ) : !r.ok ? <Notice tone="warn">{r.motivo}</Notice> : (
+        <div className="mt-2 space-y-3">
+          <p>
+            <Badge tone={r.confianza === 'media' ? 'green' : 'amber'}>confianza {r.confianza}</Badge>{' '}
+            n = {r.n} ·{' '}
+            {r.kmo !== null && r.bartlett ? <>KMO = {r.kmo.toFixed(2)} · Bartlett p {r.bartlett.p < 0.001 ? '< 0,001' : `= ${r.bartlett.p.toFixed(3)}`} · </> : null}
+            <strong>{r.m === 0 ? 'sin estructura común detectable' : r.m === 1 ? '1 factor' : `${r.m} factores`}</strong>
+            {r.m <= 1 && ` · primer/segundo autovalor = ${r.unidimensional.razon.toFixed(1)}${r.unidimensional.esencial ? ' (esencialmente unidimensional: la TRI 2PL es razonable)' : ''}`}
+          </p>
+          {r.m > 1 && <p className="text-xs">Con más de una dimensión, la TRI unidimensional resume varias habilidades en un solo número: interprétela con cautela o analice cada grupo de preguntas por separado.</p>}
+          {r.avisos.map((a) => <p key={a} className="text-xs text-amber-700 dark:text-amber-300">⚠ {a}</p>)}
+          {r.excluidos.length > 0 && <p className="text-xs text-gray-500">Excluidas: {r.excluidos.map((e) => `${E(inf, e.id)} (${e.motivo})`).join('; ')}.</p>}
+          <div>
+            <p className="font-medium">Autovalores frente al azar</p>
+            <div className="mt-1 flex flex-wrap gap-1 text-xs">
+              {r.autovalores.slice(0, Math.min(6, r.autovalores.length)).map((l, k) => (
+                <span key={k} className={`rounded border px-2 py-0.5 ${l > r.umbralParalelo[k] ? 'border-emerald-400' : 'border-gray-200 dark:border-white/10'}`}>
+                  {k + 1}: {l.toFixed(2)} <span className="text-gray-500">(azar {r.umbralParalelo[k].toFixed(2)})</span>
+                </span>
+              ))}
+            </div>
+          </div>
+          {r.m > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="text-left text-gray-500"><tr><th className="p-1">Pregunta</th>{r.factores.map((f) => <th key={f.indice} className="p-1">F{f.indice}</th>)}<th className="p-1">Comunalidad</th><th className="p-1">Nota</th></tr></thead>
+                <tbody>{r.items.map((it) => (
+                  <tr key={it.id} className="border-t border-gray-100 dark:border-white/10">
+                    <td className="p-1">{E(inf, it.id)}</td>
+                    {it.cargas.map((l, f) => <td key={f} className={`p-1 ${it.factor === f ? 'font-semibold' : 'text-gray-500'}`}>{l.toFixed(2)}</td>)}
+                    <td className="p-1">{it.comunalidad.toFixed(2)}</td>
+                    <td className="p-1">{it.cruzada ? 'carga en dos factores' : it.factor === null ? 'sin factor claro' : ''}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+          {r.m > 1 && (
+            <ul className="list-disc pl-5 text-xs">
+              {r.factores.map((f) => <li key={f.indice}>F{f.indice} ({pct(f.varianza)} de la varianza): {f.items.length ? f.items.map((id) => E(inf, id)).join(', ') : 'ninguna pregunta asignada'}{f.etiqueta ? ` — ${f.etiqueta}` : ''}.</li>)}
+            </ul>
+          )}
+          <p className="text-xs text-gray-500">{r.metodo} Procedencia: empírica, exploratoria.</p>
+        </div>
+      )}
+    </Card>
   );
 }
 
