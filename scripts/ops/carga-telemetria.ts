@@ -38,7 +38,7 @@ async function main() {
   await limpiar();
   console.log(`Preparando ${N} estudiantes, ${LOTES} lotes de ${TAM} eventos cada uno, ${CONC} conexiones simultáneas…`);
   await admin.query(`insert into auth.users (id, email, aud, role, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    select x.id::uuid, x.id || '@carga.aula.invalid', 'authenticated', 'authenticated', jsonb_build_object('login_id', 'carga-' || x.id), '{}', now(), now()
+    select x.id::uuid, x.id || '@carga.aula.invalid', 'authenticated', 'authenticated', jsonb_build_object('login_id', 'carga-' || right(x.id, 12)), '{}', now(), now()
     from unnest($1::text[]) x(id)`, [[PROF, ...Array.from({ length: N }, (_, k) => est(k))]]);
   await admin.query(`update public.profiles set must_change_password = false, active = true where id::text like $1`, [`${P}%`]);
   await admin.query(`update public.profiles set role = 'teacher' where id = $1`, [PROF]);
