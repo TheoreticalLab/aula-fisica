@@ -120,6 +120,6 @@ los PDF.
 - Vitest: `tests/regularizacion.test.ts` (20) y `tests/regularizacion-capturas.test.ts` (12) **pasan**; suite completa 975/975.
   Cubren el caso 4 (optimización con codificador simulado: objetivo, mínimos de legibilidad, capturas largas), 2, 3, 5,
   6, 9, 11 (enlace denegado sin firmar nada), 12 (ningún argumento a la base lleva bytes) y 13.
-- SQL: `supabase/pruebas/regularizacion.sql` cubre los casos 1–3 y 5–13 contra la base. **Pendiente de ejecutar** con
-  `npm run probar` (en esta sesión no hay acceso a PostgreSQL).
+- SQL: `supabase/pruebas/regularizacion.sql` cubre los casos 1–3 y 5–13 contra la base; pasó en `npm run probar` y la
+  migración se aplicó en producción (plan 952b6bbd, 1-nov-2026).
 - Sin probar todavía en un navegador real ni en teléfonos (lienzo, WebP, subida a Supabase Storage).
