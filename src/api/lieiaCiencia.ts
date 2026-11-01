@@ -14,7 +14,7 @@ export const actividades = (classId: string) => rpc<ActividadLab[]>('lieia_activ
 
 const aPregunta = (e: Exercise, posicion: number, meta: MetaBanco | null): Pregunta => ({
   id: e.id, posicion, prompt: e.prompt, format: e.format, category: e.category, difficulty: e.difficulty, concepts: e.concepts ?? [],
-  opciones: e.options?.length ?? null, unit_hint: e.unit_hint, meta, published: e.published,
+  opciones: e.options?.length ?? null, unit_hint: e.unit_hint, meta, published: e.published, leccion: e.lesson_id ?? null,
 });
 
 /** Preguntas del examen (contenido + metadatos del banco) y sus respuestas reales seudonimizadas. */

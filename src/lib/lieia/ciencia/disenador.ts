@@ -45,8 +45,16 @@ export interface Opciones {
   habilidades?: [Cognitiva, Cognitiva];        // para el modo H
   erroresFrecuentes?: string[];                // para el modo I
   hipotesis?: string;                          // para el modo P
+  /**
+   * Temas del examen analizado. Si se dan, las candidatas se limitan a preguntas que comparten un concepto o una
+   * lección con él (salvo en F, que busca transferencia fuera del examen, y en P, cuyos temas fija la hipótesis).
+   */
+  temasBase?: { conceptos: string[]; lecciones: string[] } | null;
   semilla: number;
 }
+
+/** Modos en los que limitar a los temas del examen analizado no tiene sentido. */
+export const MODOS_SIN_LIMITE: Modo[] = ['F', 'P'];
 
 /** Especificación y rendimiento SIMULADO de un examen adaptativo (modo M). */
 export interface Adaptativo {
@@ -137,9 +145,21 @@ export function disenar(banco: ItemBancoCiencia[], o: Opciones): Diseno {
   const avisos: string[] = [], riesgos: string[] = [];
   const baseSet = new Set(o.base);
   const conceptosBase = new Set(banco.filter((b) => baseSet.has(b.pregunta.id)).flatMap((b) => b.analisis.conceptos));
-  const nCal = banco.filter(calibrada).length;
+  // candidatas: publicadas y, si se pide, solo de los temas del examen analizado
+  let candidatos = banco.filter((b) => b.pregunta.published !== false);
+  if (o.temasBase && !MODOS_SIN_LIMITE.includes(o.modo)) {
+    const cs = new Set(o.temasBase.conceptos), ls = new Set(o.temasBase.lecciones);
+    if (!cs.size && !ls.size) {
+      avisos.push('El examen analizado no tiene conceptos ni lecciones asociados: no se pudo limitar a sus temas y se usó toda la asignatura.');
+    } else {
+      candidatos = candidatos.filter((b) => b.analisis.conceptos.some((c) => cs.has(c)) || b.pregunta.concepts.some((c) => cs.has(c))
+        || (!!b.pregunta.leccion && ls.has(b.pregunta.leccion)));
+      avisos.push(`Limitado a los temas del examen analizado (${cs.size} concepto(s), ${ls.size} lección(es)): ${candidatos.length} preguntas candidatas en el banco.`);
+    }
+  }
+  const nCal = candidatos.filter(calibrada).length;
   if (o.modo === 'M' && nCal < MIN_ADAPTATIVO) {
-    throw new Error(`El modo adaptativo necesita parámetros calibrados (TRI) de al menos ${MIN_ADAPTATIVO} preguntas; hay ${nCal}. Calibre el banco en «Calibración de ítems» cuando haya suficientes respuestas.`);
+    throw new Error(`El modo adaptativo necesita parámetros calibrados (TRI) de al menos ${MIN_ADAPTATIVO} preguntas${o.temasBase ? ' de estos temas' : ''}; hay ${nCal}. Calibre el banco en «Calibración de ítems» cuando haya suficientes respuestas${o.temasBase ? ', o quite el límite a los temas del examen analizado' : ''}.`);
   }
   let hip: { conceptosA: string[]; conceptosB: string[] } | null = null;
   if (o.modo === 'P') {
@@ -149,8 +169,7 @@ export function disenar(banco: ItemBancoCiencia[], o: Opciones): Diseno {
     }
   }
 
-  // candidatos y puntuación por modo
-  let candidatos = banco.filter((b) => b.pregunta.published !== false);
+  // puntuación por modo
   if (o.modo === 'F' || o.modo === 'J') candidatos = candidatos.filter((b) => !baseSet.has(b.pregunta.id));
   if (o.modo === 'J') candidatos = candidatos.filter((b) => b.analisis.conceptos.some((c) => conceptosBase.has(c)));
   const puntua = (b: ItemBancoCiencia): { s: number; razon: string } | null => {

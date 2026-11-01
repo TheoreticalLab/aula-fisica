@@ -63,6 +63,28 @@ function banco(calibradas: number): ItemBancoCiencia[] {
 }
 const base = { n: 8, minutos: null, obligatorios: [], conceptos: [], base: [], semilla: 5 };
 
+describe('límite a los temas del examen analizado', () => {
+  it('con el límite, todas las preguntas comparten un concepto con lo analizado; sin él, puede salir de cualquier tema', () => {
+    const b = banco(0);
+    const temas = { conceptos: ['impulso'], lecciones: [] };
+    const con = disenar(b, { ...base, modo: 'A', temasBase: temas });
+    expect(con.items.length).toBeGreaterThan(0);
+    for (const it of con.items) expect(b.find((x) => x.pregunta.id === it.id)!.pregunta.concepts).toContain('impulso');
+    expect(con.avisos.join(' ')).toMatch(/Limitado a los temas del examen analizado/);
+    const sin = disenar(b, { ...base, modo: 'A' });
+    expect(new Set(sin.items.flatMap((it) => b.find((x) => x.pregunta.id === it.id)!.pregunta.concepts)).size).toBeGreaterThan(1);
+  });
+  it('también limita por lección; F (transferencia) no se limita; sin temas, avisa y usa toda la asignatura', () => {
+    const b = banco(0).map((x, i) => ({ ...x, pregunta: { ...x.pregunta, leccion: i < 6 ? 'L1' : 'L2' } }));
+    const porLeccion = disenar(b, { ...base, modo: 'A', n: 20, temasBase: { conceptos: [], lecciones: ['L1'] } });
+    expect(porLeccion.items.every((it) => Number(it.id.slice(1)) <= 6)).toBe(true);
+    const f = disenar(b, { ...base, modo: 'F', base: ['q1'], temasBase: { conceptos: ['segunda-ley-newton'], lecciones: [] } });
+    expect(f.avisos.join(' ')).not.toMatch(/Limitado/);
+    const vacio = disenar(b, { ...base, modo: 'A', temasBase: { conceptos: [], lecciones: [] } });
+    expect(vacio.avisos.join(' ')).toMatch(/no se pudo limitar/);
+  });
+});
+
 describe('modos de diseño nuevos', () => {
   it('K y O: formas paralelas A/B con etiquetas y riesgos metodológicos; O exige consentimiento', () => {
     const k = disenar(banco(0), { ...base, modo: 'K' });

@@ -59,6 +59,11 @@ tamaño muestral, BH, rótulos de procedencia, «no causal», «no es prueba de 
   nunca se presentan como prueba; sin sanciones ni puntuaciones de culpabilidad.
 - **Diseñador:** ningún diseño es «mejor» sin criterio; cada modo declara el suyo. La información del comparador es bajo
   el modelo 2PL a priori (no calibrado) y solo sirve para comparar diseños entre sí.
+- **De dónde salen las preguntas:** el diseñador NO redacta ni modifica preguntas: elige preguntas EXISTENTES del banco de
+  la asignatura con reglas (sin IA). Por defecto («Limitar a los temas del examen analizado») solo considera las que
+  comparten un concepto o una lección con lo analizado; desmarcándolo usa toda la asignatura. No se limita en F
+  (transferencia, que busca fuera del examen) ni en P (los temas los fija la hipótesis). Si lo analizado no tiene
+  conceptos ni lecciones, se avisa y se usa toda la asignatura.
 - **Borradores:** los exámenes se crean ocultos, con la metodología en las instrucciones; nunca se publican solos.
 
 ## 4. Qué está implementado (y probado)

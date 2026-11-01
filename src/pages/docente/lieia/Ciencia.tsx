@@ -11,7 +11,7 @@ import { nCorrelacion, potenciaCorrelacionalSimulada, type PotenciaSim } from '@
 import { EJEMPLOS, explorar, type RespuestaExplorador } from '@/lib/lieia/ciencia/explorador';
 import { analizar, type Informe } from '@/lib/lieia/ciencia/informe';
 import { ESTADOS, LINEAS, type Ficha, type Linea } from '@/lib/lieia/ciencia/descubrimiento';
-import { asignarCondiciones, comparar, disenar, MODOS, type Diseno, type ItemBancoCiencia, type Modo } from '@/lib/lieia/ciencia/disenador';
+import { asignarCondiciones, comparar, disenar, MODOS, MODOS_SIN_LIMITE, type Diseno, type ItemBancoCiencia, type Modo } from '@/lib/lieia/ciencia/disenador';
 import { COGNITIVAS, MINIMOS, RELACIONES, type Cognitiva } from '@/lib/lieia/ciencia/modelo';
 import type { Revision } from '@/lib/lieia/ciencia/contenido';
 import type { TRI } from '@/lib/lieia/ciencia/tri';
@@ -210,6 +210,12 @@ function Disenador({ inf, ctx, modoInicial, hipotesisInicial, onGuardado }: { in
   const [n, setN] = useState(Math.max(5, Math.min(15, inf.preguntas.length)));
   const [minutos, setMinutos] = useState('');
   const [conceptos, setConceptos] = useState<string[]>([]);
+  const [limitar, setLimitar] = useState(true);
+  // temas del examen analizado: sus conceptos y sus lecciones
+  const temasBase = useMemo(() => ({
+    conceptos: [...new Set(inf.preguntas.flatMap((p) => p.concepts))],
+    lecciones: [...new Set(inf.preguntas.map((p) => p.leccion).filter((l): l is string => !!l))],
+  }), [inf.preguntas]);
   const [hab, setHab] = useState<[Cognitiva, Cognitiva]>(['comprension_conceptual', 'aplicacion_directa']);
   const [semilla, setSemilla] = useState(() => Math.floor(Math.random() * 1e9));
   const [diseno, setDiseno] = useState<Diseno | null>(null);
@@ -225,7 +231,7 @@ function Disenador({ inf, ctx, modoInicial, hipotesisInicial, onGuardado }: { in
   function generar(s = semilla) {
     setError(null); setCreados(null); setQuitados(new Set());
     try {
-      setDiseno(disenar(banco.data as ItemBancoCiencia[], { modo, n, minutos: minutos ? Number(minutos) : null, obligatorios: [], conceptos, base: inf.preguntas.map((p) => p.id), habilidades: hab, erroresFrecuentes: errores, hipotesis, semilla: s }));
+      setDiseno(disenar(banco.data as ItemBancoCiencia[], { modo, n, minutos: minutos ? Number(minutos) : null, obligatorios: [], conceptos, base: inf.preguntas.map((p) => p.id), habilidades: hab, erroresFrecuentes: errores, hipotesis, temasBase: limitar ? temasBase : null, semilla: s }));
     } catch (e) { setDiseno(null); setError(e instanceof Error ? e.message : String(e)); }
   }
   const final = diseno ? { ...diseno, items: diseno.items.filter((i) => !quitados.has(i.id)) } : null;
@@ -268,6 +274,15 @@ function Disenador({ inf, ctx, modoInicial, hipotesisInicial, onGuardado }: { in
             </label>
           )}
         </div>
+        <label className="mt-2 flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1" checked={limitar} onChange={(e) => setLimitar(e.target.checked)} disabled={MODOS_SIN_LIMITE.includes(modo)} />
+          <span>Limitar a los temas del examen analizado
+            <span className="block text-xs text-gray-500">
+              {MODOS_SIN_LIMITE.includes(modo)
+                ? 'No se aplica en este modo (la transferencia busca fuera del examen; en la hipótesis, los temas los fija su frase).'
+                : `Solo preguntas del banco que comparten un concepto o una lección con lo analizado (${temasBase.conceptos.length} concepto(s), ${temasBase.lecciones.length} lección(es)). Desmárquelo para usar toda la asignatura.`}
+            </span></span>
+        </label>
         {todosConceptos.length > 0 && (
           <details className="mt-2"><summary className="cursor-pointer text-xs">Conceptos obligatorios ({conceptos.length})</summary>
             <div className="mt-1 grid grid-cols-2 gap-1 text-xs sm:grid-cols-4">{todosConceptos.map((c) => (
