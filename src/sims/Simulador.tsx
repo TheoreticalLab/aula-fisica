@@ -16,6 +16,7 @@ const COMPONENTES: Record<string, LazyExoticComponent<ComponentType<SimProps>>> 
   'masa-resorte': lazy(() => import('./MasaResorte')),
   colisiones: lazy(() => import('./Colisiones')),
   'laboratorio-choques': lazy(() => import('./LaboratorioChoques')),
+  'choques-2d': lazy(() => import('./Choques2D')),
 };
 
 export function simulatorAvailable(key: string): boolean {

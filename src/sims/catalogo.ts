@@ -248,6 +248,29 @@ export const SIMULATIONS: SimInfo[] = [
       { name: 'dt_ms', label: 'Duración del contacto (modelo de fuerza)', unit: 'ms', min: 1, max: 100, step: 1, default: 10 },
     ],
   },
+  {
+    key: 'choques-2d',
+    title: 'Choques en dos dimensiones',
+    block: 'Física de los choques',
+    description:
+      'Dos discos sobre una mesa sin fricción, vistos desde arriba. El disco 1 avanza en +x y el disco 2 puede estar en reposo o moverse en cualquier dirección; el parámetro de impacto decide si el choque es frontal u oblicuo. Muestra velocidades y ángulos antes y después, la dirección del impulso, la conservación de la cantidad de movimiento en x y en y, y el diagrama vectorial p₁ + p₂.',
+    model: String.raw`El impulso actúa a lo largo de la normal $\hat n$ (línea que une los centros en el contacto): $J = -\dfrac{(1+e)\,(\vec u\cdot\hat n)}{1/m_1 + 1/m_2}$ con $\vec u = \vec v_2 - \vec v_1$; $\vec v_1{}' = \vec v_1 - \dfrac{J}{m_1}\hat n$, $\vec v_2{}' = \vec v_2 + \dfrac{J}{m_2}\hat n$. Se conserva $m_1\vec v_1 + m_2\vec v_2$ (en $x$ y en $y$); la energía cinética solo si $e = 1$.`,
+    simplifications: [
+      'Mesa sin fricción y discos rígidos que no giran (sin fricción entre ellos): la componente tangencial de cada velocidad no cambia.',
+      'Choque instantáneo; un solo choque.',
+      'El disco 1 parte de (−1,5 m, 0) en +x; el disco 2, de (0, b).',
+    ],
+    params: [
+      { name: 'm1', label: 'Masa del disco 1', unit: 'kg', min: 0.1, max: 10, step: 0.1, default: 1 },
+      { name: 'm2', label: 'Masa del disco 2', unit: 'kg', min: 0.1, max: 10, step: 0.1, default: 1 },
+      { name: 'v1', label: 'Rapidez del disco 1 (en +x)', unit: 'm/s', min: 0.1, max: 10, step: 0.1, default: 3 },
+      { name: 'v2', label: 'Rapidez del disco 2', unit: 'm/s', min: 0, max: 10, step: 0.1, default: 0 },
+      { name: 'ang2', label: 'Dirección del disco 2', unit: '°', min: -180, max: 180, step: 1, default: 180 },
+      { name: 'b', label: 'Parámetro de impacto', unit: 'm', min: -0.5, max: 0.5, step: 0.01, default: 0.2 },
+      { name: 'e', label: 'Coeficiente de restitución', unit: '', min: 0, max: 1, step: 0.05, default: 1 },
+      { name: 'R', label: 'Radio de cada disco', unit: 'm', min: 0.05, max: 0.3, step: 0.01, default: 0.2 },
+    ],
+  },
 ];
 
 export function getSimulation(key: string): SimInfo | undefined {
