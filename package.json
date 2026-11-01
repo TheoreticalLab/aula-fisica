@@ -16,6 +16,7 @@
     "verificar-publicacion": "vite-node scripts/verificar-publicacion.ts",
     "verificar": "tsc -b && vitest run && vite build && vite build -c vite.control.config.ts && vite-node scripts/verificar-publicacion.ts && vite-node scripts/ops/aula.ts revisar-migraciones",
     "comprobar-credenciales": "vite-node scripts/ops/aula.ts comprobar-credenciales",
+    "credenciales": "python3 scripts/ops/guardar_credenciales.py",
     "estado": "vite-node scripts/ops/aula.ts estado",
     "respaldo": "vite-node scripts/ops/aula.ts respaldo",
     "probar": "vite-node scripts/ops/aula.ts probar",

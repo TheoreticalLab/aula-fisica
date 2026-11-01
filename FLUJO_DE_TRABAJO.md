@@ -58,6 +58,9 @@ Con este flujo, pides los cambios en lenguaje natural («agrega una asignatura»
    Ábrela con el editor de texto y rellena estos dos valores; pégalos tú, **no en el chat**:
    - `SUPABASE_ACCESS_TOKEN`: créalo en <https://supabase.com/dashboard/account/tokens>.
    - `SUPABASE_DB_URL`: en Supabase, botón **Connect** → **Session pooler** → la URI. Sustituye `[YOUR-PASSWORD]` por la contraseña de la base de datos. Si no la recuerdas: **Project Settings → Database → Reset database password**.
+   **Más fácil:** `npm run credenciales` (en tu propia terminal) te pide cada valor sin mostrarlo en pantalla, valida el
+   formato, guarda una copia del archivo anterior y, para el token, comprueba con Supabase que funciona. Úsalo también
+   cuando el token caduque (error «401 Invalid access token»): `npm run credenciales -- --solo-token`.
 3. **Comprobación.** Pide a Claude «revisa el estado» (ejecuta `npm run estado`).
 
 ## Restaurar datos si algo saliera mal
