@@ -6,7 +6,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { BUCKET, descargar, HttpError, MAX_BYTES_ABSOLUTO, subir, type Deps } from './handler.ts';
 import {
-  BUCKET_CAPTURAS, eliminarBorrador, MAX_BYTES_CAPTURA, MIME_CAPTURA, quitarCaptura, subirCaptura, verCaptura, type DepsCapturas,
+  BUCKET_CAPTURAS, destino, eliminarBorrador, MAX_BYTES_CAPTURA, MIME_CAPTURA, quitarCaptura, subirCaptura, verCaptura, type DepsCapturas,
 } from './capturas.ts';
 
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '*').split(',').map((s) => s.trim());
@@ -101,8 +101,8 @@ Deno.serve(async (req) => {
       if (form.get('modulo') === 'regularizacion') {
         const imagen = f instanceof File && f.size <= MAX_BYTES_CAPTURA ? { bytes: new Uint8Array(await f.arrayBuffer()) } : null;
         if (f instanceof File && !imagen) throw new HttpError(413, 'La imagen es demasiado grande');
-        out = await subirCaptura({ declaration_id: form.get('declaration_id'), posicion: form.get('posicion'), sha_original: form.get('sha_original'),
-          bytes_original: form.get('bytes_original') }, imagen, userData.user.id, depsCapturas);
+        out = await subirCaptura({ declaration_id: form.get('declaration_id'), libre_id: form.get('libre_id'), destino: form.get('destino'),
+          posicion: form.get('posicion'), sha_original: form.get('sha_original'), bytes_original: form.get('bytes_original') }, imagen, userData.user.id, depsCapturas);
       } else {
         const archivo = f instanceof File ? { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) } : null;
         out = await subir(form.get('box_id'), archivo, userData.user.id, deps);
@@ -112,8 +112,8 @@ Deno.serve(async (req) => {
       if (raw.length > 10_000) throw new HttpError(413, 'Solicitud demasiado grande');
       const body = JSON.parse(raw);
       if (body?.action === 'descargar') out = await descargar(body.file_id, userData.user.id, deps);
-      else if (body?.action === 'captura_ver') out = await verCaptura(body.capture_id, userData.user.id, depsCapturas);
-      else if (body?.action === 'captura_quitar') out = await quitarCaptura(body.capture_id, userData.user.id, depsCapturas);
+      else if (body?.action === 'captura_ver') out = await verCaptura(body.capture_id, userData.user.id, depsCapturas, destino(body.destino));
+      else if (body?.action === 'captura_quitar') out = await quitarCaptura(body.capture_id, userData.user.id, depsCapturas, destino(body.destino));
       else if (body?.action === 'borrador_eliminar') out = await eliminarBorrador(body.declaration_id, userData.user.id, depsCapturas);
       else throw new HttpError(400, 'Acción no válida');
     }

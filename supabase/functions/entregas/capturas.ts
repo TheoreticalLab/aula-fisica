@@ -104,13 +104,27 @@ function motivoNoImagen(b: Uint8Array): string {
 
 export const rutaCaptura = (clase: string, usuario: string, sha: string, mime: MimeCaptura) => `${clase}/${usuario}/${sha}.${EXT[mime]}`;
 
+/**
+ * Dos destinos con las mismas reglas de imagen: capturas de envíos por correo (declaration) y fotos de prácticas sin
+ * correo (libre, migración 47, ruta con prefijo «libre/» para que los dos registros nunca compartan un archivo).
+ */
+export type Destino = 'declaracion' | 'libre';
+const DESTINOS = {
+  declaracion: { check: 'svc_hist_captura_check', registrar: 'svc_hist_captura_registrar', ruta: 'svc_hist_captura_ruta', quitar: 'svc_hist_captura_quitar',
+    pId: 'p_decl', pObjeto: 'p_capture', campo: 'declaration_id', maxPos: 3, prefijo: '' },
+  libre: { check: 'svc_hist_libre_foto_check', registrar: 'svc_hist_libre_foto_registrar', ruta: 'svc_hist_libre_foto_ruta', quitar: 'svc_hist_libre_foto_quitar',
+    pId: 'p_libre', pObjeto: 'p_foto', campo: 'libre_id', maxPos: 4, prefijo: 'libre/' },
+} as const;
+export const destino = (v: unknown): Destino => (v === 'libre' ? 'libre' : 'declaracion');
+
 export async function subirCaptura(
-  campos: { declaration_id: unknown; posicion: unknown; sha_original?: unknown; bytes_original?: unknown },
+  campos: { declaration_id?: unknown; libre_id?: unknown; destino?: unknown; posicion: unknown; sha_original?: unknown; bytes_original?: unknown },
   archivo: { bytes: Uint8Array } | null, userId: string, d: DepsCapturas,
 ) {
-  const decl = uuid(campos.declaration_id, 'declaration_id');
+  const D = DESTINOS[destino(campos.destino)];
+  const decl = uuid(D.campo === 'libre_id' ? campos.libre_id : campos.declaration_id, D.campo);
   const posicion = Number(campos.posicion);
-  if (!Number.isInteger(posicion) || posicion < 1 || posicion > 3) throw new HttpError(400, 'Posición de captura no válida');
+  if (!Number.isInteger(posicion) || posicion < 1 || posicion > D.maxPos) throw new HttpError(400, 'Posición de imagen no válida');
   if (!archivo || !archivo.bytes.length) throw new HttpError(400, 'No se recibió ninguna imagen');
   if (archivo.bytes.length > MAX_BYTES_CAPTURA) throw new HttpError(413, 'La imagen es demasiado grande');
   const shaOriginal = typeof campos.sha_original === 'string' && SHA_RE.test(campos.sha_original) ? campos.sha_original : null;
@@ -118,19 +132,19 @@ export async function subirCaptura(
   const bytesOriginal = Number.isInteger(bOrig) && bOrig > 0 && bOrig < 200 * 1048576 ? bOrig : null;
 
   // permiso, plazo, cuota y tamaño ANTES de tocar el almacenamiento
-  const chk = await call<{ class_id: string }>(d, 'svc_hist_captura_check', { p_user: userId, p_decl: decl, p_posicion: posicion, p_bytes: archivo.bytes.length });
+  const chk = await call<{ class_id: string }>(d, D.check, { p_user: userId, [D.pId]: decl, p_posicion: posicion, p_bytes: archivo.bytes.length });
   const info = infoImagen(archivo.bytes);
   if (!info) throw new HttpError(400, motivoNoImagen(archivo.bytes));
   if (Math.min(info.ancho, info.alto) < 200) throw new HttpError(400, 'La imagen es demasiado pequeña para leerla (mínimo 200 píxeles por lado)');
   if (Math.max(info.ancho, info.alto) > 16384) throw new HttpError(400, 'La imagen es demasiado grande en píxeles; recórtela o divídala');
 
   const sha = await d.sha256(archivo.bytes);
-  const path = rutaCaptura(chk.class_id, userId, sha, info.mime);
+  const path = D.prefijo + rutaCaptura(chk.class_id, userId, sha, info.mime);
   await d.ensureBucket();
   const estado = await d.upload(path, archivo.bytes, info.mime);
   try {
-    const r = await call<{ id: string; liberar: string | null }>(d, 'svc_hist_captura_registrar', {
-      p_user: userId, p_decl: decl, p_posicion: posicion, p_id: d.newId(), p_path: path, p_mime: info.mime, p_bytes: archivo.bytes.length,
+    const r = await call<{ id: string; liberar: string | null }>(d, D.registrar, {
+      p_user: userId, [D.pId]: decl, p_posicion: posicion, p_id: d.newId(), p_path: path, p_mime: info.mime, p_bytes: archivo.bytes.length,
       p_ancho: info.ancho, p_alto: info.alto, p_sha: sha, p_sha_original: shaOriginal, p_bytes_original: bytesOriginal,
     });
     if (r.liberar) await d.remove([r.liberar]).catch(() => undefined);
@@ -142,15 +156,17 @@ export async function subirCaptura(
   }
 }
 
-export async function verCaptura(captureId: unknown, userId: string, d: DepsCapturas) {
+export async function verCaptura(captureId: unknown, userId: string, d: DepsCapturas, dest: Destino = 'declaracion') {
   const id = uuid(captureId, 'capture_id');
-  const path = await call<string>(d, 'svc_hist_captura_ruta', { p_user: userId, p_capture: id });
+  const D = DESTINOS[dest];
+  const path = await call<string>(d, D.ruta, { p_user: userId, [D.pObjeto]: id });
   return { url: await d.signedUrl(path, 300) };
 }
 
-export async function quitarCaptura(captureId: unknown, userId: string, d: DepsCapturas) {
+export async function quitarCaptura(captureId: unknown, userId: string, d: DepsCapturas, dest: Destino = 'declaracion') {
   const id = uuid(captureId, 'capture_id');
-  const libre = await call<string | null>(d, 'svc_hist_captura_quitar', { p_user: userId, p_capture: id });
+  const D = DESTINOS[dest];
+  const libre = await call<string | null>(d, D.quitar, { p_user: userId, [D.pObjeto]: id });
   if (libre) await d.remove([libre]).catch(() => undefined);
   return { ok: true };
 }

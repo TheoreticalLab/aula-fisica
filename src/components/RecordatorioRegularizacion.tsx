@@ -31,7 +31,7 @@ export function RecordatorioRegularizacion({ pausado = false }: { pausado?: bool
 
   if (!clave || isTeacher || visto || excluida || pausado || !lista?.length) return null;
   const cerrar = () => { sessionStorage.setItem(clave, '1'); setLista([]); };
-  const aclaraciones = lista.reduce((s, p) => s + p.aclaraciones, 0);
+  const aclaraciones = lista.reduce((s, p) => s + p.aclaraciones + (p.solicitudes ?? 0) + (p.avisos ?? 0), 0);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 sm:items-center">
@@ -40,7 +40,8 @@ export function RecordatorioRegularizacion({ pausado = false }: { pausado?: bool
         <p className="text-3xl" aria-hidden="true">🗂️</p>
         <h2 id="rec-reg-titulo" className="mt-1 font-serif text-xl font-semibold">Regularización de prácticas anteriores pendiente</h2>
         <p className="mt-2 text-sm">
-          El profesor necesita que indiques qué prácticas le entregaste antes del aula virtual, con una captura del envío. No tienes que volver a subir los trabajos.
+          El profesor necesita que indiques qué prácticas hiciste antes del aula virtual: las enviadas por correo (con una captura del envío) y las hechas en el
+          cuaderno, en clase o en la pizarra. No tienes que volver a subir los trabajos.
         </p>
         <ul className="mt-3 space-y-1 text-sm">
           {lista.map((p) => (
@@ -48,13 +49,15 @@ export function RecordatorioRegularizacion({ pausado = false }: { pausado?: bool
               <span className="font-medium">{p.course_title} · {p.class_name}</span>
               <span className="block text-xs text-gray-600 dark:text-gray-300">
                 {p.aclaraciones > 0 ? `El profesor pide una aclaración en ${p.aclaraciones} registro(s). ` : ''}
+                {p.solicitudes ? `El profesor pide evidencia o una corrección en ${p.solicitudes} práctica(s) sin envío por correo. ` : ''}
+                {p.avisos ? `El profesor pregunta por ${p.avisos} práctica(s) que no has registrado. ` : ''}
                 {p.sin_terminar ? (p.registradas ? `Llevas ${p.registradas} registrada(s); cuando termines, pulsa «Terminé».` : 'Aún no has registrado ninguna práctica.') : ''}
                 {p.borradores ? ` Tienes ${p.borradores} borrador(es) sin enviar.` : ''}
               </span>
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-xs text-gray-500">Este aviso aparecerá cada vez que entres hasta que marques que terminaste{aclaraciones ? ' y respondas las aclaraciones' : ''}.</p>
+        <p className="mt-3 text-xs text-gray-500">Este aviso aparecerá cada vez que entres hasta que marques que terminaste{aclaraciones ? ' y respondas lo que pide el profesor' : ''}.</p>
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <button className="btn-primario flex-1" onClick={() => { cerrar(); nav('/practicas-anteriores'); }}>Regularizar ahora</button>
           <button className="btn-secundario" onClick={cerrar}>Más tarde</button>

@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { urlCaptura } from '@/api/regularizacion';
 import { kb } from '@/lib/regularizacion';
 
-export function VisorCaptura({ id, etiqueta, bytes, ancho, alto, abierta = false }: { id: string; etiqueta: string; bytes: number; ancho: number; alto: number; abierta?: boolean }) {
+export function VisorCaptura({ id, etiqueta, bytes, ancho, alto, abierta = false, destino = 'declaracion' }:
+  { id: string; etiqueta: string; bytes: number; ancho: number; alto: number; abierta?: boolean; destino?: 'declaracion' | 'libre' }) {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ver, setVer] = useState(abierta);
@@ -11,9 +12,9 @@ export function VisorCaptura({ id, etiqueta, bytes, ancho, alto, abierta = false
   useEffect(() => {
     if (!ver || url) return;
     let vivo = true;
-    urlCaptura(id).then((r) => vivo && setUrl(r.url)).catch((e) => vivo && setError(e instanceof Error ? e.message : String(e)));
+    urlCaptura(id, destino).then((r) => vivo && setUrl(r.url)).catch((e) => vivo && setError(e instanceof Error ? e.message : String(e)));
     return () => { vivo = false; };
-  }, [ver, url, id]);
+  }, [ver, url, id, destino]);
   return (
     <div className="rounded-lg border border-gray-200 p-2 text-sm dark:border-white/10">
       <div className="flex flex-wrap items-center justify-between gap-2">

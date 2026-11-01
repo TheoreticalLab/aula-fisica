@@ -122,6 +122,35 @@ describe('subirCaptura', () => {
   });
 });
 
+describe('fotos de prácticas sin envío por correo (destino «libre»)', () => {
+  it('usa las funciones svc_hist_libre_foto_* y la ruta con prefijo libre/ (nunca comparte archivo con las capturas de correo)', async () => {
+    const llamadas: { fn: string; args: Record<string, unknown> }[] = [];
+    const { d, subidos } = deps({
+      rpc: async (fn, args) => {
+        llamadas.push({ fn, args });
+        return fn === 'svc_hist_libre_foto_check' ? { data: { class_id: CLASE }, error: null }
+          : fn === 'svc_hist_libre_foto_registrar' ? { data: { id: args.p_id, liberar: null }, error: null } : { data: null, error: { message: 'x', code: 'XX' } };
+      },
+    });
+    await subirCaptura({ destino: 'libre', libre_id: DECL, posicion: '4' }, { bytes: jpeg(1600, 1200) }, USER, d);
+    expect(llamadas.map((l) => l.fn)).toEqual(['svc_hist_libre_foto_check', 'svc_hist_libre_foto_registrar']);
+    expect(llamadas[0].args).toMatchObject({ p_libre: DECL, p_posicion: 4 });
+    expect(subidos[0].path).toBe(`libre/${CLASE}/${USER}/${SHA}.jpg`);
+  });
+  it('caso 17: cuota agotada → error controlado y NADA se sube (la declaración ya guardada no se toca)', async () => {
+    const { d, subidos } = deps({ rpc: async () => ({ data: null, error: { message: 'Se alcanzó el espacio reservado para las imágenes de esta sección; su registro sigue guardado. Avise al profesor', code: 'P0001' } }) });
+    await expect(subirCaptura({ destino: 'libre', libre_id: DECL, posicion: 1 }, { bytes: png(1170, 2532) }, USER, d)).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/espacio reservado/) });
+    expect(subidos).toHaveLength(0);
+  });
+  it('ver y quitar por destino', async () => {
+    const llamadas: string[] = [];
+    const { d } = deps({ rpc: async (fn) => { llamadas.push(fn); return { data: fn.endsWith('ruta') ? 'libre/x.webp' : null, error: null }; } });
+    await verCaptura(DECL, USER, d, 'libre');
+    await quitarCaptura(DECL, USER, d, 'libre');
+    expect(llamadas).toEqual(['svc_hist_libre_foto_ruta', 'svc_hist_libre_foto_quitar']);
+  });
+});
+
 describe('ver, quitar y eliminar', () => {
   it('caso 11: ver una captura ajena se deniega (403) y no se firma ningún enlace', async () => {
     let firmados = 0;

@@ -10,8 +10,10 @@ import {
 import { optimizarCaptura, type CapturaOptimizada } from '@/lib/imagen';
 import { correoValido, ESTADO, faltantes, kb, recomendaciones, type Medio, type Tipo } from '@/lib/regularizacion';
 import { useAction, useAsync } from '@/lib/util';
-import { Badge, Card, Empty, ErrorBox, Modal, Notice, PageTitle, ProgressBar, Spinner } from '@/components/ui';
+import { Badge, Card, Empty, ErrorBox, Modal, Notice, PageTitle, ProgressBar, Spinner, Tabs } from '@/components/ui';
 import { VisorCaptura } from '@/components/VisorCaptura';
+import { misLibres, type MiSeccionLibre } from '@/api/practicasLibres';
+import { AyudaModalidades, SeccionLibre } from './PracticasLibres';
 
 const DECLARACION = 'Declaro que la información proporcionada corresponde a una práctica que entregué anteriormente al profesor y que la captura adjunta procede del medio indicado.';
 const DECLARACION_INCIDENCIA = 'Declaro que la información proporcionada corresponde a una práctica que entregué anteriormente al profesor y que no conservo la captura del envío.';
@@ -259,7 +261,7 @@ function FormSugerencia({ s, onListo, onCancelar }: { s: MiSeccion; onListo: (m:
 
 type Edicion = { modo: 'registro'; r: MiRegistro | null; tipo: Tipo } | { modo: 'sugerencia' } | null;
 
-function Seccion({ s, recargar, varias }: { s: MiSeccion; recargar: () => void; varias: boolean }) {
+function Seccion({ s, recargar, varias, otros = 0 }: { s: MiSeccion; recargar: () => void; varias: boolean; otros?: number }) {
   const [edicion, setEdicion] = useState<Edicion>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
@@ -277,7 +279,7 @@ function Seccion({ s, recargar, varias }: { s: MiSeccion; recargar: () => void; 
   const [sinPracticas, setSinPracticas] = useState(false);
   const [notaFin, setNotaFin] = useState('');
   async function confirmarTerminar() {
-    const res = await accion.run(() => terminar(s.class_id, enviados.length === 0 && sinPracticas, notaFin.trim() || null));
+    const res = await accion.run(() => terminar(s.class_id, enviados.length + otros === 0 && sinPracticas, notaFin.trim() || null));
     if (!res) return;
     setTerminarAbierto(false);
     setAviso(res.sin_practicas ? 'Listo. Indicaste que no tienes prácticas anteriores que regularizar.' : `Listo. Terminaste la regularización con ${res.registradas} registro(s). El profesor los revisará.`);
@@ -383,8 +385,8 @@ function Seccion({ s, recargar, varias }: { s: MiSeccion; recargar: () => void; 
         <div className="space-y-3 text-sm">
           {borradores.length > 0 ? (
             <Notice tone="warn">Tienes {borradores.length} borrador(es) sin registrar. Regístralos o elimínalos antes de terminar.</Notice>
-          ) : enviados.length > 0 ? (
-            <p>Vas a indicar que ya registraste todo lo que tienes: <strong>{enviados.length} registro(s)</strong>. Después no podrás añadir más (solo responder a las aclaraciones del profesor).</p>
+          ) : enviados.length + otros > 0 ? (
+            <p>Vas a indicar que ya registraste todo lo que tienes: <strong>{enviados.length + otros} registro(s)</strong>{otros ? ` (incluidas ${otros} prácticas sin envío por correo)` : ''}. Después no podrás añadir más (solo responder a las solicitudes del profesor).</p>
           ) : (
             <>
               <p>No has registrado ninguna práctica.</p>
@@ -398,7 +400,7 @@ function Seccion({ s, recargar, varias }: { s: MiSeccion; recargar: () => void; 
           )}
           <ErrorBox error={accion.error} />
           <div className="flex gap-2">
-            <button className="btn-primario" disabled={accion.busy || borradores.length > 0 || (enviados.length === 0 && !sinPracticas)} onClick={() => void confirmarTerminar()}>Confirmar</button>
+            <button className="btn-primario" disabled={accion.busy || borradores.length > 0 || (enviados.length + otros === 0 && !sinPracticas)} onClick={() => void confirmarTerminar()}>Confirmar</button>
             <button className="btn-texto" onClick={() => setTerminarAbierto(false)}>Cancelar</button>
           </div>
         </div>
@@ -428,23 +430,90 @@ function Seccion({ s, recargar, varias }: { s: MiSeccion; recargar: () => void; 
   );
 }
 
+/** «Terminé» para una sección que solo tiene abierta la modalidad sin correo. */
+function TerminarSoloLibre({ l, recargar }: { l: MiSeccionLibre; recargar: () => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const [sinPracticas, setSinPracticas] = useState(false);
+  const accion = useAction();
+  if (l.terminado_at) return <Notice tone="ok">Marcaste que terminaste la regularización el {new Date(l.terminado_at).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' })}.</Notice>;
+  if (!l.habilitado) return null;
+  const n = l.registros.length;
+  return (
+    <div className="mt-4 rounded-xl border-2 border-emerald-500/60 p-3 text-sm">
+      <p className="font-semibold">¿Ya registraste todas las prácticas que tienes?</p>
+      <button className="btn-primario mt-2" onClick={() => setAbierto(true)}>TERMINÉ: YA REGISTRÉ TODO LO QUE TENGO</button>
+      <Modal open={abierto} onClose={() => setAbierto(false)} title="Terminar la regularización">
+        <div className="space-y-3 text-sm">
+          {n > 0 ? <p>Vas a indicar que ya registraste todo lo que tienes: <strong>{n} práctica(s)</strong>. Después no podrás añadir más (solo atender las solicitudes del profesor).</p> : (
+            <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={sinPracticas} onChange={(e) => setSinPracticas(e.target.checked)} /> No tengo prácticas anteriores que regularizar.</label>
+          )}
+          <ErrorBox error={accion.error} />
+          <button className="btn-primario" disabled={accion.busy || (n === 0 && !sinPracticas)}
+            onClick={() => void accion.run(async () => { await terminar(l.class_id, n === 0 && sinPracticas, null); setAbierto(false); recargar(); })}>Confirmar</button>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+type Modo = 'correo' | 'libre';
+
+function SeccionCompleta({ c, l, varias, recargar }: { c?: MiSeccion; l?: MiSeccionLibre; varias: boolean; recargar: () => void }) {
+  const [modo, setModo] = useState<Modo>(c?.abierto || !l ? 'correo' : 'libre');
+  const [ayuda, setAyuda] = useState(false);
+  if (c && !l) return <Seccion s={c} varias={varias} recargar={recargar} />;
+  const titulo = `${(c ?? l)!.course_title} · ${(c ?? l)!.class_name}`;
+  const solicitudes = l?.registros.filter((r) => r.estado === 'evidencia_solicitada' || r.estado === 'correccion_solicitada').length ?? 0;
+  const avisos = l?.avisos.filter((a) => a.estado === 'pendiente').length ?? 0;
+  return (
+    <Card title={varias ? titulo : undefined}>
+      {c && l && (
+        <>
+          <Tabs<Modo> value={modo} onChange={setModo} tabs={[
+            { id: 'correo', label: 'Enviadas por correo u otra vía' },
+            { id: 'libre', label: `Sin envío por correo${solicitudes + avisos ? ` (${solicitudes + avisos})` : ''}` },
+          ]} />
+          <p className="-mt-2 mb-3 text-xs"><button className="enlace" onClick={() => setAyuda(true)}>¿Qué modalidad uso?</button></p>
+          <AyudaModalidades open={ayuda} onClose={() => setAyuda(false)} />
+        </>
+      )}
+      {c && (modo === 'correo' || !l) && <Seccion s={c} varias={false} recargar={recargar} otros={l?.registros.length ?? 0} />}
+      {l && (modo === 'libre' || !c) && (
+        <>
+          {!c && <p className="mb-2 font-semibold">Prácticas realizadas sin envío por correo</p>}
+          <SeccionLibre s={l} recargar={recargar} />
+          {!c && <TerminarSoloLibre l={l} recargar={recargar} />}
+        </>
+      )}
+    </Card>
+  );
+}
+
 export default function Regularizacion() {
-  const st = useAsync(() => misSecciones(), []);
-  const secciones = useMemo(() => st.data ?? [], [st.data]);
+  const st = useAsync(async () => {
+    const [correo, libres] = await Promise.all([misSecciones(), misLibres().catch(() => [] as MiSeccionLibre[])]);
+    return { correo, libres };
+  }, []);
+  const clases = useMemo(() => {
+    const m = new Map<string, { c?: MiSeccion; l?: MiSeccionLibre }>();
+    for (const c of st.data?.correo ?? []) m.set(c.class_id, { ...m.get(c.class_id), c });
+    for (const l of st.data?.libres ?? []) m.set(l.class_id, { ...m.get(l.class_id), l });
+    return [...m.entries()];
+  }, [st.data]);
   return (
     <div>
-      <PageTitle title="Prácticas anteriores" subtitle="Regularización de las prácticas que entregaste antes del aula virtual" back={{ to: '/cuenta', label: 'Mi cuenta' }} />
+      <PageTitle title="Prácticas anteriores" subtitle="Regularización de las prácticas que hiciste antes del aula virtual" back={{ to: '/cuenta', label: 'Mi cuenta' }} />
       <div className="mb-4">
         <Notice tone="info">
-          No vuelvas a subir tus trabajos. Indica qué práctica entregaste, por qué medio y cuándo, y adjunta <strong>una captura de pantalla del envío</strong>.
-          Registrar no significa que la práctica esté aprobada ni calificada: el profesor la localizará y verificará en su canal original.
+          No vuelvas a subir tus trabajos. Si la enviaste por correo u otra vía, indica cuál y adjunta <strong>una captura del envío</strong>; si la hiciste en el cuaderno,
+          en clase o en la pizarra, usa «Sin envío por correo». Registrar no significa que la práctica esté aprobada ni calificada: el profesor la verificará.
         </Notice>
       </div>
       {st.loading && <Spinner />}
       <ErrorBox error={st.error} onRetry={() => void st.reload()} />
-      {!st.loading && !st.error && secciones.length === 0 && <Empty>El profesor no ha abierto la regularización de prácticas anteriores en tus secciones.</Empty>}
+      {!st.loading && !st.error && clases.length === 0 && <Empty>El profesor no ha abierto la regularización de prácticas anteriores en tus secciones.</Empty>}
       <div className="space-y-4">
-        {secciones.map((s) => <Seccion key={s.class_id} s={s} varias={secciones.length > 1} recargar={() => void st.reload()} />)}
+        {clases.map(([id, x]) => <SeccionCompleta key={id} c={x.c} l={x.l} varias={clases.length > 1} recargar={() => void st.reload()} />)}
       </div>
     </div>
   );

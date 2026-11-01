@@ -45,7 +45,8 @@ export function subirCaptura(declId: string, posicion: number, c: CapturaOptimiz
   f.append('archivo', c.blob, `captura.${c.tipo === 'image/webp' ? 'webp' : 'jpg'}`);
   return invocar<{ id: string; bytes: number; ancho: number; alto: number; reutilizada: boolean }>('entregas', f);
 }
-export const urlCaptura = (captureId: string) => invocar<{ url: string }>('entregas', { action: 'captura_ver', capture_id: captureId });
+export const urlCaptura = (captureId: string, destino: 'declaracion' | 'libre' = 'declaracion') =>
+  invocar<{ url: string }>('entregas', { action: 'captura_ver', capture_id: captureId, destino });
 export const quitarCaptura = (captureId: string) => invocar<{ ok: boolean }>('entregas', { action: 'captura_quitar', capture_id: captureId });
 export const eliminarBorrador = (declId: string) => invocar<{ ok: boolean }>('entregas', { action: 'borrador_eliminar', declaration_id: declId });
 
@@ -55,7 +56,7 @@ export interface PracticaDocente extends PracticaCatalogo {
   declaraciones: number; borradores: number;
 }
 export interface ConfigSeccion {
-  configurado: boolean; abierto: boolean; recordar?: boolean; terminados?: number; mensaje: string; margen_dias: number; max_mb_captura: number; cuota_mb: number; max_registros: number;
+  configurado: boolean; abierto: boolean; recordar?: boolean; terminados?: number; libre_habilitado?: boolean; mensaje: string; margen_dias: number; max_mb_captura: number; cuota_mb: number; max_registros: number;
   practicas: PracticaDocente[]; actividades: { id: string; title: string }[];
   almacenamiento: { bytes_seccion: number; archivos_seccion: number; bytes_modulo: number; archivos_modulo: number };
 }
@@ -88,7 +89,10 @@ export const revisar = (ids: string[], accion: AccionDocente, nota: string | nul
   rpc<{ aplicadas: number; errores: { id: string; motivo: string }[] }>('hist_revisar', { p_ids: ids, p_accion: accion, p_nota: nota });
 export const sugerencias = (classId: string) => rpc<SugerenciaDocente[]>('hist_sugerencias', { p_class: classId });
 // --- «Ya registré todo lo que tengo» y recordatorio al entrar (migración 46) ----------------------------------------
-export interface Pendiente { class_id: string; class_name: string; course_title: string; sin_terminar: boolean; registradas: number; borradores: number; aclaraciones: number }
+export interface Pendiente {
+  class_id: string; class_name: string; course_title: string; sin_terminar: boolean; registradas: number; borradores: number; aclaraciones: number;
+  solicitudes?: number; avisos?: number;   // migración 47: modalidad sin envío por correo
+}
 export interface Terminado { user_id: string; finalizado_at: string | null; sin_practicas: boolean; registradas: number; nota: string | null; reabierto_at: string | null }
 
 export const terminar = (classId: string, sinPracticas: boolean, nota: string | null) =>

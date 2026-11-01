@@ -17,6 +17,7 @@ import {
 import { useAction, useAsync } from '@/lib/util';
 import { Badge, Card, Empty, ErrorBox, Modal, Notice, PageTitle, ProgressBar, Spinner, Tabs } from '@/components/ui';
 import { VisorCaptura } from '@/components/VisorCaptura';
+import { TabPracticasLibres } from './PracticasLibres';
 
 const fecha = (iso: string | null) => (iso ? new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString('es-DO', { dateStyle: 'medium' }) : '—');
 const fechaHora = (iso: string | null) => (iso ? new Date(iso).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
@@ -505,39 +506,45 @@ function Catalogo({ classId, c, onCambio }: { classId: string; c: ConfigSeccion;
 }
 
 // ------------------------------------------------------------------------------------------------------------------
-type Vista = 'localizador' | 'resumen' | 'sugerencias' | 'catalogo';
+type Vista = 'localizador' | 'resumen' | 'sugerencias' | 'catalogo' | 'libre';
 
 /** Contenido para una sección concreta (pestaña de la sección) o para todas (classId null, solo el localizador). */
 export function RegularizacionSeccion({ classId }: { classId: string }) {
   const cfg = useAsync(() => configSeccion(classId), [classId]);
-  const [vista, setVista] = useState<Vista>('localizador');
+  const [vista, setVista] = useState<Vista | null>(null);
   const accion = useAction();
   if (cfg.loading && !cfg.data) return <Spinner />;
   if (cfg.error) return <ErrorBox error={cfg.error} onRetry={() => void cfg.reload()} />;
   const c = cfg.data!;
   if (!c.configurado) {
     return (
-      <Card title="Regularización de prácticas anteriores">
-        <p className="text-sm">Los estudiantes indican qué prácticas entregaron antes del aula virtual, por qué medio y cuándo, con <strong>una captura del envío</strong>. No suben los documentos.
-          Usted localiza cada envío en su propio correo (la plataforma no se conecta a él), lo verifica y, si procede, lo convalida. Nada crea notas.</p>
-        <ErrorBox error={accion.error} />
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button className="btn-primario" disabled={accion.busy} onClick={() => void accion.run(async () => { await configurar(classId, { abierto: true, espacios: 10 }); void cfg.reload(); })}>Activar y abrir con 10 prácticas provisionales</button>
-          <button className="btn-secundario" disabled={accion.busy} onClick={() => void accion.run(async () => { await configurar(classId, { abierto: false, espacios: 10 }); void cfg.reload(); })}>Preparar sin abrir</button>
-        </div>
-      </Card>
+      <div className="space-y-4">
+        <Card title="Prácticas enviadas por correo u otra vía">
+          <p className="text-sm">Los estudiantes indican qué prácticas entregaron antes del aula virtual, por qué medio y cuándo, con <strong>una captura del envío</strong>. No suben los documentos.
+            Usted localiza cada envío en su propio correo (la plataforma no se conecta a él), lo verifica y, si procede, lo convalida. Nada crea notas.</p>
+          <ErrorBox error={accion.error} />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className="btn-primario" disabled={accion.busy} onClick={() => void accion.run(async () => { await configurar(classId, { abierto: true, espacios: 10 }); void cfg.reload(); })}>Activar y abrir con 10 prácticas provisionales</button>
+            <button className="btn-secundario" disabled={accion.busy} onClick={() => void accion.run(async () => { await configurar(classId, { abierto: false, espacios: 10 }); void cfg.reload(); })}>Preparar sin abrir</button>
+          </div>
+        </Card>
+        <TabPracticasLibres classId={classId} />
+      </div>
     );
   }
+  const actual: Vista = vista ?? (!c.abierto && c.libre_habilitado ? 'libre' : 'localizador');
   return (
     <div>
-      {!c.abierto && <div className="mb-3"><Notice tone="warn">Cerrada para los estudiantes (pueden ver sus registros, no modificarlos). Ábrala en «Catálogo y configuración».</Notice></div>}
-      <Tabs<Vista> value={vista} onChange={setVista} tabs={[
+      {!c.abierto && actual !== 'libre' && <div className="mb-3"><Notice tone="warn">La modalidad por correo está cerrada para los estudiantes (pueden ver sus registros, no modificarlos). Ábrala en «Catálogo y configuración».</Notice></div>}
+      <Tabs<Vista> value={actual} onChange={setVista} tabs={[
         { id: 'localizador', label: 'Localizador' }, { id: 'resumen', label: 'Por estudiante' }, { id: 'sugerencias', label: 'Sugerencias' }, { id: 'catalogo', label: 'Catálogo y configuración' },
+        { id: 'libre', label: 'Prácticas sin correo' },
       ]} />
-      {vista === 'localizador' && <Localizador classId={classId} margenInicial={c.margen_dias} />}
-      {vista === 'resumen' && <Resumen classId={classId} />}
-      {vista === 'sugerencias' && <Sugerencias classId={classId} practicas={c.practicas} onCambio={() => void cfg.reload()} />}
-      {vista === 'catalogo' && <Catalogo classId={classId} c={c} onCambio={() => void cfg.reload()} />}
+      {actual === 'libre' && <TabPracticasLibres classId={classId} />}
+      {actual === 'localizador' && <Localizador classId={classId} margenInicial={c.margen_dias} />}
+      {actual === 'resumen' && <Resumen classId={classId} />}
+      {actual === 'sugerencias' && <Sugerencias classId={classId} practicas={c.practicas} onCambio={() => void cfg.reload()} />}
+      {actual === 'catalogo' && <Catalogo classId={classId} c={c} onCambio={() => void cfg.reload()} />}
     </div>
   );
 }

@@ -91,6 +91,50 @@ papel con `auth.uid()`. Las funciones `svc_hist_*` solo las puede llamar la func
 - Archivos: `supabase/migrations/20261101000046_regularizacion_cierre.sql`, `supabase/pruebas/regularizacion_cierre.sql`,
   `src/components/RecordatorioRegularizacion.tsx`.
 
+## Prácticas realizadas sin envío por correo (migración 47)
+
+Para lo trabajado en el cuaderno, en hojas, en clase, en la pizarra o en casa, que no dejó un envío digital.
+**Registrar primero, verificar después**, y **sin catálogo previo del profesor**.
+
+**Estudiante** (Prácticas anteriores → pestaña «Sin envío por correo»; si la sección solo tiene esta modalidad, aparece
+directamente): nombre libre de la práctica (o una de las ya consolidadas), cuántos ejercicios tenía y cuántos hizo
+(0 ≤ realizados ≤ total ≤ máximo configurable), modalidades (cuaderno, hojas, clase, pizarra, casa, otra), **una** foto
+representativa o, si no la tiene, una explicación (queda «sin evidencia fotográfica; pendiente de verificación»),
+observaciones, el aviso informativo y la declaración de responsabilidad (versión `sin-correo-v1`, registrada con la hora
+del servidor). Con 0 realizados queda «práctica declarada como no realizada» y no pide foto. Después de guardar,
+«+ Agregar otra práctica». Advierte (sin bloquear) si ya registró algo parecido, aquí o en la modalidad por correo.
+Ve sus totales y el **cumplimiento declarado** = Σ realizados ÷ Σ totales × 100, con la advertencia de que solo cuenta lo
+registrado y no es una nota ni está verificado. Responde a las solicitudes del profesor (fotos adicionales, explicación,
+«ya no conservo el material») y a los avisos de prácticas que no registró (la hice → la registra; no la hice; ya la
+registré con otro nombre).
+
+**Profesor** (pestaña «Prácticas sin correo» del módulo):
+- **Por estudiante:** prácticas, totales y realizados declarados, cumplimiento declarado, con foto, sin evidencia,
+  pendientes, validados y verificados; ficha de cada registro.
+- **Por práctica:** catálogo consolidado (nombre y total oficiales, estudiantes, total habitual, discrepancias, nombres
+  originales) y **«Consolidar prácticas»**: sugerencias de agrupación locales y deterministas (sin tildes, plurales,
+  siglas MRU/MRUA…, pequeño tesauro de temas y total de ejercicios). **Nada se agrupa sin confirmación.** Tras
+  consolidar, lista quién **no tiene registro** (posible omisión, no incumplimiento) y permite enviarle un aviso.
+- **Ficha y acciones:** en revisión, revisión presencial, solicitar evidencia adicional (fotos / cuaderno en persona /
+  explicación), solicitar corrección, **validar con la cantidad verificada** (puede diferir de la declarada), corregir el
+  total oficial, reabrir. Las solicitudes llegan al estudiante por el Centro de Comunicación y en el aviso al entrar.
+- **Configuración:** habilitar, admitir registros nuevos, nombres libres o solo consolidados, correcciones del estudiante,
+  registros sin foto, sugerencias, solicitudes, máximos de registros y de ejercicios. El tamaño de foto y la cuota son
+  los ya configurados (las fotos cuentan en la misma cuota).
+
+**Cantidades separadas:** inicial (lo primero que declaró, inmutable), declarada (corregible mientras se permita),
+oficial (de la práctica consolidada o corregida en el registro) y verificada (al validar). El historial (`hist_events`
+con `libre_id`) guarda cada creación, corrección (antes → después), foto, solicitud, respuesta, agrupación y validación.
+
+**Tablas:** `hist_libres`, `hist_libre_fotos` (metadatos; imágenes en `regularizacion/libre/…`), `hist_libre_grupos`,
+`hist_libre_avisos`. **Funciones:** `hist_libre_*` y `svc_hist_libre_foto_*`. Interfaz:
+`src/pages/estudiante/PracticasLibres.tsx`, `src/pages/docente/PracticasLibres.tsx`, `src/lib/practicasLibres.ts`.
+Pruebas: `supabase/pruebas/regularizacion_libre.sql` y `tests/practicas-libres.test.ts`.
+
+**Limitaciones:** las sugerencias se basan en palabras: nombres sin palabras en común («Práctica de dinámica» frente a
+«Ejercicios de fuerza») pueden no sugerirse y se agrupan a mano desde «Registros sin consolidar». La integración con el
+libro de calificaciones queda preparada (cantidades verificadas separadas) pero no existe: ninguna acción crea notas.
+
 ## Lo que el sistema NO hace
 
 - No interpreta las posiciones provisionales sin declarar como prácticas no entregadas ni crea ceros.
