@@ -18,6 +18,8 @@ import { ERRORES_IA, ESTADO_FOTOS, fechaClase } from '@/lib/clases';
 import { useAction, useAsync } from '@/lib/util';
 import { estimar, NIVELES, type Nivel } from '../../../supabase/functions/_shared/clases/estimacion';
 
+const sinRespuesta = (creada: string) => Date.now() - new Date(creada).getTime() > 15 * 60_000;
+const minutos = (creada: string) => Math.max(0, Math.round((Date.now() - new Date(creada).getTime()) / 60_000));
 const usd = (x: number) => `${x < 0.01 ? x.toFixed(4) : x.toFixed(3)} USD`;
 
 export default function ClaseAdmin() {
@@ -25,7 +27,8 @@ export default function ClaseAdmin() {
   const st = useAsync(() => claseDetalle(sessionId), [sessionId]);
   const accion = useAction();
   const [generar, setGenerar] = useState(false);
-  const procesando = st.data?.generaciones?.some((g) => g.estado === 'procesando');
+  // una generación sin respuesta durante 15 min se considera interrumpida (el servidor la cierra al pedir otra)
+  const procesando = st.data?.generaciones?.some((g) => g.estado === 'procesando' && !sinRespuesta(g.created_at));
   useEffect(() => {
     if (!procesando) return;
     const t = window.setInterval(() => st.reload(), 4000);
@@ -68,7 +71,7 @@ export default function ClaseAdmin() {
           <button className="btn-acento ml-auto" disabled={!c.imagenes.length || !!procesando} onClick={() => setGenerar(true)}>✨ Generar clase ampliada con IA</button>
         </div>
         <p className="mt-1 text-xs text-gray-500">Generar tiene costo y crea un BORRADOR: los estudiantes no lo ven hasta que usted lo apruebe. Las fotos no cambian.</p>
-        {procesando && <Notice>Procesando con Claude… (puede tardar unos minutos; esta página se actualiza sola)</Notice>}
+        {procesando && <Notice>Procesando con Claude… (puede tardar varios minutos; esta página se actualiza sola). Si pasan 15 minutos sin respuesta, se podrá reintentar.</Notice>}
         <Generaciones c={c} />
         <Versiones c={c} onCambio={st.reload} />
       </section>
@@ -102,7 +105,9 @@ function Generaciones({ c }: { c: ClaseDetalle }) {
             {g.map((x) => (
               <tr key={x.id} className="border-t border-gray-100 dark:border-white/5">
                 <td>{new Date(x.created_at).toLocaleString('es-DO')}</td><td>{x.model}{x.simulated ? ' (simulado)' : ''}</td><td>{NIVELES[x.nivel]?.etiqueta}</td>
-                <td>{x.estado === 'error' ? <span className="text-red-700">error: {ERRORES_IA[x.error_code ?? ''] ?? x.error_code}</span> : x.estado}
+                <td>{x.estado === 'error' ? <span className="text-red-700">error: {ERRORES_IA[x.error_code ?? ''] ?? x.error_code}</span>
+                  : x.estado === 'procesando' ? (sinRespuesta(x.created_at) ? <span className="text-amber-700">sin respuesta (probablemente interrumpida): puede reintentar</span> : `procesando · ${minutos(x.created_at)} min`)
+                  : x.estado}
                   {x.descartados > 0 && <span className="block text-gray-500">{x.descartados} enlace(s) inventado(s) descartado(s)</span>}
                   {x.fotos_cambiadas && x.estado === 'ok' && <span className="block text-amber-700">las fotos cambiaron después</span>}</td>
                 <td>{x.input_tokens.toLocaleString('es-DO')} / {x.output_tokens.toLocaleString('es-DO')}</td><td>≤ {usd(Number(x.estimado_usd))}</td><td>{usd(Number(x.cost_usd))}</td>
