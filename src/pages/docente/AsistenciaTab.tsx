@@ -75,6 +75,7 @@ export function EnVivo({ id, onCerrada }: { id: string; onCerrada: () => void })
           {!d.closed_at && <button className="btn-secundario" disabled={accion.busy} onClick={() => void accion.run(async () => { await cerrarAsistencia(id); await cargar(); onCerrada(); })}>Cerrar asistencia</button>}
         </div>
       </div>
+      <p className="text-xs text-gray-500">Práctica de Control: se prepara e inicia desde Orbe Control → Asistencia (esta misma sesión). Si no elige ninguna, la asistencia funciona igual que siempre.</p>
       <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
         {d.estudiantes.map((e) => (
           <div key={e.user_id} className={`flex items-center justify-between gap-2 rounded border px-2 py-1 text-sm ${e.presente ? 'border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-900/20' : 'border-gray-200 dark:border-white/10'}`}>

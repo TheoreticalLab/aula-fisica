@@ -6,10 +6,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { rpc } from './supabase';
 import { avisoPrecision, MOTIVO_RECHAZO, PRECISION_PROFESOR, textoVerificacion, ubicacionActual } from '../../src/lib/ubicacion';
 import { QuorumConfig } from './QuorumConfig';
+import { ControlPractica } from './ControlPractica';
 
 interface Seccion { class_id: string; class_name: string; course_title: string }
 interface EnVivo {
-  id: string; clase: string; asignatura: string; code: string; code_expires_at: string; closed_at: string | null; server_now: string;
+  id: string; class_id?: string; clase: string; asignatura: string; code: string; code_expires_at: string; closed_at: string | null; server_now: string;
   rotate_seconds: number; code_changes_at: string | null; require_location: boolean; geo_radius_m: number; tiene_ubicacion: boolean;
   estudiantes: { user_id: string; full_name: string; student_code: string | null; presente: boolean; marked_at: string | null; method: string | null;
     geo_status: string | null; distance_m: number | null; accuracy: number | null; distancia_ref_m?: number | null; validado_por?: string | null }[];
@@ -135,6 +136,7 @@ export function Asistencia() {
           </div>
         </section>
         {error && <p className="error">{error}</p>}
+        {d.class_id && <ControlPractica classId={d.class_id} attendanceId={d.id} />}
         <section className="grupo">
           <h2>✓ PRESENTES ({presentes.length})</h2>
           {presentes.map((e) => (

@@ -65,6 +65,8 @@ export interface TextKey {
   format: 'text';
   /** Respuestas aceptadas (se comparan sin mayúsculas, tildes ni signos de puntuación). */
   accepted: string[];
+  /** Prácticas de Control (migración 62): expresión algebraica; se compara por equivalencia, no por texto. */
+  expresion?: import('./expresiones.ts').ExpresionClave;
 }
 
 export interface OpenKey {

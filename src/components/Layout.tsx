@@ -8,6 +8,7 @@ import { ReceptorMensajes } from '@/components/ReceptorMensajes';
 import { ConexionEnVivo } from '@/components/ConexionEnVivo';
 import { BloqueoPantalla } from '@/components/BloqueoPantalla';
 import { AvisoAsistencia } from '@/components/AvisoAsistencia';
+import { AvisoControl } from '@/components/AvisoControl';
 import { OrbeIa } from '@/components/OrbeIa';
 import { PreguntaRelampago } from '@/components/PreguntaRelampago';
 import { RecordatorioRegularizacion } from '@/components/RecordatorioRegularizacion';
@@ -163,6 +164,7 @@ export function Layout() {
       <BloqueoPantalla />
       <ReceptorMensajes />
       {session && !isTeacher && <AvisoAsistencia />}
+      {session && !isTeacher && <AvisoControl />}
       {session && !isTeacher && <OrbeIa />}
       {session && !isTeacher && <PreguntaRelampago />}
       {session && !isTeacher && profile?.active && <RecordatorioRegularizacion pausado={introVisible} />}

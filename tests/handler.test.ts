@@ -106,7 +106,7 @@ describe('acción submit', () => {
       svc_record_submission: { status: 'submitted' },
     });
     await handle({ action: 'submit', attempt_id: A }, U, db);
-    const results = calls[1].args.p_results as { exercise_id: string; status: string; code: string }[];
+    const results = calls.find((c) => c.fn === 'svc_record_submission')!.args.p_results as { exercise_id: string; status: string; code: string }[];
     expect(results).toHaveLength(3);
     expect(results[0]).toMatchObject({ exercise_id: E, status: 'correct' });
     expect(results[1]).toMatchObject({ exercise_id: E2, status: 'incorrect', code: 'blank' });

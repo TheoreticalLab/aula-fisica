@@ -19,6 +19,23 @@ export async function rpc<T>(fn: string, args?: Record<string, unknown>): Promis
   return data as T;
 }
 
+/** Llamada a una Edge Function con la sesión del profesor (p. ej. «calificar» para entregar los intentos abiertos). */
+export async function funcion<T>(nombre: string, body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke(nombre, { body });
+  if (error) {
+    const ctx = (error as { context?: Response }).context;
+    let msg = error.message;
+    try {
+      const j = ctx && typeof ctx.json === 'function' ? await ctx.json() : null;
+      if (j?.error) msg = j.error;
+    } catch {
+      /* respuesta no JSON */
+    }
+    throw new Error(msg);
+  }
+  return data as T;
+}
+
 /** Inicio de sesión con el mismo ID y contraseña del aula (Edge Function «acceder»). */
 export async function ingresar(id: string, password: string): Promise<{ must_change_password?: boolean }> {
   const { data, error } = await supabase.functions.invoke('acceder', { body: { id: id.trim(), password, ...contextoAcceso() } });

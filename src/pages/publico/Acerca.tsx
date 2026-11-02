@@ -23,7 +23,7 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
       'Pistas progresivas, explicación de la solución, problemas de refuerzo por concepto y registro de cada envío.',
     ],
     pendiente: [
-      'Respuestas de tipo expresión algebraica.',
+      'Respuestas de tipo expresión algebraica por equivalencia (no por texto): programadas y probadas para las Prácticas de Control (claves de texto con «expresion»); pendiente de aplicar la migración 62, desplegar «calificar» y un editor visual de estas claves en el Banco.',
       'Una versión numérica distinta para cada intento: el generador reproducible por semillas ya existe para los choques, pero la plataforma aún no sortea ni guarda los parámetros por intento.',
       'Arrastre de errores en problemas por etapas: programado y probado; requiere aplicar la migración 41 y desplegar la función «calificar».',
     ],
@@ -38,6 +38,7 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
       'Lectura cronometrada antes de los ejercicios: el servidor cuenta el tiempo real de lectura, se detiene si el estudiante sale de la plataforma y los ejercicios se habilitan al cumplir el mínimo.',
       'Evaluaciones de una pregunta a la vez: límite de tiempo con el reloj oficial del servidor, navegación libre o solo hacia adelante, pausas declaradas, guardado automático con recuperación tras desconexiones, tiempo por pregunta, seguimiento en vivo y prórrogas individuales.',
       'Asistente «+ Crear actividad» en cuatro pasos con plantillas (práctica, tarea, quiz, parcial, examen estricto).',
+      'Prácticas de Control (programadas y probadas; pendientes de aplicar en producción y de probar en clase): verificación breve, individual y presencial que el profesor activa desde la asistencia de Orbe Control, con un problema de transferencia distinto para cada estudiante y un ajuste parcial y anunciado de la nota de la práctica (la nota original no se modifica). Incluye VTA (Verificación de Transferencia y Autonomía) en LIEIA, separada de los indicadores de integridad.',
       'Seguimiento de estudiantes que pueden necesitar apoyo y recordatorios a quien no ha entregado.',
     ],
     pendiente: [

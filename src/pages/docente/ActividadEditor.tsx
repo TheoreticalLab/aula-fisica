@@ -28,6 +28,7 @@ import { DisenoExamen } from './lieia/DisenoExamen';
 import { ModoExamen } from './ModoExamen';
 import { MonitorExamen } from './MonitorExamen';
 import { ConfigAsistida } from './ConfigAsistida';
+import ConfigControl from './ConfigControl';
 import { ProcesoAprendizaje } from './ProcesoAprendizaje';
 
 /** Lectura cronometrada previa a los ejercicios: texto y tiempo mínimo (con sugerencia según el texto). */
@@ -205,6 +206,7 @@ export default function ActividadEditor() {
       )}
       {tab === 'config' && act.mode === 'exam' && <ModoExamen activityId={activityId} />}
       {tab === 'config' && act.mode === 'practice' && <ConfigAsistida activityId={activityId} courseId={cls.course_id} classId={cls.id} />}
+      {tab === 'config' && act.mode === 'practice' && <ConfigControl activityId={activityId} />}
       {tab === 'config' && <CopiarASecciones activityId={activityId} courseId={cls.course_id} classId={cls.id} />}
       {tab === 'ejercicios' && <TabEjercicios activityId={activityId} courseId={cls.course_id} lessons={lessons} initial={st.data!.items} initialExercises={st.data!.exercises} onSaved={st.reload} />}
       {tab === 'diseno' && <DisenoExamen activityId={activityId} courseId={cls.course_id} estudiantesSeccion={0} />}

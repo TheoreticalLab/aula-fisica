@@ -15,6 +15,7 @@ import type {
   TrueFalseKey,
 } from './tipos.ts';
 import { MAX_TEXT_LENGTH } from './tipos.ts';
+import { calificarExpresion } from './expresiones.ts';
 
 export const DEFAULT_REL_TOL = 0.02;
 
@@ -360,6 +361,11 @@ export function levenshtein(a: string, b: string): number {
 }
 
 export function gradeText(key: TextKey, text: string | undefined): GradeResult {
+  if (key.expresion) {
+    // equivalencia algebraica; si además hay respuestas aceptadas literales, también valen
+    if (key.accepted?.length && key.accepted.map(normalizeText).includes(normalizeText(text ?? ''))) return { status: 'correct', credit: 1, messages: [], code: 'ok' };
+    return calificarExpresion(key.expresion, text);
+  }
   const t = normalizeText(text ?? '');
   if (!t) return { status: 'invalid', credit: 0, messages: ['Escriba su respuesta.'], code: 'empty' };
   const accepted = key.accepted.map(normalizeText);

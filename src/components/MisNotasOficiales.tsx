@@ -8,7 +8,9 @@ import { rpc } from '@/lib/supabase';
 import { useAsync } from '@/lib/util';
 import { calcularNota, CATEGORIAS, type Categoria, type Notas } from '@/lib/notas';
 
-interface ActividadV { activity_id: string; title: string; mode: string; closes_at: string | null; peso: number | null; por_definir: boolean; visible: boolean; mejor: number | null }
+interface ActividadV { activity_id: string; title: string; mode: string; closes_at: string | null; peso: number | null; por_definir: boolean; visible: boolean; mejor: number | null;
+  /** migración 62: Práctica de Control confirmada que ajusta la nota */
+  control?: { resultado: number; factor: number; ajustada: number } | null }
 interface CategoriaV { category: Categoria; max: number; score: number | null; source: 'manual' | 'actividades' | null; pendientes: number | null; actividades: ActividadV[] }
 interface Seccion { class_id: string; class_name: string; course_title: string; published: boolean; categorias: CategoriaV[]; extras: { points: number; reason: string; created_at: string }[] }
 
@@ -44,7 +46,9 @@ function Apartado({ c, publicado }: { c: CategoriaV; publicado: boolean }) {
                 <span className="text-xs text-gray-500"> · {a.mode === 'exam' ? 'examen' : 'práctica'} · vale {a.peso !== null ? Number(a.peso) : '—'} pts{a.por_definir ? ' (valor provisional)' : ''}</span>
               </span>
               <span className="text-xs">
-                {!publicado ? '' : a.mejor !== null ? <>su mejor intento: <strong>{Number(a.mejor)} %</strong> → {a.peso !== null ? Math.round(Number(a.peso) * Number(a.mejor)) / 100 : '—'} pts</>
+                {!publicado ? '' : a.mejor !== null && a.control ? <>nota original <strong>{Number(a.mejor)} %</strong> · Práctica de Control {Number(a.control.resultado)}/100
+                    → ×{Number(a.control.factor).toFixed(2)} = <strong>{Number(a.control.ajustada)} %</strong> → {a.peso !== null ? Math.round(Number(a.peso) * Number(a.control.ajustada)) / 100 : '—'} pts</>
+                  : a.mejor !== null ? <>su mejor intento: <strong>{Number(a.mejor)} %</strong> → {a.peso !== null ? Math.round(Number(a.peso) * Number(a.mejor)) / 100 : '—'} pts</>
                   : a.closes_at && new Date(a.closes_at) < new Date() ? 'no entregada (cuenta 0)' : 'pendiente de entregar'}
               </span>
             </li>

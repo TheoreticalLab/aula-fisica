@@ -11,6 +11,7 @@ import { Markdown } from '@/components/Markdown';
 import { examRules } from '@/api/examen';
 import { describirReglas } from '@/lib/examen/reglas';
 import type { ConfigExamen } from '@/lib/examen/motor';
+import { AvisoVerificacion } from '@/components/AvisoVerificacion';
 
 const CONFIG_CLASICA: ConfigExamen = { presentacion: 'todas', navegacion: 'libre', duracion_s: null, pausas: { permitidas: false, max_numero: 0, max_total_s: 0, detienen_reloj: false } };
 
@@ -47,6 +48,7 @@ export function FichaActividad({ act, items, maxScore, used, bestScore, children
         {act.mode === 'practice' && <div><dt className="text-gray-500">Ayudas</dt><dd>{act.hints_enabled ? `Pistas disponibles; ${act.max_tries_per_item} intentos por ejercicio` : `Sin pistas; ${act.max_tries_per_item} intentos por ejercicio`}</dd></div>}
         {bestScore !== null && maxScore !== undefined && <div><dt className="text-gray-500">Mejor calificación</dt><dd className="font-semibold">{puntaje(bestScore, maxScore)}</dd></div>}
       </dl>
+      {act.mode === 'practice' && <AvisoVerificacion activityId={act.id} />}
       {act.mode === 'exam' && <Notice tone="warn">En una evaluación no hay pistas ni retroalimentación inmediata. Sus respuestas se guardan solas; al terminar pulse «Entregar».</Notice>}
       {children}
     </Card>

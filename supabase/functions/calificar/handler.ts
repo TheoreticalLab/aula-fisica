@@ -91,10 +91,15 @@ async function gradeAndRecordSubmission(db: Db, userId: string, attemptId: strin
     // en actividades de práctica, lo ya comprobado conserva su resultado
     .filter((it) => ctx.mode === 'exam' || it.status === null || it.status === 'draft' || it.status === 'invalid');
   const previos = await Promise.all(pendientes.map((it) => respuestaEtapa(db, userId, attemptId, it.exercise_id, it.key)));
+  // Práctica de Control (migración 62): un formato no interpretable no es un cero, lo revisa el profesor
+  const control = ctx.mode === 'exam' && (await esControl(db, attemptId));
   const results = pendientes
     .map((it, i) => {
       const answer = validateAnswerShape(it.answer ?? {}) ?? {};
       const r = safeGrade(it.key, answer, it.option_count, previos[i], { attempt: attemptId, exercise: it.exercise_id });
+      if (r.status === 'invalid' && control && tieneContenido(answer)) {
+        return { exercise_id: it.exercise_id, answer, status: 'pending_review', credit: 0, code: 'format_review', messages: ['No se pudo interpretar automáticamente: lo revisará el profesor. ' + r.messages.join(' ')] };
+      }
       if (r.status === 'invalid') {
         return { exercise_id: it.exercise_id, answer, status: 'incorrect', credit: 0, code: 'blank', messages: ['Sin respuesta válida: ' + r.messages.join(' ')] };
       }
@@ -102,6 +107,14 @@ async function gradeAndRecordSubmission(db: Db, userId: string, attemptId: strin
     });
   return call<{ status: string }>(db, 'svc_record_submission', { p_user: userId, p_attempt: attemptId, p_results: results });
 }
+
+/** ¿Es el intento de una Práctica de Control? Si la función aún no existe (migración pendiente), se trata como examen normal. */
+async function esControl(db: Db, attemptId: string): Promise<boolean> {
+  const { data, error } = await db.rpc('svc_es_control', { p_attempt: attemptId });
+  return !error && data === true;
+}
+
+const tieneContenido = (a: StudentAnswer) => !!(a.text?.trim() || a.selected?.length || typeof a.value === 'boolean');
 
 /** Mensaje del primer intento cuando la respuesta no se entiende: genérico, para no revelar la unidad ni el resultado. */
 export const MENSAJE_FORMATO_INICIAL = 'No se pudo interpretar la respuesta. Revise el número y la unidad (por ejemplo, 9.8 m/s^2) o marque «No sé resolverlo».';
