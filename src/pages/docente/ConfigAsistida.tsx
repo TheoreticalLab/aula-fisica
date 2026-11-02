@@ -1,9 +1,9 @@
 /** Configuración del aprendizaje asistido de una práctica: transferencia por ejercicio, pesos editables y verificación diferida. */
 import { useEffect, useState } from 'react';
-import { assistedSettingsDisable, assistedSettingsGet, assistedSettingsSave, type ConfigAsistida as Cfg } from '@/api/asistida';
+import { asistidaNotaGuardar, assistedSettingsDisable, assistedSettingsGet, assistedSettingsSave, type ConfigAsistida as Cfg } from '@/api/asistida';
 import { funcionAusente } from '@/api/examen';
 import { activityItems, listActivities, listExercises } from '@/api/docente';
-import { notaCompuesta } from '@/lib/asistida';
+import { creditoConRegla, notaCompuesta } from '@/lib/asistida';
 import { useAction, useAsync } from '@/lib/util';
 import { Badge, Card, ErrorBox, Notice, Spinner } from '@/components/ui';
 
@@ -46,6 +46,7 @@ export function ConfigAsistida({ activityId, courseId, classId }: { activityId: 
   return (
     <Card title={<span>Aprendizaje asistido {st.data!.s.config ? <Badge tone="green">activo</Badge> : <Badge>sin guardar</Badge>}</span>} className="mt-4">
       <div className="space-y-4 text-sm">
+        {st.data!.s.config && <ReglaNota activityId={activityId} cfg={cfg} pesos={ef} onGuardado={(c) => st.setData({ ...st.data!, s: { ...st.data!.s, config: { ...st.data!.s.config!, ...c } } })} />}
         <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={cfg.transferencia} onChange={(e) => set({ transferencia: e.target.checked })} />
           <span><strong>Paso 4 · Demuestra lo que aprendiste</strong>: después de explicar, un ejercicio distinto con el mismo concepto (un solo intento).</span></label>
         {cfg.transferencia && (
@@ -116,5 +117,50 @@ export function ConfigAsistida({ activityId, courseId, classId }: { activityId: 
         {s.con_pasos && <p className="text-xs text-gray-500">Ya hay estudiantes con pasos registrados: el aprendizaje asistido no se puede desactivar en esta práctica.</p>}
       </div>
     </Card>
+  );
+}
+
+/** Regla de nota (migración 58): la corrección con ayuda tras fallar no vale lo mismo que acertar solo. */
+function ReglaNota({ activityId, cfg, pesos, onGuardado }: { activityId: string; cfg: Cfg; pesos: { inicial: number; correccion: number; justificacion: number; transferencia: number }; onGuardado: (c: Partial<Cfg>) => void }) {
+  const [modo, setModo] = useState<'participacion' | 'acierto'>(cfg.nota_primer_intento ?? 'participacion');
+  const [factor, setFactor] = useState(Math.round(100 * (cfg.factor_ayuda ?? 1)));
+  const [recalcular, setRecalcular] = useState(true);
+  const [msg, setMsg] = useState<string | null>(null);
+  const accion = useAction();
+  const p = { inicial: cfg.peso_inicial, correccion: cfg.peso_correccion, justificacion: cfg.peso_justificacion, transferencia: cfg.peso_transferencia };
+  const regla = { primerIntento: modo, factorAyuda: factor / 100 };
+  const t = cfg.transferencia ? 1 : null;
+  const pct = (x: number) => `${Math.round(100 * x)} %`;
+  const solo = creditoConRegla(p, regla, { iniCredito: 1, corBruto: 1, justificacion: true, transferencia: t });
+  const conAyuda = creditoConRegla(p, regla, { iniCredito: 0, corBruto: 1, justificacion: true, transferencia: t });
+  const guardar = () => void accion.run(async () => {
+    const r = await asistidaNotaGuardar(activityId, modo, factor / 100, recalcular);
+    onGuardado({ nota_primer_intento: modo, factor_ayuda: factor / 100 });
+    setMsg(recalcular ? `Regla guardada y ${r.recalculados} respuesta(s) recalculada(s). Las notas puestas a mano no cambian.` : 'Regla guardada: se aplicará a los pasos nuevos.');
+  });
+  const cambiada = modo !== (cfg.nota_primer_intento ?? 'participacion') || factor !== Math.round(100 * (cfg.factor_ayuda ?? 1));
+  return (
+    <div className={`rounded-lg border p-3 ${modo === 'participacion' && factor === 100 ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20' : 'border-gray-200 dark:border-white/10'}`}>
+      <p className="font-medium">Regla de nota</p>
+      {modo === 'participacion' && factor === 100 && <p className="text-xs text-amber-800 dark:text-amber-200">Con la regla actual, quien falla, busca ayuda y corrige saca lo mismo que quien acertó solo.</p>}
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <fieldset className="text-xs">
+          <legend className="etiqueta">El primer intento cuenta…</legend>
+          <label className="flex items-center gap-2"><input type="radio" checked={modo === 'acierto'} onChange={() => setModo('acierto')} /> por acertar (recomendado)</label>
+          <label className="flex items-center gap-2"><input type="radio" checked={modo === 'participacion'} onChange={() => setModo('participacion')} /> por participar (regla anterior)</label>
+        </fieldset>
+        <label className="text-xs"><span className="etiqueta">La corrección hecha con ayuda tras fallar vale</span>
+          <span className="flex items-center gap-2"><input type="range" min={0} max={100} step={5} value={factor} onChange={(e) => setFactor(Number(e.target.value))} className="flex-1" /><span className="w-12 text-right tabular-nums">{factor} %</span></span>
+          <span className="block text-gray-500">de su valor. Si el primer intento ya era correcto, la corrección cuenta completa.</span></label>
+      </div>
+      <p className="mt-2 text-xs">Con estos pesos ({pesos.inicial}/{pesos.correccion}/{pesos.justificacion}{cfg.transferencia ? `/${pesos.transferencia}` : ''}) y la explicación presentada:
+        acierta solo → <strong>{pct(solo)}</strong> · falla y corrige con ayuda → <strong>{pct(conAyuda)}</strong>. Declarar que usó IA no cambia nada (si cambiara, se castigaría la honestidad).</p>
+      <label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={recalcular} onChange={(e) => setRecalcular(e.target.checked)} /> Recalcular ahora las notas de los intentos que ya existen (incluidos los que están en curso)</label>
+      <div className="mt-2 flex items-center gap-3">
+        <button className="btn-primario !py-1 text-sm" disabled={accion.busy || (!cambiada && !recalcular)} onClick={guardar}>{accion.busy ? 'Guardando…' : 'Guardar regla de nota'}</button>
+        {msg && <span className="text-xs text-emerald-700 dark:text-emerald-300">{msg}</span>}
+      </div>
+      <ErrorBox error={accion.error} />
+    </div>
   );
 }

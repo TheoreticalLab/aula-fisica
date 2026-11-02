@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { handle, MENSAJE_FORMATO_INICIAL, type Db } from '../supabase/functions/calificar/handler.ts';
-import { casoReflexion, compararRespuestas, notaCompuesta, PESOS_POR_DEFECTO, pasosVisibles, reflexionPresentada, resumenSeccion, type EstadoItem, type Paso } from '../src/lib/asistida';
+import { casoReflexion, compararRespuestas, creditoConRegla, notaCompuesta, PESOS_POR_DEFECTO, pasosVisibles, reflexionPresentada, resumenSeccion, type EstadoItem, type Paso } from '../src/lib/asistida';
 
 const A = '11111111-1111-4111-8111-111111111111', E = '22222222-2222-4222-8222-222222222222', U = '33333333-3333-4333-8333-333333333333';
 const C1 = '44444444-4444-4444-8444-444444444444';
@@ -126,5 +126,23 @@ describe('Pasos visibles y resumen para el profesor', () => {
     expect(r).toMatchObject({ con_intento: 2, declaro_ayuda: 0.5, rendimiento_inicial_declarado: 0.5, rendimiento_posterior: 1, reflexion: 0.5 });
     expect(r.fuentes).toEqual([['ia', 1]]);
     expect(r.correcciones_por_ejercicio).toEqual([{ ejercicio: 'q', con: 2, corrigieron: 1 }]);
+  });
+});
+
+describe('regla de nota con ayuda (migración 58, espejo de asistida_credito)', () => {
+  const p = { inicial: 20, correccion: 30, justificacion: 20, transferencia: 30 };
+  it('regla anterior: fallar y corregir con ayuda da lo mismo que acertar solo (el defecto)', () => {
+    const r = { primerIntento: 'participacion' as const, factorAyuda: 1 };
+    expect(creditoConRegla(p, r, { iniCredito: 0, corBruto: 1, justificacion: true, transferencia: null })).toBe(1);
+    expect(creditoConRegla(p, r, { iniCredito: 1, corBruto: 1, justificacion: true, transferencia: null })).toBe(1);
+  });
+  it('regla nueva: acierta solo = 100 %; falla y corrige con ayuda = 50 % (factor 0,5), como en la prueba SQL', () => {
+    const r = { primerIntento: 'acierto' as const, factorAyuda: 0.5 };
+    expect(creditoConRegla(p, r, { iniCredito: 1, corBruto: 1, justificacion: true, transferencia: null })).toBe(1);
+    expect(creditoConRegla(p, r, { iniCredito: 0, corBruto: 1, justificacion: true, transferencia: null })).toBe(0.5);
+    // «no sé resolverlo» (crédito 0) y sin corregir: solo la explicación
+    expect(creditoConRegla(p, r, { iniCredito: 0, corBruto: 0, justificacion: true, transferencia: null })).toBe(Math.round(1000 * 20 / 70) / 1000);
+    // con transferencia correcta: (0 + 30·0,5 + 20 + 30) / 100
+    expect(creditoConRegla(p, r, { iniCredito: 0, corBruto: 1, justificacion: true, transferencia: 1 })).toBe(0.65);
   });
 });

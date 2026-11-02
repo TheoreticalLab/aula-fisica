@@ -5,7 +5,9 @@ import type { Declaracion, EstadoItem, Fuente, Pesos } from '@/lib/asistida';
 
 export interface EstadoAsistida {
   asistida: boolean;
-  config?: { transferencia: boolean; max_correcciones: number; pesos: Pesos; verificacion: { tipo: string | null; fecha: string | null; nota: string | null } };
+  config?: { transferencia: boolean; max_correcciones: number; pesos: Pesos; verificacion: { tipo: string | null; fecha: string | null; nota: string | null };
+    /** migración 58 (antes no viene) */
+    regla?: { primer_intento: 'participacion' | 'acierto'; factor_ayuda: number } };
   items?: EstadoItem[];
 }
 
@@ -25,7 +27,12 @@ export const asistidaReflexion = (attemptId: string, exerciseId: string, reflexi
 export interface ConfigAsistida {
   transferencia: boolean; peso_inicial: number; peso_correccion: number; peso_justificacion: number; peso_transferencia: number;
   verificacion_tipo: string | null; verificacion_fecha: string | null; verificacion_actividad: string | null; verificacion_nota: string | null;
+  /** migración 58: el primer intento cuenta por participar o por acertar; la corrección tras fallar vale factor_ayuda × su crédito */
+  nota_primer_intento?: 'participacion' | 'acierto'; factor_ayuda?: number;
 }
+/** Cambia la regla de nota de la práctica asistida y, si se pide, recalcula los intentos existentes (las notas manuales prevalecen). */
+export const asistidaNotaGuardar = (activityId: string, primerIntento: 'participacion' | 'acierto', factorAyuda: number, recalcular: boolean) =>
+  rpc<{ config: ConfigAsistida; recalculados: number }>('asistida_nota_guardar', { p_activity: activityId, p_primer_intento: primerIntento, p_factor_ayuda: factorAyuda, p_recalcular: recalcular });
 export const assistedSettingsGet = (activityId: string) =>
   rpc<{ config: ConfigAsistida | null; transferencias: Record<string, string>; con_pasos: boolean }>('assisted_settings_get', { p_activity: activityId });
 export const assistedSettingsSave = (activityId: string, cfg: Partial<ConfigAsistida>, transferencias: Record<string, string> | null) =>

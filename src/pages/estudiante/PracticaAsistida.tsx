@@ -73,6 +73,9 @@ export function PracticaAsistida({ view, onEntregado }: { view: AttemptView; onE
       <Notice>
         <strong>Práctica con aprendizaje asistido.</strong> En cada ejercicio: <strong>1 Intentar</strong> por su cuenta · <strong>2 Aprender</strong> con ayuda (IA, libros, apuntes…) ·
         <strong> 3 Explicar</strong> lo que aprendió{e.config.transferencia ? <> · <strong>4 Comprobar</strong> con un ejercicio nuevo</> : null}. Lo que importa es entender, no solo acertar.
+        {e.config.regla?.primer_intento === 'acierto' && (
+          <span className="mt-1 block text-sm">Nota: su primer intento cuenta por acierto; si no fue correcto, la respuesta corregida después de buscar ayuda vale el {Math.round(100 * e.config.regla.factor_ayuda)} % de su parte. Declarar si usó ayuda no cambia la nota.</span>
+        )}
       </Notice>
       {items.length > 1 && (
         <nav aria-label="Ejercicios" className="flex flex-wrap gap-1.5 pb-1">
@@ -166,7 +169,7 @@ function EjercicioAsistido({ index, attemptId, item, ex, config, editable, onAct
 
       {item.siguiente === 'completo' && (
         <Recuadro titulo="✓ Ejercicio completado" tono="verde">
-          {item.calificacion && <p>Valoración de este ejercicio: <strong>{porcentaje(item.calificacion.credito)}</strong> (participación, corrección, explicación{item.calificacion.transferencia !== null ? ' y comprobación' : ''}; no depende de si declaró usar ayuda).</p>}
+          {item.calificacion && <p>Valoración de este ejercicio: <strong>{porcentaje(item.calificacion.credito)}</strong> ({item.calificacion.regla?.primer_intento === 'acierto' ? 'primer intento por acierto, corrección con ayuda' : 'participación, corrección'}, explicación{item.calificacion.transferencia !== null ? ' y comprobación' : ''}; no depende de si declaró usar ayuda).</p>}
           {onSiguiente && <button className="btn-primario mt-1" onClick={onSiguiente}>Siguiente ejercicio →</button>}
         </Recuadro>
       )}

@@ -126,7 +126,7 @@ export function resumen(b: Borrador): string[] {
   else if (b.asistida) {
     l.push('Aprendizaje asistido: 1 intento propio (con declaración) → 2 aprender con ayuda y corregir → 3 explicar lo aprendido'
       + (b.asistida.transferencia ? ' → 4 ejercicio de transferencia (asígnelo en la actividad).' : '.'));
-    l.push(`${b.max_tries_per_item} comprobación(es) de la corrección por ejercicio. Nota: participación 20 %, corrección 30 %, explicación 20 %, transferencia 30 % (sin transferencia se reparte proporcionalmente; editable).`);
+    l.push(`${b.max_tries_per_item} comprobación(es) de la corrección por ejercicio. Nota: primer intento por acierto 20 %, corrección 30 % (si el primer intento no fue correcto, la corrección con ayuda vale el 50 % de su parte), explicación 20 %, transferencia 30 % (sin transferencia se reparte proporcionalmente; editable).`);
   } else l.push(`${b.max_tries_per_item} comprobación(es) por ejercicio${b.hints_enabled ? ', con pistas' : ''}.`);
   l.push({ immediate: 'Ve si acierta y la solución al comprobar.', after_submit: 'Ve las soluciones al entregar.', after_close: 'Ve las soluciones cuando cierre la actividad.', never: 'No se muestran las soluciones.' }[b.reveal_policy]);
   l.push(b.publicar ? 'Se publica ahora: los estudiantes la verán.' : 'Se guarda como borrador: los estudiantes no la ven hasta que la publique.');

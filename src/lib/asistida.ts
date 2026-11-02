@@ -32,7 +32,8 @@ export interface EstadoItem {
   exercise_id: string; siguiente: Siguiente; correcciones: number; con_transferencia: boolean; pasos: Paso[];
   transferencia: { id: string; prompt: string; format: string; options: string[] | null; multiple: boolean; figure: unknown; unit_hint: string | null; concepts: string[] } | null;
   solucion: { answer: unknown; explanation: string } | null;
-  calificacion: { credito: number; inicial: number; correccion: number; justificacion: number; transferencia: number | null; pesos: Pesos; estado_final: string | null } | null;
+  calificacion: { credito: number; inicial: number; correccion: number; justificacion: number; transferencia: number | null; pesos: Pesos; estado_final: string | null;
+    regla?: { primer_intento: 'participacion' | 'acierto'; factor_ayuda: number } } | null;
 }
 export interface Pesos { inicial: number; correccion: number; justificacion: number; transferencia: number }
 
@@ -117,6 +118,21 @@ export function notaCompuesta(p: Pesos, c: { inicial: boolean; correccion: numbe
     credito: Math.round(1000 * ((p.inicial * (c.inicial ? 1 : 0) + p.correccion * c.correccion + p.justificacion * (c.justificacion ? 1 : 0) + (conT ? p.transferencia * c.transferencia! : 0)) / den)) / 1000,
     efectivos: { inicial: ef(p.inicial), correccion: ef(p.correccion), justificacion: ef(p.justificacion), transferencia: conT ? ef(p.transferencia) : 0 },
   };
+}
+
+/**
+ * Regla de nota de la migración 58 (espejo de asistida_credito): el primer intento cuenta por participar o por acertar;
+ * si el primer intento no fue correcto, la corrección vale factorAyuda × su crédito. La declaración no interviene.
+ */
+export function creditoConRegla(p: Pesos, regla: { primerIntento: 'participacion' | 'acierto'; factorAyuda: number },
+  c: { iniCredito: number | null; corBruto: number; justificacion: boolean; transferencia: number | null }) {
+  const hayIni = c.iniCredito !== null;
+  const ini = !hayIni ? 0 : regla.primerIntento === 'acierto' ? c.iniCredito! : 1;
+  const cor = regla.primerIntento === 'acierto' && (c.iniCredito ?? 0) >= 1 ? 1 : regla.factorAyuda * c.corBruto;
+  const conT = c.transferencia !== null;
+  const den = p.inicial + p.correccion + p.justificacion + (conT ? p.transferencia : 0);
+  if (!den) return 0;
+  return Math.round(1000 * ((p.inicial * ini + p.correccion * cor + p.justificacion * (c.justificacion ? 1 : 0) + (conT ? p.transferencia * c.transferencia! : 0)) / den)) / 1000;
 }
 
 /** Resumen de la sección para el profesor (proporciones sobre los ejercicios con primer intento). */
