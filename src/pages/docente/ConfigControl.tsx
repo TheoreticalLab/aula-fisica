@@ -4,7 +4,7 @@
  * La activación se hace en clase, desde la asistencia de Orbe Control.
  */
 import { useState } from 'react';
-import { controlAjustes, controlAviso, controlCatalogo, controlItemGuardar, controlPoliticaGuardar, controlPoliticaRetirar, type ItemCatalogo } from '@/api/control';
+import { controlAjustes, controlAviso, controlCatalogo, controlItemGuardar, controlPoliticaAnunciar, controlPoliticaRetirar, type Alcance, type ItemCatalogo } from '@/api/control';
 import { Badge, Card, ErrorBox, Notice, Spinner } from '@/components/ui';
 import { DURACIONES, ejemploAjuste, TIPO_TRANSFERENCIA, W_MAX, W_POR_DEFECTO } from '@/lib/control';
 import { useAction, useAsync } from '@/lib/util';
@@ -25,17 +25,24 @@ function Politica({ activityId }: { activityId: string }) {
   const [dur, setDur] = useState(7);
   const [cond, setCond] = useState('Se aplica a las entregas hechas después de este aviso. No se aplica a ausencias justificadas, incidencias técnicas ni mientras la corrección esté pendiente.');
   const [ayudas, setAyudas] = useState('Puedes usar libros, apuntes, simuladores e inteligencia artificial para aprender; lo que se comprueba después es que puedas resolver solo un problema nuevo.');
+  const [alcance, setAlcance] = useState<Alcance>('nuevas');
+  const [anticipacion, setAnticipacion] = useState(24);
+  const [publicar, setPublicar] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
   const accion = useAction();
   const vigente = st.data;
+  const fechaHora = (iso: string) => new Date(iso).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' });
   return (
     <Card title="Práctica de Control · política de nota">
-      <p className="text-sm text-gray-600 dark:text-gray-300">Anuncie aquí, ANTES de las entregas, cuánto puede ajustar un control presencial la nota de esta práctica:
+      <p className="text-sm text-gray-600 dark:text-gray-300">Anuncie aquí, antes de las entregas o al menos antes del control, cuánto puede ajustar un control presencial la nota de esta práctica:
         N_final = N_original × [1 − w × (1 − C/100)]. Los estudiantes lo ven en la práctica desde ese momento. Cada cambio crea una versión nueva:
-        a cada estudiante se le aplica la versión anunciada antes de su primera entrega (nunca se cambian las reglas hacia atrás).</p>
+        cada control se rige por la versión que el estudiante conocía antes de hacerlo (nunca se cambian las reglas de un control ya hecho).</p>
       {st.loading ? <Spinner /> : vigente ? (
         <Notice tone="ok">Vigente: versión {vigente.version} · ajuste máximo {Math.round(100 * vigente.w)} % · {vigente.duracion_min} min · anunciada el {new Date(vigente.announced_at).toLocaleString('es-DO')}.
-          Ej.: 90 en la práctica y 50 en el control → {ejemploAjuste(vigente.w).final}.</Notice>
+          Ej.: 90 en la práctica y 50 en el control → {ejemploAjuste(vigente.w).final}.
+          {vigente.alcance === 'todas'
+            ? ` Se aplica también a quien ya entregó, en controles iniciados desde el ${vigente.efectiva_desde ? fechaHora(vigente.efectiva_desde) : '—'}.`
+            : ' Se aplica a las entregas hechas desde el anuncio.'}</Notice>
       ) : <Notice>Sin política anunciada: un control de esta práctica sería solo diagnóstico y no cambiaría ninguna nota.</Notice>}
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-sm"><span className="etiqueta">Ajuste máximo (w)</span>
@@ -44,6 +51,21 @@ function Politica({ activityId }: { activityId: string }) {
           <span className="block text-xs text-gray-500">Límite institucional {Math.round(100 * W_MAX)} %. Con {w} %: 90 y control 50 → {ejemploAjuste(w / 100).final}; control 0 → {ejemploAjuste(w / 100).original * (1 - w / 100)}.</span></label>
         <label className="text-sm"><span className="etiqueta">Duración del control</span>
           <select className="campo" value={dur} onChange={(e) => setDur(Number(e.target.value))}>{DURACIONES.map((m) => <option key={m} value={m}>{m} minutos</option>)}</select></label>
+        <fieldset className="text-sm sm:col-span-2">
+          <legend className="etiqueta">¿A qué entregas se aplica?</legend>
+          <label className="flex items-start gap-2"><input type="radio" className="mt-1" checked={alcance === 'nuevas'} onChange={() => setAlcance('nuevas')} />
+            <span>Solo a las entregas posteriores a este anuncio <span className="text-gray-500">(práctica nueva o aún abierta)</span></span></label>
+          <label className="flex items-start gap-2"><input type="radio" className="mt-1" checked={alcance === 'todas'} onChange={() => setAlcance('todas')} />
+            <span>También a las entregas ANTERIORES <span className="text-gray-500">(práctica ya dada): solo cuenta en controles hechos con la antelación que fije, para que todos lo sepan antes de la prueba</span></span></label>
+          {alcance === 'todas' && (
+            <label className="mt-1 block"><span className="etiqueta">Antelación mínima entre el anuncio y el control</span>
+              <select className="campo max-w-xs" value={anticipacion} onChange={(e) => setAnticipacion(Number(e.target.value))}>
+                {[1, 12, 24, 48, 72, 168].map((h) => <option key={h} value={h}>{h < 24 ? `${h} hora(s)` : `${h / 24} día(s)`}</option>)}
+              </select>
+              <span className="block text-xs text-gray-500">Un control iniciado antes de ese momento será solo diagnóstico (no cambia notas). Recomendado: 24 h o «para la próxima clase».</span></label>
+          )}
+          <label className="mt-1 flex items-center gap-2"><input type="checkbox" checked={publicar} onChange={(e) => setPublicar(e.target.checked)} /> Publicar además un aviso fijado en la sección (lo ven aunque no abran la práctica)</label>
+        </fieldset>
         <label className="text-sm sm:col-span-2"><span className="etiqueta">Condiciones de aplicación</span>
           <textarea className="campo" rows={2} maxLength={1500} value={cond} onChange={(e) => setCond(e.target.value)} /></label>
         <label className="text-sm sm:col-span-2"><span className="etiqueta">Política sobre IA y otras ayudas (en la práctica)</span>
@@ -51,15 +73,20 @@ function Politica({ activityId }: { activityId: string }) {
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button className="btn-primario" disabled={accion.busy} onClick={() => {
-          if (!window.confirm(`¿Anunciar la política (${w} %, ${dur} min)? Los estudiantes la verán en la práctica y se aplicará a las entregas hechas desde ahora.`)) return;
+          const texto = alcance === 'todas'
+            ? `¿Anunciar la política (${w} %, ${dur} min) TAMBIÉN para quienes ya entregaron? Solo contará en controles iniciados dentro de ${anticipacion} h o más.`
+            : `¿Anunciar la política (${w} %, ${dur} min)? Se aplicará a las entregas hechas desde ahora.`;
+          if (!window.confirm(texto)) return;
           void accion.run(async () => {
-            const r = await controlPoliticaGuardar(activityId, w / 100, dur, cond, ayudas);
-            setMsg(`Anunciada la versión ${r.version}.${r.entregas_previas ? ` ${r.entregas_previas} estudiante(s) ya habían entregado: a ellos no se les aplica (sin retroactividad).` : ''}`);
+            const r = await controlPoliticaAnunciar(activityId, w / 100, dur, cond, ayudas, alcance, alcance === 'todas' ? anticipacion : 0, publicar);
+            setMsg(`Anunciada la versión ${r.version}${r.aviso_id ? ' y publicado el aviso en la sección' : ''}.` + (alcance === 'todas'
+              ? ` Cuenta en controles desde el ${fechaHora(r.efectiva_desde)} (también para las ${r.entregas_previas} entrega(s) anteriores).`
+              : r.entregas_previas ? ` ${r.entregas_previas} estudiante(s) ya habían entregado: a ellos no se les aplica.` : ''));
             st.reload();
           });
         }}>{vigente ? 'Anunciar versión nueva' : 'Anunciar política'}</button>
         {vigente && <button className="btn-secundario" disabled={accion.busy} onClick={() => {
-          if (!window.confirm('¿Retirar la política? Quien entregue desde ahora no tendrá ajuste; a quien ya entregó con ella anunciada se le sigue aplicando la que se le anunció.')) return;
+          if (!window.confirm('¿Retirar la política? Los controles posteriores no ajustarán notas de quien entregue desde ahora; los controles ya hechos conservan la regla con la que se hicieron.')) return;
           void accion.run(async () => { await controlPoliticaRetirar(activityId); st.reload(); });
         }}>Retirar</button>}
         {msg && <span className="text-sm text-emerald-700 dark:text-emerald-300">{msg}</span>}
@@ -189,7 +216,7 @@ function Ajustes({ activityId }: { activityId: string }) {
   return (
     <Card title="Ajustes de la nota por controles">
       <p className="text-sm text-gray-600 dark:text-gray-300">La nota original no se modifica: el Registro de calificaciones usa la final. Solo hay ajuste con un control
-        confirmado, sin incidencia, sin corrección pendiente y con una política anunciada antes de la entrega. Con varios controles cuenta el mejor (no se encadenan descuentos).
+        confirmado, sin incidencia, sin corrección pendiente y con una política aplicable (anunciada antes de la entrega o, si es «también anteriores», con la antelación fijada antes del control). Con varios controles cuenta el más favorable (no se encadenan descuentos).
         Los controles se activan en clase desde Orbe Control → Asistencia → Práctica de Control.</p>
       {st.loading ? <Spinner /> : st.error ? <ErrorBox error={st.error} onRetry={st.reload} /> : (
         <div className="mt-2 overflow-x-auto">

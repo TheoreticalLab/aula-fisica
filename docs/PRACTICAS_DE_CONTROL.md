@@ -48,8 +48,16 @@
 - **La nota original nunca se modifica**: el factor se aplica al leer. No puede aplicarse dos veces por
   sincronizaciones ni recálculos.
 - **Varias verificaciones** de una misma práctica: cuenta el **mejor** resultado confirmado (regla agregada única).
-- **Sin retroactividad**: se aplica la política anunciada **antes de la primera entrega** del estudiante. Las prácticas
-  sin política anunciada solo admiten controles diagnósticos (factor 1). Cambiar la política crea una versión nueva.
+- **Aviso previo, siempre** (migración 63). Cada política elige su alcance:
+  - **«nuevas»**: rige a quien entrega **después** del anuncio.
+  - **«todas»** (prácticas ya dadas): rige **también a las entregas anteriores**, pero solo en los controles iniciados
+    al menos `anticipacion_horas` después del anuncio (24 h por defecto; «para la próxima clase») y mientras sea la
+    versión vigente. Un control iniciado antes es solo diagnóstico. Al anunciarla se publica (opcional, activado por
+    defecto) un aviso fijado en la sección durante 21 días.
+  - Sin política aplicable, el control es diagnóstico (factor 1). Cambiar la política crea una versión nueva; las
+    versiones son inmutables y cada control conserva la regla con la que se hizo (corrección de un defecto de la 62,
+    que dejaba de aplicar una versión anterior a quien entregó bajo ella).
+  - Con varios controles cuenta el **más favorable** al estudiante (`control_mejor`).
 - **Solo con confirmación**: hace falta intento entregado, sin corrección pendiente, sin incidencia, sesión no
   cancelada y confirmación expresa del profesor.
 - Ejemplo: 90 en la práctica y 50/100 en el control → 90 × (1 − 0,2 × 0,5) = **81**. Con 100/100 se conserva el 90.
@@ -105,7 +113,8 @@ intento se usan cuando el ejercicio del banco tiene plantilla (hoy: choques). La
 | Recuperación | Nueva sesión marcada como recuperación; cuenta el mejor resultado |
 | Activación accidental o duplicada | Una sola sesión abierta por práctica; preparar es idempotente por petición; iniciar dos veces no duplica; «Anular» cancela sin efecto en notas |
 | Distintas secciones | Cada práctica pertenece a una sección; solo su profesorado ve y maneja sus controles |
-| Versiones de la práctica | Las políticas son versiones inmutables; a cada estudiante se le aplica la anunciada antes de su primera entrega |
+| Versiones de la práctica | Las políticas son versiones inmutables; cada control se rige por la que el estudiante conocía antes de hacerlo |
+| Práctica ya entregada | Política «también entregas anteriores» con antelación mínima antes del control y aviso fijado en la sección |
 | Fallo de red o del sistema | Incidencia: ese control deja de contar |
 
 ## 6. Seguridad
@@ -127,8 +136,10 @@ procesos distintos.
 
 ## 8. Guía rápida del profesor
 
-1. **Antes de que entreguen**: Actividad (la práctica) → Configuración → «Práctica de Control · política de nota»:
-   ajuste máximo, duración, condiciones y política de ayudas → «Anunciar política». Los estudiantes ven el aviso.
+1. **Antes de que entreguen** (o, para una práctica ya dada, antes del control): Actividad (la práctica) →
+   Configuración → «Práctica de Control · política de nota»: ajuste máximo, duración, a qué entregas se aplica
+   (posteriores, o también anteriores con antelación mínima), condiciones y política de ayudas → «Anunciar política».
+   Los estudiantes ven el aviso en la práctica y, si lo deja marcado, un aviso fijado en la sección.
 2. (Recomendado) En «Problemas de transferencia», cree y apruebe fichas a partir de las sugerencias del banco.
 3. **En clase**: Orbe Control → Asistencia → abra la asistencia como siempre. En «PRÁCTICA DE CONTROL» elija la
    práctica (o deje «Ninguna»), la duración → «Preparar controles». Revise la vista previa, cambie problemas, exente o

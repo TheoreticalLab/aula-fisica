@@ -27,7 +27,9 @@ export function AvisoVerificacion({ activityId }: { activityId: string }) {
         <li>Si no hay un control confirmado, tu nota no cambia. Una nota baja en el control no se considera prueba de uso indebido de IA.</li>
       </ul>
       <p className="mt-2 text-xs opacity-80">Política versión {a.version}, anunciada el {new Date(a.announced_at).toLocaleString('es-DO')}.
-        {a.aplicable_a_mi ? ` A tu entrega se le aplica la versión ${a.aplicable_a_mi.version} (${Math.round(100 * a.aplicable_a_mi.w)} %).` : ' Se aplica a las entregas hechas desde su anuncio.'}</p>
+        {a.alcance === 'todas'
+          ? ` Se aplica a todas las entregas de esta práctica, también a las anteriores, en los controles realizados desde el ${a.efectiva_desde ? new Date(a.efectiva_desde).toLocaleString('es-DO') : '—'}.`
+          : a.aplicable_a_mi ? ` A tu entrega se le aplica la versión ${a.aplicable_a_mi.version} (${Math.round(100 * a.aplicable_a_mi.w)} %).` : ' Se aplica a las entregas hechas desde su anuncio.'}</p>
     </section>
   );
 }

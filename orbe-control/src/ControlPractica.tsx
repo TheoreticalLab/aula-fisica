@@ -10,7 +10,7 @@ import { DURACIONES, ESTADO_CONTROL, ejemploAjuste, TIPO_TRANSFERENCIA, type Est
 
 interface Practica {
   id: string; title: string; curso: string; seccion: string; opens_at: string | null; closes_at: string | null; created_at: string; entregaron: number;
-  politica: { version: number; w: number; duracion_min: number; announced_at: string } | null; abierta: string | null;
+  politica: { version: number; w: number; duracion_min: number; announced_at: string; alcance?: 'nuevas' | 'todas'; efectiva_desde?: string } | null; abierta: string | null;
 }
 interface Alumno {
   user_id: string; nombre: string; estado: EstadoControl; estado_elegibilidad: string; presente: boolean | null; exercise_id: string | null; slug: string | null;
@@ -107,9 +107,13 @@ export function ControlPractica({ classId, attendanceId }: { classId: string; at
             <p className="tenue pequeno">Asignada {fecha(p.opens_at ?? p.created_at)} · entrega {fecha(p.closes_at)} · {p.entregaron} estudiante(s) la entregaron (elegibles si están presentes)</p>
             {p.politica ? (
               <p className="pequeno">Política anunciada (v{p.politica.version}): ajuste máximo <strong>{pct(p.politica.w)}</strong> de la nota de la práctica.
-                Ej.: 90 en la práctica y 50 en el control → {ejemploAjuste(p.politica.w).final}.</p>
+                Ej.: 90 en la práctica y 50 en el control → {ejemploAjuste(p.politica.w).final}.
+                {p.politica.alcance === 'todas' ? ' Incluye entregas anteriores.' : ' Solo entregas posteriores al aviso.'}</p>
             ) : (
               <p className="aviso pequeno">Esta práctica no anunció una política de ajuste: el control será solo diagnóstico y NO cambiará ninguna nota.</p>
+            )}
+            {p.politica?.alcance === 'todas' && p.politica.efectiva_desde && new Date(p.politica.efectiva_desde).getTime() > Date.now() && (
+              <p className="aviso pequeno">Aún no se cumple la antelación anunciada (desde {new Date(p.politica.efectiva_desde).toLocaleString('es-DO', { dateStyle: 'short', timeStyle: 'short' })}): si lo inicia ahora será solo diagnóstico y no cambiará notas.</p>
             )}
             <label>Duración
               <select value={duracion} onChange={(e) => setDuracion(Number(e.target.value))}>

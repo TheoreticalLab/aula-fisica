@@ -2,14 +2,24 @@
 import { rpc } from '@/lib/supabase';
 import type { EstadoControl } from '@/lib/control';
 
-export interface Politica { id: string; activity_id: string; version: number; w: number; duracion_min: number; condiciones: string; politica_ayudas: string; activa: boolean; announced_at: string }
+export type Alcance = 'nuevas' | 'todas';
+export interface Politica { id: string; activity_id: string; version: number; w: number; duracion_min: number; condiciones: string; politica_ayudas: string; activa: boolean; announced_at: string;
+  /** migración 63 */
+  alcance?: Alcance; anticipacion_horas?: number }
 export interface AvisoControl {
   version: number; w: number; duracion_min: number; condiciones: string; politica_ayudas: string; announced_at: string;
   aplicable_a_mi: Politica | null;
+  /** migración 63 */
+  alcance?: Alcance; anticipacion_horas?: number; efectiva_desde?: string;
 }
 export const controlAviso = (activityId: string) => rpc<AvisoControl | null>('control_aviso', { p_activity: activityId });
 export const controlPoliticaGuardar = (activityId: string, w: number, duracion: number, condiciones: string, politicaAyudas: string) =>
   rpc<Politica & { entregas_previas: number }>('control_politica_guardar', { p_activity: activityId, p_w: w, p_duracion: duracion, p_condiciones: condiciones, p_politica_ayudas: politicaAyudas });
+/** Migración 63: con alcance ('todas' = también entregas anteriores, con antelación mínima antes del control) y aviso en la sección. */
+export const controlPoliticaAnunciar = (activityId: string, w: number, duracion: number, condiciones: string, politicaAyudas: string, alcance: Alcance, anticipacionHoras: number, publicarAviso: boolean) =>
+  rpc<Politica & { entregas_previas: number; efectiva_desde: string; aviso_id: string | null }>('control_politica_anunciar', {
+    p_activity: activityId, p_w: w, p_duracion: duracion, p_condiciones: condiciones, p_politica_ayudas: politicaAyudas,
+    p_alcance: alcance, p_anticipacion_horas: anticipacionHoras, p_publicar_aviso: publicarAviso });
 export const controlPoliticaRetirar = (activityId: string) => rpc<void>('control_politica_retirar', { p_activity: activityId });
 
 export interface ItemCatalogo {
