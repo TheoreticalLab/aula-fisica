@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { construirPeticion, depurar, disponibilidad, generarClase, SCHEMA_CLASE, validarSalida, type Catalogo, type DepsClase } from '../supabase/functions/orbe-ia/clase';
+import { catalogoCompacto, construirPeticion, depurar, disponibilidad, generarClase, SCHEMA_CLASE, validarSalida, type Catalogo, type DepsClase } from '../supabase/functions/orbe-ia/clase';
 import { costo, estimar, NIVELES, tokensImagen } from '../supabase/functions/_shared/clases/estimacion';
 import { eliminarClase, rutaFotoClase, subirFotoClase } from '../supabase/functions/entregas/clases';
 import type { DepsCapturas } from '../supabase/functions/entregas/capturas';
@@ -26,8 +26,8 @@ const respuestaBuena = JSON.stringify({
     { clave: 'inventada', cuerpo: 'no debe aparecer' },
   ],
   enlaces: [
-    { tipo: 'leccion', lesson_id: L1, unit_id: '', exercise_id: '', sim_key: '', apartado: 'Teorema trabajo-energía', concepto: '', cobertura: 'completa' },
-    { tipo: 'leccion', lesson_id: '99999999-9999-4999-8999-999999999999', unit_id: '', exercise_id: '', sim_key: '', apartado: '', concepto: '', cobertura: 'completa' },
+    { tipo: 'leccion', lesson_id: 'L1', unit_id: '', exercise_id: 'E1', sim_key: '', apartado: 'Teorema trabajo-energía', concepto: '', cobertura: 'completa' },
+    { tipo: 'leccion', lesson_id: 'L99', unit_id: '', exercise_id: '', sim_key: '', apartado: '', concepto: '', cobertura: 'completa' },
     { tipo: 'brecha', lesson_id: '', unit_id: '', exercise_id: '', sim_key: '', apartado: '', concepto: 'Potencia instantánea', cobertura: 'ninguna' },
   ],
 });
@@ -102,12 +102,13 @@ describe('Clases impartidas · generación con IA (API simulada)', () => {
     });
   }
   it('la salida se depura: sin HTML, imágenes ni enlaces web; claves desconocidas descartadas; IDs inventados filtrados', async () => {
-    const s = validarSalida(respuestaBuena, 'claude-sonnet-5-5', CATALOGO);
+    const s = validarSalida(respuestaBuena, 'claude-sonnet-5-5', catalogoCompacto(CATALOGO, {}).mapa);
     const cuerpo = JSON.stringify(s.contenido);
     expect(cuerpo).not.toMatch(/<script>|espia|https:\/\/ejemplo/);
     expect(cuerpo).toMatch(/Delta K/);
     expect((s.contenido.secciones as { clave: string }[]).map((x) => x.clave)).toEqual(['reconstruccion', 'incertidumbres']);
-    expect(s.enlaces).toHaveLength(2);   // la lección inventada no pasa; la brecha sí
+    expect(s.enlaces).toHaveLength(2);   // la lección inventada (alias L99) no pasa; la brecha sí
+    expect(s.enlaces[0]).toMatchObject({ lesson_id: L1, exercise_id: E1, unit_id: null });   // alias → identificador real
     expect(depurar('<img src=x onerror=alert(1)>texto')).toBe('texto');
   });
   it('doble clic o reintento de red: no se genera dos veces', async () => {
@@ -150,6 +151,24 @@ describe('Clases impartidas · generación con IA (API simulada)', () => {
     expect(d.comprobado).toBe(true);
     expect(d.modelos['claude-opus-5-5'].disponible).toBe(false);
     expect((await disponibilidad(mockDeps({ hayClave: false }).deps)).comprobado).toBe(false);
+  });
+  it('catálogo compacto: alias cortos, tamaño acotado y ejercicios de la unidad de la clase primero', () => {
+    const U2 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const grande: Catalogo = {
+      unidades: [...CATALOGO.unidades, { id: U2, titulo: 'Otra' }],
+      lecciones: Array.from({ length: 40 }, (_, i) => ({ id: `${String(i).padStart(8, '0')}-0000-4000-8000-000000000000`, unidad: i < 5 ? U2 : CATALOGO.unidades[0].id,
+        titulo: `Lección ${i}`, resumen: 'x'.repeat(240), apartados: Array.from({ length: 30 }, (_, k) => `Apartado ${k}`), simulador: null })),
+      ejercicios: Array.from({ length: 300 }, (_, i) => ({ id: `${String(i).padStart(8, '0')}-1111-4111-8111-111111111111`, slug: `ej-${i}`, conceptos: ['energia'],
+        nivel: 'basico', leccion: `${String(i % 40).padStart(8, '0')}-0000-4000-8000-000000000000` })),
+    };
+    const c = catalogoCompacto(grande, { unit_id: U2, temas: [] });
+    const texto = JSON.stringify(c.datos);
+    expect(texto).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/);            // ningún UUID llega al modelo
+    expect((c.datos.ejercicios as unknown[]).length).toBe(80);
+    expect(texto.length).toBeLessThan(30000);                          // ≈ 8 000 tokens como mucho
+    const primero = (c.datos.ejercicios as { leccion: string }[])[0].leccion;
+    expect(['L1', 'L2', 'L3', 'L4', 'L5']).toContain(primero);          // de la unidad de la clase
+    expect(Object.keys(c.mapa.lecciones)).toHaveLength(40);
   });
   it('esquema de salida compatible con structured outputs (sin tipos combinados ni null en enum; objetos cerrados)', () => {
     const revisar = (n: unknown, ruta: string): void => {

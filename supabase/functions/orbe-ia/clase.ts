@@ -52,6 +52,38 @@ export async function disponibilidad(deps: DepsClase): Promise<Record<string, un
   return { comprobado: true, modelos: out };
 }
 
+// --- Catálogo compacto -------------------------------------------------------------------------------------------
+/**
+ * El catálogo real se envía con ALIAS cortos (U1, L3, E12) en lugar de UUID: un UUID cuesta ~25 tokens y el catálogo
+ * completo llegó a ~60 000 tokens de entrada (2 nov 2026). Además, un alias inventado no corresponde a nada: se descarta.
+ * Se acota a lo relevante: todas las unidades y lecciones (títulos y hasta 12 apartados), y hasta 80 ejercicios,
+ * priorizando la unidad de la clase y los que comparten conceptos con los temas.
+ */
+export interface Mapa { lecciones: Record<string, string>; unidades: Record<string, string>; ejercicios: Record<string, string> }
+export function catalogoCompacto(cat: Catalogo | undefined, clase: Record<string, unknown> | undefined): { datos: Record<string, unknown>; mapa: Mapa } {
+  const mapa: Mapa = { lecciones: {}, unidades: {}, ejercicios: {} };
+  if (!cat) return { datos: {}, mapa };
+  const aliasU = new Map<string, string>(), aliasL = new Map<string, string>();
+  cat.unidades.forEach((u, i) => { aliasU.set(u.id, `U${i + 1}`); mapa.unidades[`U${i + 1}`] = u.id; });
+  cat.lecciones.forEach((l, i) => { aliasL.set(l.id, `L${i + 1}`); mapa.lecciones[`L${i + 1}`] = l.id; });
+  const unidadClase = typeof clase?.unit_id === 'string' ? clase.unit_id : null;
+  const temas = (Array.isArray(clase?.temas) ? clase!.temas as string[] : []).map((t) => t.toLowerCase());
+  const leccionesUnidad = new Set(cat.lecciones.filter((l) => l.unidad === unidadClase).map((l) => l.id));
+  const relevancia = (e: Catalogo['ejercicios'][number]) => (e.leccion && leccionesUnidad.has(e.leccion) ? 2 : 0)
+    + (e.conceptos.some((c) => temas.some((t) => t.includes(c.replace(/-/g, ' ')) || c.includes(t.replace(/\s+/g, '-')))) ? 1 : 0);
+  const ejercicios = [...cat.ejercicios].sort((a, b) => relevancia(b) - relevancia(a)).slice(0, 80);
+  ejercicios.forEach((e, i) => { mapa.ejercicios[`E${i + 1}`] = e.id; });
+  return {
+    mapa,
+    datos: {
+      unidades: cat.unidades.map((u) => ({ id: aliasU.get(u.id), titulo: u.titulo })),
+      lecciones: cat.lecciones.map((l) => ({ id: aliasL.get(l.id), unidad: aliasU.get(l.unidad) ?? null, titulo: l.titulo,
+        apartados: (l.apartados ?? []).slice(0, 12), simulador: l.simulador })),
+      ejercicios: ejercicios.map((e, i) => ({ id: `E${i + 1}`, slug: e.slug, conceptos: e.conceptos, leccion: e.leccion ? aliasL.get(e.leccion) ?? null : null })),
+    },
+  };
+}
+
 // --- Petición a Claude ----------------------------------------------------------------------------------------
 export const SCHEMA_CLASE = {
   type: 'object',
@@ -92,10 +124,11 @@ export function sistemaClase(nivel: Nivel): string {
     '2. Distingue siempre lo VISIBLE en la pizarra de lo INFERIDO. Marca lo inferido con «(inferido)» y lo dudoso con «(dudoso)». Nunca presentes una lectura incierta como un hecho.',
     '3. No inventes datos experimentales ni atribuyas al profesor procedimientos que no aparecen en las fotos. No conoces lo que se dijo oralmente: reconócelo.',
     '4. Las ampliaciones pedagógicas van SOLO en la sección «ampliaciones», presentadas como material complementario generado por IA, no como lo dicho en clase.',
-    '5. Enlaces: en cada enlace, deja en "" (cadena vacía) los campos que no apliquen. Usa EXCLUSIVAMENTE identificadores del catálogo que se te entrega (lesson_id, unit_id, exercise_id, sim_key = «simulador» de una lección, apartado = uno de los «apartados» exactos de esa lección). Si un tema trabajado no está en el catálogo, añade un enlace de tipo «brecha» con el concepto y cobertura «ninguna». Indica la cobertura de cada lección: «completa», «parcial» o «ninguna». Prefiere correspondencias por contenido y concepto, no por coincidencia de títulos.',
+    '5. Enlaces: en cada enlace, deja en "" (cadena vacía) los campos que no apliquen. Usa EXCLUSIVAMENTE los identificadores cortos del catálogo que se te entrega (lesson_id = «L…», unit_id = «U…», exercise_id = «E…», sim_key = «simulador» de una lección, apartado = uno de los «apartados» exactos de esa lección). Si un tema trabajado no está en el catálogo, añade un enlace de tipo «brecha» con el concepto y cobertura «ninguna». Indica la cobertura de cada lección: «completa», «parcial» o «ninguna». Prefiere correspondencias por contenido y concepto, no por coincidencia de títulos.',
     '6. No incluyas HTML, imágenes ni enlaces web en el texto.',
     'SECCIONES (usa estas claves, todas si hay material): identificacion (título, conceptos centrales y objetivos inferibles); reconstruccion (transcripción ordenada de cada pizarra, «Pizarra 1», «Pizarra 2»…, marcando lo ilegible); explicacion (teoría necesaria); desarrollo (paso a paso: significado de los símbolos, hipótesis, condiciones de validez, transformaciones algebraicas, pasos omitidos, interpretación física, comprobación dimensional); ejemplos (reconstruye los ejercicios visibles con cálculos intermedios, sin inventar datos); ampliaciones; errores (confusiones conceptuales y matemáticas frecuentes); conclusiones (lo que el estudiante debe dominar); incertidumbres (expresiones ilegibles, diagramas ambiguos, posibles errores de transcripción, falta del audio).',
     `NIVEL DE DETALLE: ${NIVELES[nivel].etiqueta} — ${NIVELES[nivel].descripcion}. No es un resumen superficial: es una reconstrucción completa.`,
+    'Razona lo necesario para leer bien las pizarras, sin extenderte: el espacio de la respuesta es limitado y debe alcanzar para TODAS las secciones y cerrar el JSON.',
   ].join('\n');
 }
 
@@ -108,7 +141,7 @@ export function construirPeticion(model: string, nivel: Nivel, ini: Inicio, foto
   });
   const datos = {
     clase: ini.clase, instrucciones_del_profesor: instrucciones.slice(0, 2000),
-    catalogo: ini.catalogo,
+    catalogo: catalogoCompacto(ini.catalogo, ini.clase).datos,
   };
   contenido.push({ type: 'text', text: 'Contexto académico de la plataforma (datos reales; el catálogo es la ÚNICA fuente de identificadores):\n' + JSON.stringify(datos) });
   return {
@@ -130,7 +163,7 @@ export function depurar(md: string): string {
 
 export interface Salida { contenido: Record<string, unknown>; enlaces: Record<string, unknown>[] }
 
-export function validarSalida(texto: string, model: string, catalogo: Catalogo | undefined): Salida {
+export function validarSalida(texto: string, model: string, mapa: Mapa): Salida {
   let j: { titulo?: unknown; secciones?: unknown; enlaces?: unknown };
   try { j = JSON.parse(texto); } catch { throw new HttpError(502, 'respuesta_invalida'); }
   if (!Array.isArray(j.secciones)) throw new HttpError(502, 'respuesta_invalida');
@@ -141,11 +174,23 @@ export function validarSalida(texto: string, model: string, catalogo: Catalogo |
   }
   if (!porClave.size) throw new HttpError(502, 'respuesta_vacia');
   const secciones = SECCIONES.filter(([c]) => porClave.has(c)).map(([c, t]) => ({ clave: c as ClaveSeccion, titulo: t, cuerpo: porClave.get(c)! }));
-  // primer filtro (la validación definitiva la hace SQL): solo identificadores del catálogo entregado
-  const lecciones = new Set(catalogo?.lecciones.map((l) => l.id)), unidades = new Set(catalogo?.unidades.map((u) => u.id)), ejercicios = new Set(catalogo?.ejercicios.map((e) => e.id));
-  const enlaces = (Array.isArray(j.enlaces) ? j.enlaces : []).slice(0, 40).filter((e): e is Record<string, unknown> => !!e && typeof e === 'object').filter((e) =>
-    e.tipo === 'brecha' ? typeof e.concepto === 'string' && !!e.concepto.trim()
-      : (!e.lesson_id || lecciones.has(String(e.lesson_id))) && (!e.unit_id || unidades.has(String(e.unit_id))) && (!e.exercise_id || ejercicios.has(String(e.exercise_id))));
+  // alias → identificador real (la validación definitiva la hace SQL); un alias desconocido descarta el enlace
+  const real = (tabla: Record<string, string>, v: unknown): string | null | undefined => {
+    const a = typeof v === 'string' ? v.trim() : '';
+    if (!a) return null;
+    return Object.prototype.hasOwnProperty.call(tabla, a) ? tabla[a] : undefined;
+  };
+  const enlaces: Record<string, unknown>[] = [];
+  for (const e of (Array.isArray(j.enlaces) ? j.enlaces : []).slice(0, 40) as Record<string, unknown>[]) {
+    if (!e || typeof e !== 'object') continue;
+    if (e.tipo === 'brecha') {
+      if (typeof e.concepto === 'string' && e.concepto.trim()) enlaces.push({ ...e, lesson_id: null, unit_id: null, exercise_id: null, sim_key: null });
+      continue;
+    }
+    const lesson_id = real(mapa.lecciones, e.lesson_id), unit_id = real(mapa.unidades, e.unit_id), exercise_id = real(mapa.ejercicios, e.exercise_id);
+    if (lesson_id === undefined || unit_id === undefined || exercise_id === undefined) continue;
+    enlaces.push({ ...e, lesson_id, unit_id, exercise_id });
+  }
   return {
     contenido: { formato: 'clase-ia-1', titulo: typeof j.titulo === 'string' ? j.titulo.slice(0, 160) : null, modelo: model, generado_at: new Date().toISOString(), secciones },
     enlaces,
@@ -154,7 +199,7 @@ export function validarSalida(texto: string, model: string, catalogo: Catalogo |
 
 /** Contenido del simulador (api_real = false): recorre todo el flujo sin coste. */
 export function simularClase(ini: Inicio): string {
-  const l = ini.catalogo?.lecciones[0];
+  const l = ini.catalogo?.lecciones.length ? { id: 'L1', apartados: ini.catalogo.lecciones[0].apartados } : null;
   return JSON.stringify({
     titulo: `${String(ini.clase?.title ?? 'Clase')} (simulación)`,
     secciones: [
@@ -213,7 +258,7 @@ export async function generarClase(body: Record<string, unknown>, userId: string
       }
       if (r.stop_reason === 'refusal') throw new HttpError(502, 'rechazada');
       if (r.stop_reason === 'max_tokens') throw new HttpError(502, 'incompleta');
-      const salida = validarSalida(r.texto ?? '', model, ini.catalogo);
+      const salida = validarSalida(r.texto ?? '', model, catalogoCompacto(ini.catalogo, ini.clase).mapa);
       await finalizar(true, r, null, salida);
     } catch (e) {
       // el costo de lo consumido se registra igual; las fotos no se tocan
