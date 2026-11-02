@@ -257,6 +257,8 @@ function Panel({ nombre }: { nombre: string }) {
       /* sin conexión */
     }
   }, []);
+  // al abrir el panel: las secciones de los selectores (Control, Pulso, Pregunta, Datos) no deben depender de quién está conectado
+  useEffect(() => { void cargarTodos(); }, [cargarTodos]);
   useEffect(() => {
     if (vista !== 'todos') return;
     void cargarTodos();
