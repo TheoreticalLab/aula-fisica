@@ -102,6 +102,9 @@ function Redactar({ destino, onCerrar, onEnviado, destinatarios }: {
 }) {
   const [texto, setTexto] = useState('');
   const [tipo, setTipo] = useState<Tipo>('importante');
+  // «Aviso del aula»: el estudiante lo ve neutro, sin «profesor» ni su nombre (migración 57)
+  const [aula, setAula] = useState(false);
+  const fn = aula ? 'send_live_message_aula' : 'send_live_message';
   const [codigo, setCodigo] = useState('');
   const [confirmar, setConfirmar] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -120,7 +123,7 @@ function Redactar({ destino, onCerrar, onEnviado, destinatarios }: {
         if (!lista.length) throw new Error('No hay destinatarios.');
         let n = 0;
         for (const a of lista) {
-          await rpc('send_live_message', { p_kind: tipo, p_body: personalizar(texto, primerNombre(a.full_name)), p_mode: 'seleccion', p_users: [a.user_id], p_class: null,
+          await rpc(fn, { p_kind: tipo, p_body: personalizar(texto, primerNombre(a.full_name)), p_mode: 'seleccion', p_users: [a.user_id], p_class: null,
             p_expires_minutes: destino.tipo !== 'uno' && destino.alcance === 'todos' ? 10080 : 1440 });
           n++;
         }
@@ -140,10 +143,10 @@ function Redactar({ destino, onCerrar, onEnviado, destinatarios }: {
       }
       const r =
         destino.tipo === 'uno'
-          ? await rpc<{ recipients: number }>('send_live_message', { p_kind: tipo, p_body: texto, p_mode: 'seleccion', p_users: [destino.alumno.user_id], p_class: null, p_expires_minutes: 1440 })
+          ? await rpc<{ recipients: number }>(fn, { p_kind: tipo, p_body: texto, p_mode: 'seleccion', p_users: [destino.alumno.user_id], p_class: null, p_expires_minutes: 1440 })
           : destino.alcance === 'conectados'
-            ? await rpc<{ recipients: number }>('send_live_message_online', { p_kind: tipo, p_body: texto, p_class: destino.tipo === 'seccion' ? destino.class_id : null, p_expires_minutes: 1440 })
-            : await rpc<{ recipients: number }>('send_live_message', {
+            ? await rpc<{ recipients: number }>(aula ? 'send_live_message_online_aula' : 'send_live_message_online', { p_kind: tipo, p_body: texto, p_class: destino.tipo === 'seccion' ? destino.class_id : null, p_expires_minutes: 1440 })
+            : await rpc<{ recipients: number }>(fn, {
                 p_kind: tipo, p_body: texto, p_mode: destino.tipo === 'seccion' ? 'seccion' : 'todos', p_users: null,
                 p_class: destino.tipo === 'seccion' ? destino.class_id : null, p_expires_minutes: 10080,
               });
@@ -176,6 +179,10 @@ function Redactar({ destino, onCerrar, onEnviado, destinatarios }: {
             <option value="bloqueo">🔒 Bloqueo con código</option>
           </select>
         </label>
+        {tipo !== 'bloqueo' && (
+          <label className="casilla"><input type="checkbox" checked={aula} onChange={(e) => { setAula(e.target.checked); setConfirmar(false); }} />
+            🔔 Enviar como «Aviso del aula» (neutro: sin «profesor» ni su nombre, para no alarmar en medio de una práctica o un examen)</label>
+        )}
         <AyudaIA tipo={tipo} onTexto={(t) => { setTexto(t); setConfirmar(false); }} />
         <label>Mensaje<textarea rows={4} maxLength={tipo === 'bloqueo' ? 1000 : 2000} autoFocus value={texto} onChange={(e) => { setTexto(e.target.value); setConfirmar(false); }} /></label>
         {conNombre && tipo !== 'bloqueo' && <p className="tenue pequeno">{'{nombre}'} se sustituirá por el nombre de cada estudiante (cada uno recibe su copia).</p>}

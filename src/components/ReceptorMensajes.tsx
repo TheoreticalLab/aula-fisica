@@ -61,7 +61,11 @@ export function ReceptorMensajes() {
     if (!activo) return;
     await reintentarAcks();
     try {
-      const srv = await rpc<MensajeVivo[]>('my_pending_messages');
+      // v2 trae el remitente (aviso del aula, migración 57); sin ella en el servidor, la consulta de siempre
+      const srv = await rpc<MensajeVivo[]>('my_pending_messages_v2').catch((e) => {
+        if (/Could not find the function|PGRST202|schema cache/i.test(e instanceof Error ? e.message : String(e))) return rpc<MensajeVivo[]>('my_pending_messages');
+        throw e;
+      });
       setCola((c) => fusionarCola(c, srv, respondidos.current));
       const nuevos = porMarcarRecibidos(srv, marcados.current);
       if (nuevos.length) {
@@ -135,19 +139,22 @@ export function ReceptorMensajes() {
 
   if (!activo || !actual) return null;
   const quedan = cola.length - 1;
+  // aviso del aula: neutro, sin «profesor» ni nombre y con un aspecto más sereno (no alarma en medio de un examen)
+  const aula = actual.remitente === 'aula' || (actual.sender_name === 'Aula virtual' && !actual.remitente);
+  const etiqueta = aula ? 'Aviso del aula' : 'Mensaje del profesor';
   const cabecera = (
     <>
       <p className="text-xs font-semibold uppercase tracking-wide">
-        📢 Mensaje del profesor · {ETIQUETA_TIPO[actual.kind]}
+        {aula ? '🔔 Aviso del aula' : '📢 Mensaje del profesor'} · {ETIQUETA_TIPO[actual.kind]}
       </p>
-      <p className="mt-1 text-sm font-medium">{actual.sender_name}</p>
+      {!aula && actual.sender_name && <p className="mt-1 text-sm font-medium">{actual.sender_name}</p>}
       <p className="text-xs opacity-75">{hora(actual.created_at)}</p>
     </>
   );
 
   if (actual.kind === 'informativo') {
     return (
-      <TarjetaEmergente etiqueta="Mensaje del profesor">
+      <TarjetaEmergente etiqueta={etiqueta}>
         <div className="flex items-start justify-between gap-2">
           <div className="text-primario-900 dark:text-primario-100">{cabecera}</div>
           <button className="btn-texto" aria-label="Cerrar" onClick={() => responder(actual, 'descartado')}>✕</button>
@@ -161,16 +168,18 @@ export function ReceptorMensajes() {
     );
   }
 
-  const urgente = actual.kind === 'urgente';
+  // el rojo intenso queda para los urgentes del profesor; el aviso del aula urgente se destaca sin alarmar
+  const urgente = actual.kind === 'urgente' && !aula;
+  const destacado = actual.kind === 'urgente' && aula;
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-3">
       <div
         role="alertdialog"
         aria-modal="true"
-        aria-label="Mensaje del profesor"
-        className={`w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl dark:bg-primario-950 ${urgente ? 'border-4 border-red-600' : 'border border-primario-200 dark:border-white/15'}`}
+        aria-label={etiqueta}
+        className={`w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl dark:bg-primario-950 ${urgente ? 'border-4 border-red-600' : destacado ? 'border-2 border-amber-400' : 'border border-primario-200 dark:border-white/15'}`}
       >
-        <div className={urgente ? 'text-red-700 dark:text-red-300' : 'text-primario-900 dark:text-primario-100'}>{cabecera}</div>
+        <div className={urgente ? 'text-red-700 dark:text-red-300' : destacado ? 'text-amber-800 dark:text-amber-200' : 'text-primario-900 dark:text-primario-100'}>{cabecera}</div>
         <p className="mt-3 whitespace-pre-wrap text-base">{actual.body}</p>
         <div className="mt-4 flex items-center justify-between">
           <span className="text-xs text-gray-500">{quedan > 0 ? `${quedan} mensaje(s) más` : 'Su trabajo en la página sigue intacto.'}</span>

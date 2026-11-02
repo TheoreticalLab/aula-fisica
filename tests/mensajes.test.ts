@@ -11,6 +11,11 @@ describe('cola de mensajes emergentes', () => {
     const cola = fusionarCola([m('a', 'importante', 1)], [m('a', 'importante', 1), m('b', 'informativo', 2)], new Set());
     expect(cola.map((x) => x.id)).toEqual(['a', 'b']);
   });
+  it('un aviso del aula conserva su remitente y no lleva el nombre del profesor', () => {
+    const cola = fusionarCola([], [m('a', 'urgente', 1, { remitente: 'aula', sender_name: null }), m('p', 'importante', 2, { remitente: 'profesor' })], new Set());
+    expect(cola[0]).toMatchObject({ id: 'a', remitente: 'aula', sender_name: null });
+    expect(cola[1].remitente).toBe('profesor');
+  });
   it('los urgentes van primero; a igual tipo, por orden de envío', () => {
     const cola = fusionarCola([], [m('i', 'informativo', 1), m('u2', 'urgente', 5), m('u1', 'urgente', 3), m('p', 'importante', 2)], new Set());
     expect(cola.map((x) => x.id)).toEqual(['u1', 'u2', 'p', 'i']);

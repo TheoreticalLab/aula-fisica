@@ -41,6 +41,8 @@ export default function Comunicacion() {
   const [seccion, setSeccion] = useState('');
   const [modo, setModo] = useState<'seleccion' | 'seccion' | 'todos' | 'conectados'>(params.get('u') ? 'seleccion' : 'seleccion');
   const [tipo, setTipo] = useState<TipoMensaje | 'bloqueo'>('importante');
+  // cómo lo ve el estudiante: «Mensaje del profesor» o «Aviso del aula» (neutro, sin su nombre; migración 57)
+  const [remitente, setRemitente] = useState<'profesor' | 'aula'>('profesor');
   const [codigo, setCodigo] = useState('');
   const bloqueos = useAsync(() => rpc<{ id: string; user_id: string; full_name: string; student_code: string | null; body: string; created_at: string; failed_attempts: number }[]>('active_screen_locks'), []);
   const [vigencia, setVigencia] = useState(1440);
@@ -118,7 +120,7 @@ export default function Comunicacion() {
       return;
     }
     const r = await envio.run(() =>
-      rpc<{ id: string; recipients: number }>('send_live_message', {
+      rpc<{ id: string; recipients: number }>(remitente === 'aula' ? 'send_live_message_aula' : 'send_live_message', {
         p_kind: tipo,
         p_body: texto,
         p_mode: modo,
@@ -214,6 +216,15 @@ export default function Comunicacion() {
               </select>
             </label>
           </div>
+          {tipo !== 'bloqueo' && (
+            <fieldset className="mb-2 text-xs">
+              <legend>Cómo lo verá el estudiante</legend>
+              <label className="mt-1 flex items-start gap-2"><input type="radio" checked={remitente === 'profesor'} onChange={() => setRemitente('profesor')} />
+                <span>📢 Mensaje del profesor <span className="text-gray-500">(con su nombre)</span></span></label>
+              <label className="mt-1 flex items-start gap-2"><input type="radio" checked={remitente === 'aula'} onChange={() => setRemitente('aula')} />
+                <span>🔔 Aviso del aula <span className="block text-gray-500">Neutro: sin «profesor» ni su nombre y con un aspecto sereno, para no alarmar en medio de una práctica o un examen. No se atribuye a nadie.</span></span></label>
+            </fieldset>
+          )}
           <label className="mb-2 block text-xs">Mensaje
             <textarea id="mensaje-texto" className="campo mt-1 min-h-[7rem]" maxLength={tipo === 'bloqueo' ? 1000 : 2000} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Escriba el mensaje…" />
           </label>

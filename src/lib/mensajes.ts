@@ -9,7 +9,10 @@ export interface MensajeVivo {
   id: string;
   kind: TipoMensaje;
   body: string;
-  sender_name: string;
+  /** nombre del profesor; null en los avisos del aula (migración 57) */
+  sender_name: string | null;
+  /** 'aula' = aviso neutro de la plataforma, sin «mensaje del profesor» (migración 57; antes no viene) */
+  remitente?: 'profesor' | 'aula';
   created_at: string;
   expires_at: string | null;
   delivered_at: string | null;
