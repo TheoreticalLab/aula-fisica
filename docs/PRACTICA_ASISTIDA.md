@@ -74,6 +74,14 @@ Por ejercicio: **intento inicial 20 % · corrección 30 % · explicación 20 % �
   *Advertencia pedagógica:* premia indirectamente declarar «sin ayuda»; por eso conviene combinarlo con la penalización
   por dependencia (observada, no declarada). Aplicarlo con recálculo a declaraciones hechas cuando se prometía «no cambia
   la nota» es retroactivo: conviene avisar al grupo.
+- **Por tipo de ayuda** (migración 61): al declarar «consulté alguna ayuda» se despliegan los tipos (IA, otra persona,
+  videos, libro, simuladores, apuntes) y el estudiante marca los que usó (obligatorio en la página nueva). Cada tipo
+  tiene su valor (`factores_fuente`); con varios cuenta el **menor**. Sugeridos para prácticas nuevas: IA 25 %, otra
+  persona 50 %, videos 60 %, libro 80 %, simuladores 80 %, apuntes 90 %. Ejemplo (20/30/20): acierta con IA →
+  (5 + 7,5 + 20)/70 = 46 %; con un libro → 86 %; solo → 100 %. Las declaraciones sin tipo (hechas antes de este cambio)
+  usan el valor general «sin tipo indicado» (`factor_declarada`). El estudiante ve cada valor antes de confirmar; el
+  profesor ve los tipos en «Proceso de aprendizaje». Los tipos los guarda el servidor (`svc_asistida_registrar`, columna
+  `fuentes` del paso inicial) y descarta los desconocidos.
 - **Cambiar la regla:** Actividad → Aprendizaje asistido → «Regla de nota», con la opción de **recalcular** los intentos
   existentes (también los que están en curso). Las calificaciones manuales siempre prevalecen. El estudiante ve la regla
   en el aviso inicial y en la valoración de cada ejercicio.

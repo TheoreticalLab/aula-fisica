@@ -33,9 +33,25 @@ export interface EstadoItem {
   transferencia: { id: string; prompt: string; format: string; options: string[] | null; multiple: boolean; figure: unknown; unit_hint: string | null; concepts: string[] } | null;
   solucion: { answer: unknown; explanation: string } | null;
   calificacion: { credito: number; inicial: number; correccion: number; justificacion: number; transferencia: number | null; pesos: Pesos; estado_final: string | null;
-    regla?: { primer_intento: 'participacion' | 'acierto'; factor_ayuda: number; factor_declarada?: number }; ayuda_declarada?: boolean } | null;
+    regla?: { primer_intento: 'participacion' | 'acierto'; factor_ayuda: number; factor_declarada?: number; factores_fuente?: FactoresFuente };
+    ayuda_declarada?: boolean; fuentes_iniciales?: Fuente[] | null; factor_aplicado?: number } | null;
 }
 export interface Pesos { inicial: number; correccion: number; justificacion: number; transferencia: number }
+/** Tipos de ayuda que se pueden declarar en el primer intento (migración 61). */
+export type FuenteAyuda = Exclude<Fuente, 'ninguna'>;
+export const FUENTES_AYUDA: FuenteAyuda[] = ['ia', 'persona', 'video', 'libro', 'simulador', 'apuntes'];
+export type FactoresFuente = Partial<Record<FuenteAyuda, number>>;
+export const FACTORES_FUENTE_SUGERIDOS: Record<FuenteAyuda, number> = { ia: 0.25, persona: 0.5, video: 0.6, libro: 0.8, simulador: 0.8, apuntes: 0.9 };
+
+/**
+ * Valor del primer intento con ayuda declarada (espejo de asistida_credito, migración 61): con varios tipos cuenta el
+ * menor; un tipo sin valor, o una declaración sin tipos, usa el valor general (factor_declarada).
+ */
+export function factorAyudaDeclarada(general: number, factores: FactoresFuente | undefined, fuentes: readonly Fuente[] | null | undefined) {
+  const tipos = (fuentes ?? []).filter((f): f is FuenteAyuda => f !== 'ninguna');
+  if (!tipos.length) return general;
+  return Math.min(...tipos.map((f) => factores?.[f] ?? general));
+}
 
 export const PESOS_POR_DEFECTO: Pesos = { inicial: 20, correccion: 30, justificacion: 20, transferencia: 30 };
 

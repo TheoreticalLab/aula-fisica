@@ -115,6 +115,8 @@ const texto = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? 
  *  - transferencia  ejercicio distinto con el mismo concepto: retroalimentación normal.
  * Las reglas de orden, inmutabilidad y permisos las impone el servidor (svc_asistida_*). Idempotente por client_id.
  */
+const FUENTES_AYUDA = ['ia', 'libro', 'apuntes', 'persona', 'video', 'simulador'];
+
 async function pasoAsistido(b: Record<string, unknown>, userId: string, db: Db): Promise<unknown> {
   const attempt = uuid(b.attempt_id, 'attempt_id');
   const exercise = uuid(b.exercise_id, 'exercise_id');
@@ -136,7 +138,10 @@ async function pasoAsistido(b: Record<string, unknown>, userId: string, db: Db):
     // no se guarda: el estudiante corrige el formato (en el primer intento, sin pistas sobre la respuesta)
     return { guardado: false, mensajes: fase === 'inicial' ? [MENSAJE_FORMATO_INICIAL] : result.messages };
   }
-  const datos = { answer, procedimiento: texto(b.procedimiento, 5000), explicacion: texto(b.explicacion, 3000), no_se: noSe, declaracion: fase === 'inicial' ? b.declaracion : null };
+  // tipos de ayuda del primer intento (migración 61): el servidor descarta los desconocidos
+  const fuentes = fase === 'inicial' && b.declaracion === 'consulto_ayuda' && Array.isArray(b.fuentes)
+    ? b.fuentes.filter((f): f is string => typeof f === 'string' && FUENTES_AYUDA.includes(f)).slice(0, 6) : null;
+  const datos = { answer, procedimiento: texto(b.procedimiento, 5000), explicacion: texto(b.explicacion, 3000), no_se: noSe, declaracion: fase === 'inicial' ? b.declaracion : null, fuentes };
   const estado = await call<unknown>(db, 'svc_asistida_registrar', {
     p_user: userId, p_attempt: attempt, p_exercise: exercise, p_fase: fase, p_datos: datos, p_resultado: result, p_client_id: clientId,
   });

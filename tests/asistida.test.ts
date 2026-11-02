@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { handle, MENSAJE_FORMATO_INICIAL, type Db } from '../supabase/functions/calificar/handler.ts';
-import { casoReflexion, compararRespuestas, creditoConRegla, notaCompuesta, PESOS_POR_DEFECTO, pasosVisibles, reflexionPresentada, resumenSeccion, type EstadoItem, type Paso } from '../src/lib/asistida';
+import { casoReflexion, compararRespuestas, creditoConRegla, FACTORES_FUENTE_SUGERIDOS, factorAyudaDeclarada, notaCompuesta, PESOS_POR_DEFECTO, pasosVisibles, reflexionPresentada, resumenSeccion, type EstadoItem, type Paso } from '../src/lib/asistida';
 
 const A = '11111111-1111-4111-8111-111111111111', E = '22222222-2222-4222-8222-222222222222', U = '33333333-3333-4333-8333-333333333333';
 const C1 = '44444444-4444-4444-8444-444444444444';
@@ -35,6 +35,14 @@ describe('Motor · acción «asistida»', () => {
     const { db, calls } = mockDb(ctx);
     await handle({ action: 'asistida', fase: 'inicial', attempt_id: A, exercise_id: E, client_id: C1, answer: { text: '0.098 m' }, declaracion: 'consulto_ayuda' }, U, db);
     expect(calls[1].args).toMatchObject({ p_datos: { declaracion: 'consulto_ayuda' }, p_resultado: { credit: 1 } });
+  });
+  it('3b · tipos de ayuda del primer intento (migración 61): pasan los conocidos; sin «consulté ayuda» no se envían', async () => {
+    const { db, calls } = mockDb(ctx);
+    await handle({ action: 'asistida', fase: 'inicial', attempt_id: A, exercise_id: E, client_id: C1, answer: { text: '0.098 m' }, declaracion: 'consulto_ayuda', fuentes: ['ia', 'libro', 'hackeo', 7] }, U, db);
+    expect((calls[1].args.p_datos as { fuentes: unknown }).fuentes).toEqual(['ia', 'libro']);
+    const otro = mockDb(ctx);
+    await handle({ action: 'asistida', fase: 'inicial', attempt_id: A, exercise_id: E, client_id: C1, answer: { text: '0.098 m' }, declaracion: 'autonomo', fuentes: ['ia'] }, U, otro.db);
+    expect((otro.calls[1].args.p_datos as { fuentes: unknown }).fuentes).toBeNull();
   });
   it('4 · «no sé resolverlo»: se guarda sin inventar respuesta', async () => {
     const { db, calls } = mockDb(ctx);
@@ -153,5 +161,23 @@ describe('regla de nota con ayuda (migración 58, espejo de asistida_credito)', 
     expect(creditoConRegla(p, r, { iniCredito: 0, corBruto: 1, justificacion: true, transferencia: null, declaroAyuda: true })).toBe(0.5);
     // factor 1: la declaración no cambia nada
     expect(creditoConRegla(p, { ...r, factorDeclarada: 1 }, { iniCredito: 1, corBruto: 1, justificacion: true, transferencia: null, declaroAyuda: true })).toBe(1);
+  });
+});
+
+describe('ayuda declarada por tipo (migración 61, espejo de asistida_credito)', () => {
+  const p = { inicial: 20, correccion: 30, justificacion: 20, transferencia: 30 };
+  const r = { primerIntento: 'acierto' as const, factorAyuda: 0.5 };
+  const credito = (fd: number) => creditoConRegla(p, { ...r, factorDeclarada: fd }, { iniCredito: 1, corBruto: 1, justificacion: true, transferencia: null, declaroAyuda: true });
+  it('IA 25 %: 0,464; libro 80 %: 0,857; varias: cuenta la menor; sin tipo: el general (0,643), como en la prueba SQL', () => {
+    const F = FACTORES_FUENTE_SUGERIDOS;
+    expect(credito(factorAyudaDeclarada(0.5, F, ['ia']))).toBe(0.464);
+    expect(credito(factorAyudaDeclarada(0.5, F, ['libro']))).toBe(0.857);
+    expect(factorAyudaDeclarada(0.5, F, ['libro', 'ia'])).toBe(0.25);
+    expect(credito(factorAyudaDeclarada(0.5, F, null))).toBe(0.643);
+    expect(factorAyudaDeclarada(0.5, F, ['ninguna'])).toBe(0.5);
+  });
+  it('práctica existente sin valores por tipo: todo usa el general (1 = sin efecto)', () => {
+    expect(factorAyudaDeclarada(1, {}, ['ia'])).toBe(1);
+    expect(factorAyudaDeclarada(1, undefined, ['ia', 'video'])).toBe(1);
   });
 });

@@ -9,7 +9,8 @@ import { asistidaEstado, asistidaPaso, asistidaReflexion, type EstadoAsistida } 
 import { submitAttempt } from '@/api/estudiante';
 import type { AttemptItem, AttemptView, StudentAnswer } from '@/api/tipos';
 import {
-  casoReflexion, compararRespuestas, CAMBIO, DECLARACION, FUENTE, pasosVisibles, PREGUNTAS, ultimo,
+  casoReflexion, compararRespuestas, CAMBIO, DECLARACION, FUENTE, FUENTES_AYUDA, factorAyudaDeclarada, pasosVisibles, PREGUNTAS, ultimo,
+  type FactoresFuente, type FuenteAyuda,
   type Declaracion, type EstadoItem, type Fuente, type Paso,
 } from '@/lib/asistida';
 import { porcentaje, useAsync } from '@/lib/util';
@@ -57,6 +58,8 @@ export function PracticaAsistida({ view, onEntregado }: { view: AttemptView; onE
   if (st.error) return <ErrorBox error={st.error} onRetry={st.reload} />;
   const e = st.data as Required<EstadoAsistida>;
   const fd = e.config.regla?.factor_declarada ?? 1;
+  const ff = e.config.regla?.factores_fuente;
+  const conValores = fd < 1 || FUENTES_AYUDA.some((t) => (ff?.[t] ?? fd) < 1);
   const items = e.items;
   const actualizar = (it: EstadoItem) => st.setData({ ...e, items: items.map((x) => (x.exercise_id === it.exercise_id ? it : x)) });
   const completos = items.filter((x) => x.siguiente === 'completo').length;
@@ -75,10 +78,11 @@ export function PracticaAsistida({ view, onEntregado }: { view: AttemptView; onE
         <strong>Práctica con aprendizaje asistido.</strong> En cada ejercicio: <strong>1 Intentar</strong> por su cuenta · <strong>2 Aprender</strong> con ayuda (IA, libros, apuntes…) ·
         <strong> 3 Explicar</strong> lo que aprendió{e.config.transferencia ? <> · <strong>4 Comprobar</strong> con un ejercicio nuevo</> : null}. Lo que importa es entender, no solo acertar.
         {e.config.regla?.primer_intento === 'acierto' && (
-          <span className="mt-1 block text-sm">Nota: su primer intento cuenta por acierto; si no fue correcto, la respuesta corregida después de buscar ayuda vale el {Math.round(100 * e.config.regla.factor_ayuda)} % de su parte.{fd >= 1 ? ' Declarar si usó ayuda no cambia la nota.' : ''}</span>
+          <span className="mt-1 block text-sm">Nota: su primer intento cuenta por acierto; si no fue correcto, la respuesta corregida después de buscar ayuda vale el {Math.round(100 * e.config.regla.factor_ayuda)} % de su parte.{!conValores ? ' Declarar si usó ayuda no cambia la nota.' : ''}</span>
         )}
-        {fd < 1 && (
-          <span className="mt-1 block text-sm">Si declara que consultó ayuda en un primer intento, ese primer intento (y su corrección, si ya era correcto) vale el {Math.round(100 * fd)} % de su parte. Se le pide declarar con honestidad.</span>
+        {conValores && (
+          <span className="mt-1 block text-sm">Si declara que consultó ayuda en un primer intento, ese primer intento (y su corrección, si ya era correcto) vale según el tipo de ayuda:{' '}
+            {FUENTES_AYUDA.map((t) => `${FUENTE[t]} ${Math.round(100 * (ff?.[t] ?? fd))} %`).join(' · ')}. Con varias, cuenta la de menor valor. Se le pide declarar con honestidad.</span>
         )}
         {e.dependencia?.umbral != null && (
           <span className={`mt-1 block text-sm ${e.dependencia.aplicado ? 'font-medium text-amber-800 dark:text-amber-200' : ''}`}>
@@ -118,6 +122,8 @@ function EjercicioAsistido({ index, attemptId, item, ex, config, editable, onAct
   editable: boolean; onActualizar: (it: EstadoItem) => void; onSiguiente: (() => void) | null;
 }) {
   const pasos = pasosVisibles(item.con_transferencia);
+  const fdGeneral = config.regla?.factor_declarada ?? 1;
+  const conValores = fdGeneral < 1 || FUENTES_AYUDA.some((t) => (config.regla?.factores_fuente?.[t] ?? fdGeneral) < 1);
   const ini = ultimo(item.pasos, 'inicial'), cor = ultimo(item.pasos, 'corregida'), ref = ultimo(item.pasos, 'reflexion'), tra = ultimo(item.pasos, 'transferencia');
   const actual = item.siguiente === 'completo' ? pasos.length : Math.max(0, pasos.findIndex((p) => p.fase === item.siguiente));
   const [verCorreccion, setVerCorreccion] = useState(false);
@@ -140,7 +146,7 @@ function EjercicioAsistido({ index, attemptId, item, ex, config, editable, onAct
       </header>
       <EnunciadoEjercicio ex={ex} attemptId={attemptId} />
 
-      {item.siguiente === 'inicial' && editable && <PasoInicial attemptId={attemptId} item={item} ex={ex} clave={`${base}:inicial`} factorDeclarada={config.regla?.factor_declarada ?? 1} onActualizar={onActualizar} />}
+      {item.siguiente === 'inicial' && editable && <PasoInicial attemptId={attemptId} item={item} ex={ex} clave={`${base}:inicial`} factorDeclarada={config.regla?.factor_declarada ?? 1} factores={config.regla?.factores_fuente} onActualizar={onActualizar} />}
 
       {ini && <RespuestaGuardada ex={ex} paso={ini} titulo="Tu respuesta inicial (guardada, no cambia)" />}
 
@@ -179,7 +185,9 @@ function EjercicioAsistido({ index, attemptId, item, ex, config, editable, onAct
 
       {item.siguiente === 'completo' && (
         <Recuadro titulo="✓ Ejercicio completado" tono="verde">
-          {item.calificacion && <p>Valoración de este ejercicio: <strong>{porcentaje(item.calificacion.credito)}</strong> ({item.calificacion.regla?.primer_intento === 'acierto' ? 'primer intento por acierto, corrección con ayuda' : 'participación, corrección'}, explicación{item.calificacion.transferencia !== null ? ' y comprobación' : ''}{item.calificacion.ayuda_declarada ? `; primer intento con ayuda declarada al ${Math.round(100 * (item.calificacion.regla?.factor_declarada ?? 1))} %` : (item.calificacion.regla?.factor_declarada ?? 1) < 1 ? '' : '; no depende de si declaró usar ayuda'}).</p>}
+          {item.calificacion && <p>Valoración de este ejercicio: <strong>{porcentaje(item.calificacion.credito)}</strong> ({item.calificacion.regla?.primer_intento === 'acierto' ? 'primer intento por acierto, corrección con ayuda' : 'participación, corrección'}, explicación{item.calificacion.transferencia !== null ? ' y comprobación' : ''}{item.calificacion.ayuda_declarada
+            ? `; primer intento con ayuda declarada${item.calificacion.fuentes_iniciales?.length ? ` (${item.calificacion.fuentes_iniciales.map((t) => FUENTE[t].toLowerCase()).join(', ')})` : ''} al ${Math.round(100 * (item.calificacion.factor_aplicado ?? item.calificacion.regla?.factor_declarada ?? 1))} %`
+            : conValores ? '' : '; no depende de si declaró usar ayuda'}).</p>}
           {onSiguiente && <button className="btn-primario mt-1" onClick={onSiguiente}>Siguiente ejercicio →</button>}
         </Recuadro>
       )}
@@ -219,14 +227,23 @@ function useEnvio() {
   return { estado, mensaje, enviar, setMensaje };
 }
 
-function PasoInicial({ attemptId, item, ex, clave, factorDeclarada, onActualizar }: { attemptId: string; item: EstadoItem; ex: AttemptItem['exercise']; clave: string; factorDeclarada: number; onActualizar: (it: EstadoItem) => void }) {
+function PasoInicial({ attemptId, item, ex, clave, factorDeclarada, factores, onActualizar }: { attemptId: string; item: EstadoItem; ex: AttemptItem['exercise']; clave: string;
+  factorDeclarada: number; factores: FactoresFuente | undefined; onActualizar: (it: EstadoItem) => void }) {
   const [b, set, limpiar] = useBorrador(clave, () => vacio());
   const [declarar, setDeclarar] = useState(false);
   const env = useEnvio();
   const tieneAlgo = b.no_se || !!(b.answer.text?.trim() || b.answer.selected?.length || typeof b.answer.value === 'boolean');
+  // migración 61: con «consulté alguna ayuda» se despliegan los tipos; cada uno puede valer distinto
+  const tipos = (b.fuentes ?? []).filter((x): x is FuenteAyuda => x !== 'ninguna');
+  const conAyuda = b.declaracion === 'consulto_ayuda';
+  const valorTipo = (t: FuenteAyuda) => factores?.[t] ?? factorDeclarada;
+  const hayValores = factorDeclarada < 1 || FUENTES_AYUDA.some((t) => valorTipo(t) < 1);
+  const alternarTipo = (t: FuenteAyuda) => set({ fuentes: tipos.includes(t) ? tipos.filter((x) => x !== t) : [...tipos, t] });
+  const valorElegido = factorAyudaDeclarada(factorDeclarada, factores, tipos);
   async function guardar() {
     const r = await env.enviar(() => asistidaPaso({ fase: 'inicial', attempt_id: attemptId, exercise_id: item.exercise_id, client_id: b.client_id,
-      answer: b.no_se ? undefined : b.answer, procedimiento: b.procedimiento, no_se: b.no_se, declaracion: b.declaracion ?? undefined }));
+      answer: b.no_se ? undefined : b.answer, procedimiento: b.procedimiento, no_se: b.no_se, declaracion: b.declaracion ?? undefined,
+      fuentes: conAyuda ? tipos : undefined }));
     if (!r) return;
     if (!r.guardado) { env.setMensaje((r.mensajes ?? []).join(' ')); setDeclarar(false); return; }
     limpiar();
@@ -250,11 +267,25 @@ function PasoInicial({ attemptId, item, ex, clave, factorDeclarada, onActualizar
           {(Object.keys(DECLARACION) as Declaracion[]).map((d) => (
             <label key={d} className="flex items-start gap-2 py-1.5 text-sm"><input type="radio" name={`decl-${item.exercise_id}`} checked={b.declaracion === d} onChange={() => set({ declaracion: d })} className="mt-1" /> {DECLARACION[d]}</label>
           ))}
-          <p className="mt-1 text-xs text-gray-500">Es una declaración voluntaria para fines pedagógicos y no se presenta como una verificación técnica. {factorDeclarada < 1
-            ? <strong>En esta práctica, si declaras que consultaste ayuda, este primer intento vale el {Math.round(100 * factorDeclarada)} % de su parte.</strong>
+          {conAyuda && (
+            <div className="ml-6 mt-1 rounded-lg bg-gray-50 p-3 dark:bg-white/5">
+              <p className="text-sm font-medium">¿Qué ayuda consultaste? (marca todas las que usaste)</p>
+              {FUENTES_AYUDA.map((t) => (
+                <label key={t} className="flex items-center gap-2 py-1 text-sm">
+                  <input type="checkbox" checked={tipos.includes(t)} onChange={() => alternarTipo(t)} /> {FUENTE[t]}
+                  {hayValores && <span className="text-xs text-gray-500">· el primer intento vale el {Math.round(100 * valorTipo(t))} %</span>}
+                </label>
+              ))}
+              {hayValores && tipos.length > 0 && (
+                <p className="mt-1 text-xs"><strong>Con lo que marcaste, este primer intento vale el {Math.round(100 * valorElegido)} % de su parte</strong>{tipos.length > 1 ? ' (cuenta la ayuda de menor valor)' : ''}.</p>
+              )}
+            </div>
+          )}
+          <p className="mt-1 text-xs text-gray-500">Es una declaración voluntaria para fines pedagógicos y no se presenta como una verificación técnica. {hayValores
+            ? 'En esta práctica, el primer intento hecho con ayuda vale menos según el tipo de ayuda. Declara con honestidad.'
             : 'No cambia tu nota.'}</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button className="btn-primario" disabled={!b.declaracion || env.estado === 'enviando'} onClick={() => void guardar()}>{env.estado === 'enviando' ? 'Guardando…' : 'Confirmar y guardar'}</button>
+            <button className="btn-primario" disabled={!b.declaracion || (conAyuda && !tipos.length) || env.estado === 'enviando'} onClick={() => void guardar()}>{env.estado === 'enviando' ? 'Guardando…' : 'Confirmar y guardar'}</button>
             <button className="btn-secundario" onClick={() => setDeclarar(false)} disabled={env.estado === 'enviando'}>Volver</button>
           </div>
         </fieldset>

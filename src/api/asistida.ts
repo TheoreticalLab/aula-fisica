@@ -1,13 +1,13 @@
 /** Práctica con aprendizaje asistido (migración 38 + acción «asistida» de la Edge Function calificar). */
 import { calificar, rpc } from '@/lib/supabase';
 import type { GradeResult, StudentAnswer } from '@/api/tipos';
-import type { Declaracion, EstadoItem, Fuente, Pesos } from '@/lib/asistida';
+import type { Declaracion, EstadoItem, FactoresFuente, Fuente, FuenteAyuda, Pesos } from '@/lib/asistida';
 
 export interface EstadoAsistida {
   asistida: boolean;
   config?: { transferencia: boolean; max_correcciones: number; pesos: Pesos; verificacion: { tipo: string | null; fecha: string | null; nota: string | null };
     /** migración 58 (antes no viene) */
-    regla?: { primer_intento: 'participacion' | 'acierto'; factor_ayuda: number; factor_declarada?: number } };
+    regla?: { primer_intento: 'participacion' | 'acierto'; factor_ayuda: number; factor_declarada?: number; factores_fuente?: FactoresFuente } };
   /** migración 59 (antes no viene) */
   dependencia?: Dependencia | null;
   items?: EstadoItem[];
@@ -19,7 +19,7 @@ export interface RespuestaPaso { guardado: boolean; repetido?: boolean; mensajes
 
 export const asistidaPaso = (p: {
   fase: 'inicial' | 'corregida' | 'transferencia'; attempt_id: string; exercise_id: string; client_id: string;
-  answer?: StudentAnswer; procedimiento?: string; explicacion?: string; no_se?: boolean; declaracion?: Declaracion;
+  answer?: StudentAnswer; procedimiento?: string; explicacion?: string; no_se?: boolean; declaracion?: Declaracion; fuentes?: FuenteAyuda[];
 }) => calificar<RespuestaPaso>({ action: 'asistida', ...p });
 
 export const asistidaReflexion = (attemptId: string, exerciseId: string, reflexion: Record<string, string>, fuentes: Fuente[],
@@ -35,7 +35,12 @@ export interface ConfigAsistida {
   dependencia_umbral?: number | null; dependencia_descuento?: number;
   /** migración 60: el primer intento con ayuda declarada vale esta fracción (1 = sin efecto) */
   factor_declarada?: number;
+  /** migración 61: valor del primer intento según el tipo de ayuda declarada ({} = todos usan factor_declarada) */
+  factores_fuente?: FactoresFuente;
 }
+/** Valor del primer intento con ayuda declarada, general y por tipo (migración 61), con recálculo opcional. */
+export const asistidaAyudaGuardar = (activityId: string, general: number, porTipo: FactoresFuente, recalcular: boolean) =>
+  rpc<{ config: ConfigAsistida; recalculados: number }>('asistida_ayuda_guardar', { p_activity: activityId, p_factor: general, p_fuentes: porTipo, p_recalcular: recalcular });
 export const asistidaDeclaradaGuardar = (activityId: string, factor: number, recalcular: boolean) =>
   rpc<{ config: ConfigAsistida; recalculados: number }>('asistida_declarada_guardar', { p_activity: activityId, p_factor: factor, p_recalcular: recalcular });
 /** Dependencia observada de la ayuda en un intento (migración 59). */

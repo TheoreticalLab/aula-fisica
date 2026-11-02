@@ -19,7 +19,7 @@ insert into public.activities (id, class_id, title, mode, published, reveal_poli
   ('de600000-0000-4000-8000-0000000000a1', 'de600000-0000-4000-8000-000000000031', 'Asistida', 'practice', true, 'after_submit', false, 2);
 insert into public.activity_items (activity_id, exercise_id, position) values ('de600000-0000-4000-8000-0000000000a1', 'de600000-0000-4000-8000-0000000000e1', 1);
 -- práctica que ya existía: regla de acierto, pero sin efecto de la ayuda declarada (valor 1)
-insert into public.assisted_settings (activity_id, nota_primer_intento, factor_ayuda, factor_declarada) values ('de600000-0000-4000-8000-0000000000a1', 'acierto', 0.5, 1);
+insert into public.assisted_settings (activity_id, nota_primer_intento, factor_ayuda, factor_declarada, factores_fuente) values ('de600000-0000-4000-8000-0000000000a1', 'acierto', 0.5, 1, '{}');
 insert into public.attempts (id, user_id, course_id, activity_id, mode) values
   ('de600000-0000-4000-8000-0000000000b1', 'de600000-0000-4000-8000-000000000011', 'de600000-0000-4000-8000-000000000021', 'de600000-0000-4000-8000-0000000000a1', 'practice'),
   ('de600000-0000-4000-8000-0000000000b2', 'de600000-0000-4000-8000-000000000012', 'de600000-0000-4000-8000-000000000021', 'de600000-0000-4000-8000-0000000000a1', 'practice');
