@@ -13,6 +13,7 @@ import { OrbeIa } from '@/components/OrbeIa';
 import { PreguntaRelampago } from '@/components/PreguntaRelampago';
 import { RecordatorioRegularizacion } from '@/components/RecordatorioRegularizacion';
 import { PantallaBloqueo, useBloqueoRegularizacion } from '@/components/BloqueoRegularizacion';
+import { AprenderTabs } from '@/components/clases/Componentes';
 import { AVISO_PRIVACIDAD } from '@/lib/tiempo';
 import { useTema } from '@/lib/tema';
 import { Spinner } from './ui';
@@ -77,6 +78,7 @@ export function Layout() {
   const bloqueo = useBloqueoRegularizacion(!!session && !isTeacher && profile?.role === 'student' && !!profile?.active);
   const bloqueado = bloqueo.bloqueado;
   const docente = loc.pathname.startsWith('/docente');
+  const enAprender = /^\/(temario|clases|curso)(\/|$)/.test(loc.pathname);
   // en la portada el formulario de ingreso ya está en la página: no se repite el botón «Ingresar»
   const portada = !session && loc.pathname === '/';
   if (loading) return <div className="p-8"><Spinner /></div>;
@@ -102,7 +104,7 @@ export function Layout() {
                 ) : (
                   <>
                     <NavLink to="/" end className={topLink}>Inicio</NavLink>
-                    <NavLink to="/temario" className={topLink}>Aprender</NavLink>
+                    <NavLink to="/temario" className={(p) => topLink({ isActive: p.isActive || enAprender })}>Aprender</NavLink>
                     <NavLink to="/practicar" className={topLink}>Practicar</NavLink>
                     <NavLink to="/evaluaciones" className={topLink}>Evaluaciones</NavLink>
                     <NavLink to="/asistencia" className={topLink}>Asistencia</NavLink>
@@ -157,7 +159,11 @@ export function Layout() {
         ) : bloqueado && !bloqueo.permitida ? (
           <PantallaBloqueo secciones={bloqueo.secciones} onSalir={() => void signOut()} />
         ) : (
-          <Outlet />
+          <>
+            {/* Aprender: «Estudiar teoría» | «Clases impartidas» (rutas existentes intactas) */}
+            {session && /^\/(temario|clases)\/?$|^\/curso\/[^/]+\/?$/.test(loc.pathname) && <AprenderTabs />}
+            <Outlet />
+          </>
         )}
       </main>
       <footer className="hidden border-t border-gray-200 py-4 text-center text-xs text-gray-500 dark:border-white/10 md:block">
@@ -207,7 +213,7 @@ function BottomNav({ docente }: { docente: boolean }) {
       ) : (
         <>
           <NavLink to="/" end className={item}>{icon(<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />)}Inicio</NavLink>
-          <NavLink to="/temario" className={item}>{icon(<path d="M4 5h11a3 3 0 0 1 3 3v12H7a3 3 0 0 1-3-3zM18 8h2v12" />)}Aprender</NavLink>
+          <NavLink to="/temario" className={(p) => item({ isActive: p.isActive || /^#\/(clases|curso)(\/|$)/.test(window.location.hash) })}>{icon(<path d="M4 5h11a3 3 0 0 1 3 3v12H7a3 3 0 0 1-3-3zM18 8h2v12" />)}Aprender</NavLink>
           <NavLink to="/practicar" className={item}>{icon(<path d="M14 4l6 6-10 10H4v-6zM12 6l6 6" />)}Practicar</NavLink>
           <NavLink to="/evaluaciones" className={item}>{icon(<path d="M9 4h6a1 1 0 0 1 1 1v1h2a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h2V5a1 1 0 0 1 1-1zM9 13l2 2 4-4" />)}Evaluaciones</NavLink>
           <NavLink to="/asistencia" className={item}>{icon(<path d="M9 11l3 3 8-8M4 4h10M4 9h4M4 14h4M4 19h16" />)}Asistencia</NavLink>

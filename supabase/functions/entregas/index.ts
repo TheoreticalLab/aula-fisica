@@ -8,6 +8,7 @@ import { BUCKET, descargar, HttpError, MAX_BYTES_ABSOLUTO, subir, type Deps } fr
 import {
   BUCKET_CAPTURAS, destino, eliminarBorrador, MAX_BYTES_CAPTURA, MIME_CAPTURA, quitarCaptura, subirCaptura, verCaptura, type DepsCapturas,
 } from './capturas.ts';
+import { BUCKET_CLASES, eliminarClase, MAX_BYTES_FOTO_CLASE, MAX_BYTES_MINIATURA, quitarFotoClase, subirFotoClase, verFotosClase } from './clases.ts';
 
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '*').split(',').map((s) => s.trim());
 
@@ -92,13 +93,51 @@ Deno.serve(async (req) => {
       sha256: deps.sha256,
     };
 
+    // Clases impartidas (migración 66): mismo patrón, otro bucket privado
+    const depsClases: DepsCapturas & { signedDownload: (path: string, seconds: number, name: string) => Promise<string> } = {
+      ...depsCapturas,
+      ensureBucket: async () => {
+        const { data } = await admin.storage.getBucket(BUCKET_CLASES);
+        if (!data) {
+          const { error } = await admin.storage.createBucket(BUCKET_CLASES, { public: false, fileSizeLimit: MAX_BYTES_FOTO_CLASE, allowedMimeTypes: [...MIME_CAPTURA] });
+          if (error && !/exist/i.test(error.message)) throw error;
+        }
+      },
+      upload: async (path, bytes, mime) => {
+        const { error } = await admin.storage.from(BUCKET_CLASES).upload(path, bytes, { contentType: mime, upsert: false });
+        if (!error) return 'nuevo';
+        if (/exist|duplicate/i.test(error.message)) return 'existe';
+        throw error;
+      },
+      remove: async (paths) => {
+        await admin.storage.from(BUCKET_CLASES).remove(paths);
+      },
+      signedUrl: async (path, seconds) => {
+        const { data, error } = await admin.storage.from(BUCKET_CLASES).createSignedUrl(path, seconds);
+        if (error || !data) throw error ?? new Error('Sin enlace');
+        return data.signedUrl;
+      },
+      signedDownload: async (path, seconds, name) => {
+        const { data, error } = await admin.storage.from(BUCKET_CLASES).createSignedUrl(path, seconds, { download: name });
+        if (error || !data) throw error ?? new Error('Sin enlace');
+        return data.signedUrl;
+      },
+    };
+
     const tipo = req.headers.get('Content-Type') ?? '';
     let out: unknown;
     if (tipo.startsWith('multipart/form-data')) {
       if (Number(req.headers.get('Content-Length') ?? 0) > MAX_BYTES_ABSOLUTO + 100_000) throw new HttpError(413, 'El archivo es demasiado grande');
       const form = await req.formData();
       const f = form.get('archivo');
-      if (form.get('modulo') === 'regularizacion') {
+      if (form.get('modulo') === 'clases') {
+        const foto = f instanceof File && f.size <= MAX_BYTES_FOTO_CLASE ? { bytes: new Uint8Array(await f.arrayBuffer()) } : null;
+        if (f instanceof File && !foto) throw new HttpError(413, 'La fotografía es demasiado grande');
+        const m = form.get('miniatura');
+        const mini = m instanceof File && m.size <= MAX_BYTES_MINIATURA ? { bytes: new Uint8Array(await m.arrayBuffer()) } : null;
+        out = await subirFotoClase({ session_id: form.get('session_id'), posicion: form.get('posicion'), sha_original: form.get('sha_original') },
+          foto, mini, userData.user.id, depsClases);
+      } else if (form.get('modulo') === 'regularizacion') {
         const imagen = f instanceof File && f.size <= MAX_BYTES_CAPTURA ? { bytes: new Uint8Array(await f.arrayBuffer()) } : null;
         if (f instanceof File && !imagen) throw new HttpError(413, 'La imagen es demasiado grande');
         out = await subirCaptura({ declaration_id: form.get('declaration_id'), libre_id: form.get('libre_id'), destino: form.get('destino'),
@@ -115,6 +154,9 @@ Deno.serve(async (req) => {
       else if (body?.action === 'captura_ver') out = await verCaptura(body.capture_id, userData.user.id, depsCapturas, destino(body.destino));
       else if (body?.action === 'captura_quitar') out = await quitarCaptura(body.capture_id, userData.user.id, depsCapturas, destino(body.destino));
       else if (body?.action === 'borrador_eliminar') out = await eliminarBorrador(body.declaration_id, userData.user.id, depsCapturas);
+      else if (body?.action === 'clase_fotos') out = await verFotosClase(body.session_id, userData.user.id, depsClases);
+      else if (body?.action === 'clase_foto_quitar') out = await quitarFotoClase(body.image_id, userData.user.id, depsClases);
+      else if (body?.action === 'clase_eliminar') out = await eliminarClase(body.session_id, userData.user.id, depsClases);
       else throw new HttpError(400, 'Acción no válida');
     }
     return new Response(JSON.stringify(out), { status: 200, headers });

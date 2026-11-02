@@ -7,6 +7,7 @@
 import { construirInterpretacion, resumirExamen, simularInterpretacion, validarInterpretacion } from './lieia.ts';
 import { generarPreguntas } from './generar.ts';
 import { revisarBorrador, turnoAsistente } from './asistente.ts';
+import { disponibilidad, generarClase, type DepsClase } from './clase.ts';
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -60,6 +61,10 @@ export interface Peticion {
   schema: Record<string, unknown>;
   /** esfuerzo de razonamiento (por defecto «low»; la generación de preguntas usa «medium») */
   effort?: 'low' | 'medium' | 'high';
+  /** Clases impartidas: bloques de contenido (texto + imágenes en base64) en lugar de «user» */
+  contenido?: unknown[];
+  /** respuesta larga: streaming y tiempo de espera ampliado */
+  largo?: boolean;
 }
 
 export interface RespuestaModelo {
@@ -247,6 +252,11 @@ export async function atender(body: Cuerpo, userId: string, deps: Deps): Promise
     const resumen = resumirExamen(body.examen);
     return usarModelo(deps, userId, 'lieia', null, (r) => construirInterpretacion(resumen, r.model, r.max_tokens),
       () => simularInterpretacion(resumen), (t) => validarInterpretacion(t, resumen));
+  }
+  if (accion === 'clase_disponibilidad' || accion === 'clase_generar') {
+    // clases impartidas (clase.ts): el permiso fino (profesor DE LA SECCIÓN) lo decide SQL
+    if (rol !== 'teacher' && rol !== 'admin') throw new HttpError(403, 'Solo el profesorado');
+    return accion === 'clase_disponibilidad' ? disponibilidad(deps as DepsClase) : generarClase(body as Record<string, unknown>, userId, deps as DepsClase);
   }
   if (accion === 'estado') {
     if (rol !== 'admin') throw new HttpError(403, 'Solo el administrador');

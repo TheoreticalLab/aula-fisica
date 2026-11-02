@@ -63,7 +63,8 @@ function orbePwa(): Plugin {
         "default-src 'self'",
         "script-src 'self'",
         "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data:",
+        // miniaturas de las pizarras (Clases impartidas): URLs firmadas del almacenamiento privado del mismo proyecto
+        `img-src 'self' data: https://${supa}`,
         `connect-src 'self' https://${supa} wss://${supa}`,
         "manifest-src 'self'",
         "worker-src 'self'",

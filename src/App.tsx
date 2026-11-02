@@ -28,6 +28,10 @@ const Perfil = lazy(() => import('@/pages/estudiante/Perfil'));
 const Asistencia = lazy(() => import('@/pages/estudiante/Asistencia'));
 const Entregas = lazy(() => import('@/pages/estudiante/Entregas'));
 const Regularizacion = lazy(() => import('@/pages/estudiante/Regularizacion'));
+const Clases = lazy(() => import('@/pages/clases/Clases'));
+const ClaseDetalle = lazy(() => import('@/pages/clases/ClaseDetalle'));
+const RegistrarClase = lazy(() => import('@/pages/clases/RegistrarClase'));
+const ClaseAdmin = lazy(() => import('@/pages/docente/ClaseAdmin'));
 // Docente
 const InicioDocente = lazy(() => import('@/pages/docente/InicioDocente'));
 const Clase = lazy(() => import('@/pages/docente/Clase'));
@@ -113,6 +117,10 @@ export default function App() {
               <Route path="asistencia" element={auth(<Asistencia />)} />
               <Route path="entregas" element={auth(<Entregas />)} />
               <Route path="practicas-anteriores" element={auth(<Regularizacion />)} />
+              <Route path="clases" element={auth(<Clases />)} />
+              <Route path="clases/registrar" element={auth(<RegistrarClase />)} />
+              <Route path="clases/:sessionId" element={auth(<ClaseDetalle />)} />
+              <Route path="clases/:sessionId/editar" element={auth(<RegistrarClase />)} />
 
               <Route path="docente" element={teacher(<InicioDocente />)} />
               <Route path="docente/clases/:classId" element={teacher(<Clase />)} />
@@ -131,6 +139,7 @@ export default function App() {
               <Route path="docente/intentos/:attemptId/telemetria" element={teacher(<TelemetriaIntento />)} />
               <Route path="docente/telemetria" element={teacher(<TelemetriaPanel />)} />
               <Route path="docente/practicas-anteriores" element={teacher(<RegularizacionDocente />)} />
+              <Route path="docente/clases-impartidas/:sessionId" element={teacher(<ClaseAdmin />)} />
               <Route path="docente/actividades/:activityId/telemetria" element={teacher(<TelemetriaActividad />)} />
               <Route path="docente/clases/:classId/estudiantes/:userId" element={teacher(<FichaEstudiante />)} />
               <Route path="docente/estudiantes/:userId" element={teacher(<FichaEstudiante />)} />

@@ -7,6 +7,7 @@ import type { Session } from '@supabase/supabase-js';
 import { configurado, ingresar, rpc, supabase } from './supabase';
 import { Asistencia } from './Asistencia';
 import { ControlTab } from './ControlPractica';
+import { ClasesImpartidas } from './ClasesImpartidas';
 import { agrupar, combinarTodos, edadSenal, estadoSync, filtrar, haceTexto, personalizar, primerNombre, unicos, type Alumno, type EnLinea, type Fila } from './logica';
 import { pedirIA } from './ia';
 import { Pulso } from './Pulso';
@@ -222,7 +223,7 @@ function Panel({ nombre }: { nombre: string }) {
   const [destino, setDestino] = useState<Destino | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [historial, setHistorial] = useState<Historial[]>([]);
-  const [vista, setVista] = useState<'conectados' | 'todos' | 'asistencia' | 'control' | 'pulso' | 'pregunta' | 'datos' | 'ia'>('conectados');
+  const [vista, setVista] = useState<'conectados' | 'todos' | 'asistencia' | 'control' | 'clases' | 'pulso' | 'pregunta' | 'datos' | 'ia'>('conectados');
   // alertas de seguridad graves (solo administrador: para cualquier otro, el servidor rechaza y no se muestra nada)
   const [alertas, setAlertas] = useState<{ regla: string; sujeto: string; severidad: string }[]>([]);
   useEffect(() => {
@@ -374,12 +375,13 @@ function Panel({ nombre }: { nombre: string }) {
         <button role="tab" aria-selected={vista === 'todos'} className={vista === 'todos' ? 'activa' : ''} onClick={() => setVista('todos')}>👥 Todos{totalTodos ? ` (${totalTodos})` : ''}</button>
         <button role="tab" aria-selected={vista === 'asistencia'} className={vista === 'asistencia' ? 'activa' : ''} onClick={() => setVista('asistencia')}>📋 Asistencia</button>
         <button role="tab" aria-selected={vista === 'control'} className={vista === 'control' ? 'activa' : ''} onClick={() => setVista('control')}>🎯 Control</button>
+        <button role="tab" aria-selected={vista === 'clases'} className={vista === 'clases' ? 'activa' : ''} onClick={() => setVista('clases')}>🧑‍🏫 Clases</button>
         <button role="tab" aria-selected={vista === 'pulso'} className={vista === 'pulso' ? 'activa' : ''} onClick={() => setVista('pulso')}>📊 Pulso</button>
         <button role="tab" aria-selected={vista === 'pregunta'} className={vista === 'pregunta' ? 'activa' : ''} onClick={() => setVista('pregunta')}>❓ Pregunta</button>
         <button role="tab" aria-selected={vista === 'datos'} className={vista === 'datos' ? 'activa' : ''} onClick={() => setVista('datos')}>🗄️ Datos</button>
         <button role="tab" aria-selected={vista === 'ia'} className={vista === 'ia' ? 'activa' : ''} onClick={() => setVista('ia')}>✨ IA</button>
       </div>
-      {vista === 'ia' ? <AsistenteIA /> : vista === 'datos' ? <Datos secciones={secciones} /> : vista === 'pulso' ? <Pulso secciones={secciones} /> : vista === 'pregunta' ? <Pregunta secciones={secciones} conectados={total} onCambio={() => void cargarHistorial()} /> : vista === 'asistencia' ? <Asistencia /> : vista === 'control' ? <ControlTab secciones={secciones} /> : <>
+      {vista === 'ia' ? <AsistenteIA /> : vista === 'datos' ? <Datos secciones={secciones} /> : vista === 'pulso' ? <Pulso secciones={secciones} /> : vista === 'pregunta' ? <Pregunta secciones={secciones} conectados={total} onCambio={() => void cargarHistorial()} /> : vista === 'asistencia' ? <Asistencia /> : vista === 'control' ? <ControlTab secciones={secciones} /> : vista === 'clases' ? <ClasesImpartidas secciones={secciones} /> : <>
       <div className="filtros">
         <select aria-label="Filtrar por sección" value={seccion} onChange={(e) => setSeccion(e.target.value)}>
           <option value="">Todas las secciones</option>

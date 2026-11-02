@@ -6,7 +6,10 @@
 // · Mientras la configuración tenga api_real = false se usa el simulador: ninguna llamada de pago.
 import Anthropic from 'npm:@anthropic-ai/sdk@^1.3.0';
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { atender, HttpError, type Deps, type Peticion, type RespuestaModelo } from './handler.ts';
+import { atender, HttpError, type Peticion, type RespuestaModelo } from './handler.ts';
+import type { DepsClase } from './clase.ts';
+
+const BUCKET_CLASES = 'archivo-clases';
 
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '*').split(',').map((s) => s.trim());
 const CLAVE = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
@@ -29,16 +32,20 @@ async function llamarModelo(p: Peticion): Promise<RespuestaModelo> {
   if (!cliente) throw new HttpError(503, 'sin_clave');
   try {
     const respaldo = CON_RESPALDO.has(p.model) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {};
-    const r = await cliente.beta.messages.create({
+    const params = {
       model: p.model,
       max_tokens: p.max_tokens,
       system: p.system,
-      messages: [{ role: 'user', content: p.user }],
-      // chistes cortos: poco razonamiento; salida JSON garantizada por el esquema
+      // clases impartidas: bloques de texto e imágenes (base64); el resto, una cadena
+      messages: [{ role: 'user' as const, content: (p.contenido ?? p.user) as string }],
       // por defecto poco razonamiento (chistes, mensajes); la generación de preguntas pide «medium»; salida JSON por esquema
-      output_config: { effort: p.effort ?? 'low', format: { type: 'json_schema', schema: p.schema } },
+      output_config: { effort: p.effort ?? 'low', format: { type: 'json_schema' as const, schema: p.schema } },
       ...respaldo,
-    });
+    };
+    // respuestas largas (clase ampliada): streaming, que la API exige para salidas grandes, y más tiempo
+    const r = p.largo
+      ? await cliente.beta.messages.stream(params, { timeout: 380_000 }).finalMessage()
+      : await cliente.beta.messages.create(params);
     const texto = r.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('');
     return { texto, stop_reason: r.stop_reason ?? null, input_tokens: r.usage.input_tokens ?? 0, output_tokens: r.usage.output_tokens ?? 0 };
   } catch (e) {
@@ -69,13 +76,36 @@ Deno.serve(async (req) => {
     // (el pulso de la clase trae cifras agregadas; el resto, unos cientos de caracteres)
     if (raw.length > 16_000) throw new HttpError(413, 'Solicitud demasiado grande');
     const admin = createClient(url, service, { auth: { persistSession: false } });
-    const deps: Deps = {
+    const deps: DepsClase = {
       rpc: async (fn, args) => {
         const { data, error } = await admin.rpc(fn, args);
         return { data, error: error ? { message: error.message } : null };
       },
       llamarModelo,
       hayClave: !!cliente,
+      // clases impartidas: fotos del bucket privado (solo en el servidor) y catálogo oficial de modelos
+      leerImagen: async (path) => {
+        const { data, error } = await admin.storage.from(BUCKET_CLASES).download(path);
+        if (error || !data) throw new HttpError(502, 'foto_no_disponible');
+        const bytes = new Uint8Array(await data.arrayBuffer());
+        let bin = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        return { data: btoa(bin), media_type: data.type || (path.endsWith('.png') ? 'image/png' : path.endsWith('.jpg') ? 'image/jpeg' : 'image/webp') };
+      },
+      consultarModelo: async (id) => {
+        if (!cliente) return null;
+        try {
+          const m = await cliente.models.retrieve(id) as unknown as { capabilities?: { image_input?: { supported?: boolean } } };
+          return { disponible: true, imagenes: m.capabilities?.image_input?.supported !== false };
+        } catch (e) {
+          if (e instanceof Anthropic.NotFoundError) return { disponible: false, imagenes: false };
+          return null;
+        }
+      },
+      enSegundoPlano: (p) => {
+        const rt = (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime;
+        if (rt) rt.waitUntil(p); else void p;
+      },
     };
     const out = await atender(JSON.parse(raw || '{}'), userData.user.id, deps);
     return new Response(JSON.stringify(out), { status: 200, headers });

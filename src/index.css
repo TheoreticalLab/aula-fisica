@@ -112,3 +112,18 @@ body.modo-concentracion > #root > div > header,
 body.modo-concentracion header.sticky {
   position: static;
 }
+
+.apartado-resaltado { scroll-margin-top: 5rem; animation: resaltar 2.5s ease-out; }
+@keyframes resaltar { from { background: rgb(250 204 21 / 0.45); } to { background: transparent; } }
+
+/* Clases impartidas: «Exportar a PDF» = vista de impresión del navegador (sin otra llamada a la IA ni copias del contenido) */
+.solo-imprimir { display: none; }
+@media print {
+  #root > div > header, #root > div > footer, nav, .no-print, button { display: none !important; }
+  .solo-imprimir { display: block; }
+  body { background: #fff !important; color: #000 !important; }
+  .tarjeta { border: none !important; box-shadow: none !important; padding: 0 !important; }
+  .prosa, .katex { color: #000 !important; }
+  section, .katex-display { break-inside: avoid; }
+  a { color: #000 !important; text-decoration: none !important; }
+}

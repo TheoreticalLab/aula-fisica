@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useRef, useEffect, useState } from 'react';
+import { elegirEncabezado } from '@/lib/clases';
 import { useAuth } from '@/auth/AuthContext';
 import { guardarUltimaLeccion } from '@/lib/ultimaLeccion';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
@@ -149,11 +150,23 @@ export default function Leccion() {
   const { courseId = '', lessonId = '' } = useParams();
   const [params, setParams] = useSearchParams();
   const sec = (params.get('s') as Seccion) || 'teoria';
+  const apartado = params.get('a');
+  const teoriaRef = useRef<HTMLDivElement>(null);
   const { data, loading, error, reload } = useAsync(async () => {
     const [lesson, lessons, units] = await Promise.all([getLesson(lessonId), getLessonList(courseId), getUnits(courseId)]);
     return { lesson, lessons, units };
   }, [lessonId, courseId]);
   const { profile } = useAuth();
+  // enlace desde una clase impartida a un apartado exacto de la teoría
+  useEffect(() => {
+    if (!data || sec !== 'teoria' || !apartado) return;
+    const t = window.setTimeout(() => {
+      const hs = [...(teoriaRef.current?.querySelectorAll('h2, h3') ?? [])].map((el) => ({ el, texto: el.textContent ?? '' }));
+      const el = elegirEncabezado(hs, apartado) as HTMLElement | null;
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); el.classList.add('apartado-resaltado'); }
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [data, sec, apartado]);
   useEffect(() => {
     if (!data) return;
     guardarUltimaLeccion(profile?.id, {
@@ -200,7 +213,7 @@ export default function Leccion() {
         <article className="tarjeta">
           <Objetivos items={study.objetivos ?? []} />
           <p className="mb-2 text-sm italic text-gray-600 dark:text-gray-400">{lesson.summary}</p>
-          <Markdown>{lesson.theory}</Markdown>
+          <div ref={teoriaRef}><Markdown>{lesson.theory}</Markdown></div>
           <Conexiones texto={study.conexiones ?? ''} />
         </article>
       )}

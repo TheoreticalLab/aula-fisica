@@ -105,3 +105,74 @@ export async function optimizarCaptura(archivo: File, maxBytes: number): Promise
     bytesOriginal: archivo.size, shaOriginal, enObjetivo: r.bytes <= OBJETIVO_BYTES, calidad: r.paso.calidad,
   };
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Clases impartidas (migración 66): fotografías de PIZARRAS. Más resolución y calidad que las capturas: exponentes,
+// subíndices, diferenciales y signos negativos deben seguir legibles al ampliar (y para la lectura de Claude).
+// La recodificación quita los metadatos EXIF (incluida la ubicación) y la orientación se corrige al decodificar.
+// ---------------------------------------------------------------------------------------------------------------
+export const PIZARRA_OBJETIVO_BYTES = 1_600_000;
+export const PIZARRA_CORTO_PREFERIDO = 1600;
+export const PIZARRA_CORTO_MINIMO = 1200;
+export const PIZARRA_CALIDAD_MINIMA = 0.75;
+
+export function planificarPizarra(ancho: number, alto: number): Paso[] {
+  const corto = Math.min(ancho, alto), largo = Math.max(ancho, alto);
+  const limite = Math.min(1, LADO_MAXIMO / largo, Math.sqrt(PIXELES_MAXIMOS / (ancho * alto)));
+  const e0 = Math.min(limite, corto > PIZARRA_CORTO_PREFERIDO ? PIZARRA_CORTO_PREFERIDO / corto : 1);
+  const eMin = Math.min(limite, corto > PIZARRA_CORTO_MINIMO ? PIZARRA_CORTO_MINIMO / corto : 1);
+  const dims = (e: number) => ({ ancho: Math.max(1, Math.round(ancho * e)), alto: Math.max(1, Math.round(alto * e)) });
+  const pasos: Paso[] = [0.9, 0.85, 0.8].map((calidad) => ({ ...dims(e0), calidad }));
+  if (eMin < e0 - 1e-9) pasos.push(...[0.85, 0.8, PIZARRA_CALIDAD_MINIMA].map((calidad) => ({ ...dims(eMin), calidad })));
+  else pasos.push({ ...dims(e0), calidad: PIZARRA_CALIDAD_MINIMA });
+  return pasos;
+}
+
+export interface FotoPizarra {
+  blob: Blob; tipo: string; ancho: number; alto: number; bytes: number; bytesOriginal: number; shaOriginal: string | null;
+  miniatura: Blob | null; vistaPrevia: string;
+}
+
+/** Optimiza una fotografía de pizarra elegida por el usuario (solo esa: no hay acceso a la galería) y crea su miniatura. */
+export async function optimizarPizarra(archivo: File, maxBytes: number): Promise<FotoPizarra> {
+  if (!archivo.type.startsWith('image/') && !/\.(png|jpe?g|webp|heic|heif)$/i.test(archivo.name)) throw new Error('Elija una fotografía (imagen).');
+  const buf = await archivo.arrayBuffer();
+  const shaOriginal = await sha256(buf);
+  let bmp: ImageBitmap;
+  try {
+    bmp = await createImageBitmap(new Blob([buf], { type: archivo.type || 'image/jpeg' }), { imageOrientation: 'from-image' });
+  } catch {
+    throw new Error('Este navegador no puede abrir esa imagen (¿formato HEIC?). Tómela de nuevo en JPG o envíela desde otro dispositivo.');
+  }
+  if (Math.min(bmp.width, bmp.height) < 600) { bmp.close(); throw new Error('La fotografía tiene poca resolución para leer las ecuaciones (mínimo 600 píxeles por lado).'); }
+  const lienzo = document.createElement('canvas');
+  const ctx = lienzo.getContext('2d');
+  if (!ctx) throw new Error('No se pudo preparar la imagen en este navegador.');
+  let webp = true;
+  const dibujar = async (p: Paso) => {
+    lienzo.width = p.ancho; lienzo.height = p.alto;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, p.ancho, p.alto);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bmp, 0, 0, p.ancho, p.alto);
+    const intentar = (tipo: string) => new Promise<Blob | null>((ok) => lienzo.toBlob(ok, tipo, p.calidad));
+    let blob = webp ? await intentar('image/webp') : null;
+    if (!blob || blob.type !== 'image/webp') { webp = false; blob = await intentar('image/jpeg'); }
+    return blob ? { blob, bytes: blob.size, tipo: blob.type } : null;
+  };
+  let mejor: Resultado<Blob> | null = null;
+  for (const paso of planificarPizarra(bmp.width, bmp.height)) {
+    const r = await dibujar(paso);
+    if (!r) continue;
+    if (!mejor || r.bytes < mejor.bytes) mejor = { ...r, paso };
+    if (r.bytes <= PIZARRA_OBJETIVO_BYTES) { mejor = { ...r, paso }; break; }
+  }
+  // miniatura para listados (lado corto 320 px)
+  const e = Math.min(1, 320 / Math.min(bmp.width, bmp.height));
+  const miniatura = await dibujar({ ancho: Math.round(bmp.width * e), alto: Math.round(bmp.height * e), calidad: 0.7 }).then((r) => r?.blob ?? null);
+  bmp.close();
+  if (!mejor) throw new Error('No se pudo procesar la fotografía.');
+  if (mejor.bytes > maxBytes) throw new Error(`La fotografía ocupa ${Math.round(mejor.bytes / 1024)} KB después de optimizarla (máximo ${Math.round(maxBytes / 1024)} KB).`);
+  return { blob: mejor.blob, tipo: mejor.tipo, ancho: mejor.paso.ancho, alto: mejor.paso.alto, bytes: mejor.bytes, bytesOriginal: archivo.size, shaOriginal,
+    miniatura, vistaPrevia: URL.createObjectURL(mejor.blob) };
+}
