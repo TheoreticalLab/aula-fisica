@@ -33,17 +33,39 @@ function Politica({ activityId }: { activityId: string }) {
   const vigente = st.data;
   const fechaHora = (iso: string) => new Date(iso).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' });
   return (
-    <Card title="Práctica de Control · política de nota">
-      <p className="text-sm text-gray-600 dark:text-gray-300">Anuncie aquí, antes de las entregas o al menos antes del control, cuánto puede ajustar un control presencial la nota de esta práctica:
-        N_final = N_original × [1 − w × (1 − C/100)]. Los estudiantes lo ven en la práctica desde ese momento. Cada cambio crea una versión nueva:
-        cada control se rige por la versión que el estudiante conocía antes de hacerlo (nunca se cambian las reglas de un control ya hecho).</p>
+    <Card title="Práctica de Control">
+      <p className="text-sm text-gray-600 dark:text-gray-300">Toda práctica tiene el control <strong>activado por defecto</strong>: puede verificarse en clase desde Orbe Control y el
+        resultado ajusta su nota según N_final = N_original × [1 − w × (1 − C/100)]. Los estudiantes lo ven en la práctica. Desactívelo si no lo quiere en esta práctica.</p>
       {st.loading ? <Spinner /> : vigente ? (
-        <Notice tone="ok">Vigente: versión {vigente.version} · ajuste máximo {Math.round(100 * vigente.w)} % · {vigente.duracion_min} min · anunciada el {new Date(vigente.announced_at).toLocaleString('es-DO')}.
+        <Notice tone="ok"><strong>✅ Control activado</strong> · versión {vigente.version} · ajuste máximo {Math.round(100 * vigente.w)} % · {vigente.duracion_min} min · anunciada el {new Date(vigente.announced_at).toLocaleString('es-DO')}.
           Ej.: 90 en la práctica y 50 en el control → {ejemploAjuste(vigente.w).final}.
           {vigente.alcance === 'todas'
             ? ` Se aplica también a quien ya entregó, en controles iniciados desde el ${vigente.efectiva_desde ? fechaHora(vigente.efectiva_desde) : '—'}.`
-            : ' Se aplica a las entregas hechas desde el anuncio.'}</Notice>
-      ) : <Notice>Sin política anunciada: un control de esta práctica sería solo diagnóstico y no cambiaría ninguna nota.</Notice>}
+            : ' Se aplica a todas las entregas hechas desde el anuncio.'}</Notice>
+      ) : <Notice tone="warn"><strong>⛔ Control desactivado</strong> en esta práctica: no aparece en Orbe Control y no cambia ninguna nota.</Notice>}
+      {!st.loading && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {vigente ? (
+            <button className="btn-secundario" disabled={accion.busy} onClick={() => {
+              if (!window.confirm('¿Desactivar el control en esta práctica? Dejará de ofrecerse en Orbe Control. Los controles ya hechos conservan la regla con la que se hicieron.')) return;
+              void accion.run(async () => { await controlPoliticaRetirar(activityId); setMsg('Control desactivado.'); st.reload(); });
+            }}>Desactivar el control en esta práctica</button>
+          ) : (
+            <button className="btn-primario" disabled={accion.busy} onClick={() => {
+              if (!window.confirm('¿Activar el control (20 %, 7 min)? Se avisará en la sección y contará en controles hechos a partir de 24 h, también para quienes ya entregaron.')) return;
+              void accion.run(async () => {
+                const r = await controlPoliticaAnunciar(activityId, W_POR_DEFECTO, 7, cond, ayudas, 'todas', 24, true);
+                setMsg(`Control activado. Cuenta en controles desde el ${fechaHora(r.efectiva_desde)}.`);
+                st.reload();
+              });
+            }}>Activar el control</button>
+          )}
+          {msg && <span className="text-sm text-emerald-700 dark:text-emerald-300">{msg}</span>}
+        </div>
+      )}
+      <details className="mt-3">
+      <summary className="cursor-pointer text-sm font-medium">Cambiar los parámetros (crea una versión nueva)</summary>
+      <p className="mt-1 text-xs text-gray-500">Cada cambio crea una versión nueva: cada control se rige por la versión que el estudiante conocía antes de hacerlo (nunca se cambian las reglas de un control ya hecho).</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-sm"><span className="etiqueta">Ajuste máximo (w)</span>
           <span className="flex items-center gap-2"><input type="range" min={0} max={Math.round(100 * W_MAX)} step={5} value={w} onChange={(e) => setW(Number(e.target.value))} className="flex-1" />
@@ -84,13 +106,9 @@ function Politica({ activityId }: { activityId: string }) {
               : r.entregas_previas ? ` ${r.entregas_previas} estudiante(s) ya habían entregado: a ellos no se les aplica.` : ''));
             st.reload();
           });
-        }}>{vigente ? 'Anunciar versión nueva' : 'Anunciar política'}</button>
-        {vigente && <button className="btn-secundario" disabled={accion.busy} onClick={() => {
-          if (!window.confirm('¿Retirar la política? Los controles posteriores no ajustarán notas de quien entregue desde ahora; los controles ya hechos conservan la regla con la que se hicieron.')) return;
-          void accion.run(async () => { await controlPoliticaRetirar(activityId); st.reload(); });
-        }}>Retirar</button>}
-        {msg && <span className="text-sm text-emerald-700 dark:text-emerald-300">{msg}</span>}
+        }}>{vigente ? 'Anunciar versión nueva' : 'Activar con estos parámetros'}</button>
       </div>
+      </details>
       <ErrorBox error={accion.error ?? st.error} />
     </Card>
   );

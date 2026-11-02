@@ -43,6 +43,11 @@
 
 ## 3. Regla de nota
 
+**Activada por defecto (migración 65).** Toda práctica nueva nace con la política v1 (20 %, 7 min, alcance
+«nuevas», anunciada al crearse). Las prácticas existentes recibieron la v1 con alcance «todas» y 24 h de antelación,
+con un aviso fijado por sección. El profesor la desactiva por práctica (Configuración → «Desactivar el control en esta
+práctica»): una práctica desactivada no se ofrece en Orbe Control ni muestra el aviso.
+
     N_final = N_original × [1 − w × (1 − C/100)]        w ≤ 0,30 (límite institucional), 0,20 por defecto
 
 - **La nota original nunca se modifica**: el factor se aplica al leer. No puede aplicarse dos veces por
@@ -136,7 +141,8 @@ procesos distintos.
 
 ## 8. Guía rápida del profesor
 
-1. **Antes de que entreguen** (o, para una práctica ya dada, antes del control): Actividad (la práctica) →
+1. **No hace falta activar nada**: toda práctica tiene el control activado por defecto. Para excluir una práctica o
+   cambiar sus parámetros (antes de que entreguen o, para una práctica ya dada, antes del control): Actividad (la práctica) →
    Configuración → «Práctica de Control · política de nota»: ajuste máximo, duración, a qué entregas se aplica
    (posteriores, o también anteriores con antelación mínima), condiciones y política de ayudas → «Anunciar política».
    Los estudiantes ven el aviso en la práctica y, si lo deja marcado, un aviso fijado en la sección.

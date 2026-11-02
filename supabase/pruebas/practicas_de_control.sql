@@ -43,6 +43,8 @@ insert into public.enrollments (class_id, user_id) values
 insert into public.activities (id, class_id, title, mode, published, reveal_policy, hints_enabled, max_tries_per_item) values
   ('de620000-0000-4000-8000-0000000000a1', 'de620000-0000-4000-8000-000000000031', 'Energía', 'practice', true, 'after_submit', false, 2);
 insert into public.activity_items (activity_id, exercise_id, position) values ('de620000-0000-4000-8000-0000000000a1', 'de620000-0000-4000-8000-0000000000e1', 1);
+-- práctica anterior a la migración 65 (sin la política por defecto): el profesor anuncia la suya
+delete from public.control_policies where activity_id = 'de620000-0000-4000-8000-0000000000a1';
 insert into public.activity_grade_links (activity_id, class_id, category, points) values ('de620000-0000-4000-8000-0000000000a1', 'de620000-0000-4000-8000-000000000031', 'practica', 30);
 -- S6 entregó AYER, antes de que se anunciara la política
 insert into public.attempts (id, user_id, course_id, activity_id, mode, status, score, max_score, started_at, submitted_at) values

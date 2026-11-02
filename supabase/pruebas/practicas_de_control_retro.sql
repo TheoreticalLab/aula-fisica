@@ -26,6 +26,8 @@ insert into public.activities (id, class_id, title, mode, published, reveal_poli
   ('de630000-0000-4000-8000-0000000000a2', 'de630000-0000-4000-8000-000000000031', 'Práctica 2', 'practice', true, 'after_submit', false, 2);
 insert into public.activity_items (activity_id, exercise_id, position) values
   ('de630000-0000-4000-8000-0000000000a1', 'de630000-0000-4000-8000-0000000000e1', 1), ('de630000-0000-4000-8000-0000000000a2', 'de630000-0000-4000-8000-0000000000e2', 1);
+-- prácticas anteriores a la migración 65 (sin la política por defecto)
+delete from public.control_policies where activity_id in ('de630000-0000-4000-8000-0000000000a1', 'de630000-0000-4000-8000-0000000000a2');
 insert into public.attempts (user_id, course_id, activity_id, mode, status, score, max_score, started_at, submitted_at) values
   ('de630000-0000-4000-8000-000000000011', 'de630000-0000-4000-8000-000000000021', 'de630000-0000-4000-8000-0000000000a1', 'practice', 'submitted', 0.8, 1, now() - interval '10 days', now() - interval '10 days'),
   ('de630000-0000-4000-8000-000000000012', 'de630000-0000-4000-8000-000000000021', 'de630000-0000-4000-8000-0000000000a1', 'practice', 'submitted', 0.9, 1, now() - interval '10 days', now() - interval '10 days'),
