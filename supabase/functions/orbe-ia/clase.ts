@@ -71,11 +71,12 @@ export const SCHEMA_CLASE = {
       items: {
         type: 'object', additionalProperties: false,
         required: ['tipo', 'lesson_id', 'unit_id', 'exercise_id', 'sim_key', 'apartado', 'concepto', 'cobertura'],
+        // structured outputs solo admite tipos simples: «""» significa «no aplica» (el servidor lo trata como vacío)
         properties: {
           tipo: { type: 'string', enum: ['leccion', 'unidad', 'ejercicio', 'simulador', 'brecha'] },
-          lesson_id: { type: ['string', 'null'] }, unit_id: { type: ['string', 'null'] }, exercise_id: { type: ['string', 'null'] },
-          sim_key: { type: ['string', 'null'] }, apartado: { type: ['string', 'null'] }, concepto: { type: ['string', 'null'] },
-          cobertura: { type: ['string', 'null'], enum: ['completa', 'parcial', 'ninguna', null] },
+          lesson_id: { type: 'string' }, unit_id: { type: 'string' }, exercise_id: { type: 'string' },
+          sim_key: { type: 'string' }, apartado: { type: 'string' }, concepto: { type: 'string' },
+          cobertura: { type: 'string', enum: ['completa', 'parcial', 'ninguna', ''] },
         },
       },
     },
@@ -91,7 +92,7 @@ export function sistemaClase(nivel: Nivel): string {
     '2. Distingue siempre lo VISIBLE en la pizarra de lo INFERIDO. Marca lo inferido con «(inferido)» y lo dudoso con «(dudoso)». Nunca presentes una lectura incierta como un hecho.',
     '3. No inventes datos experimentales ni atribuyas al profesor procedimientos que no aparecen en las fotos. No conoces lo que se dijo oralmente: reconócelo.',
     '4. Las ampliaciones pedagógicas van SOLO en la sección «ampliaciones», presentadas como material complementario generado por IA, no como lo dicho en clase.',
-    '5. Enlaces: usa EXCLUSIVAMENTE identificadores del catálogo que se te entrega (lesson_id, unit_id, exercise_id, sim_key = «simulador» de una lección, apartado = uno de los «apartados» exactos de esa lección). Si un tema trabajado no está en el catálogo, añade un enlace de tipo «brecha» con el concepto y cobertura «ninguna». Indica la cobertura de cada lección: «completa», «parcial» o «ninguna». Prefiere correspondencias por contenido y concepto, no por coincidencia de títulos.',
+    '5. Enlaces: en cada enlace, deja en "" (cadena vacía) los campos que no apliquen. Usa EXCLUSIVAMENTE identificadores del catálogo que se te entrega (lesson_id, unit_id, exercise_id, sim_key = «simulador» de una lección, apartado = uno de los «apartados» exactos de esa lección). Si un tema trabajado no está en el catálogo, añade un enlace de tipo «brecha» con el concepto y cobertura «ninguna». Indica la cobertura de cada lección: «completa», «parcial» o «ninguna». Prefiere correspondencias por contenido y concepto, no por coincidencia de títulos.',
     '6. No incluyas HTML, imágenes ni enlaces web en el texto.',
     'SECCIONES (usa estas claves, todas si hay material): identificacion (título, conceptos centrales y objetivos inferibles); reconstruccion (transcripción ordenada de cada pizarra, «Pizarra 1», «Pizarra 2»…, marcando lo ilegible); explicacion (teoría necesaria); desarrollo (paso a paso: significado de los símbolos, hipótesis, condiciones de validez, transformaciones algebraicas, pasos omitidos, interpretación física, comprobación dimensional); ejemplos (reconstruye los ejercicios visibles con cálculos intermedios, sin inventar datos); ampliaciones; errores (confusiones conceptuales y matemáticas frecuentes); conclusiones (lo que el estudiante debe dominar); incertidumbres (expresiones ilegibles, diagramas ambiguos, posibles errores de transcripción, falta del audio).',
     `NIVEL DE DETALLE: ${NIVELES[nivel].etiqueta} — ${NIVELES[nivel].descripcion}. No es un resumen superficial: es una reconstrucción completa.`,
@@ -163,8 +164,8 @@ export function simularClase(ini: Inicio): string {
       { clave: 'incertidumbres', cuerpo: 'Simulación: no se leyó ninguna fotografía.' },
     ],
     enlaces: [
-      ...(l ? [{ tipo: 'leccion', lesson_id: l.id, unit_id: null, exercise_id: null, sim_key: null, apartado: l.apartados?.[0] ?? null, concepto: null, cobertura: 'parcial' }] : []),
-      { tipo: 'brecha', lesson_id: null, unit_id: null, exercise_id: null, sim_key: null, apartado: null, concepto: 'Tema de ejemplo sin teoría (simulación)', cobertura: 'ninguna' },
+      ...(l ? [{ tipo: 'leccion', lesson_id: l.id, unit_id: '', exercise_id: '', sim_key: '', apartado: l.apartados?.[0] ?? '', concepto: '', cobertura: 'parcial' }] : []),
+      { tipo: 'brecha', lesson_id: '', unit_id: '', exercise_id: '', sim_key: '', apartado: '', concepto: 'Tema de ejemplo sin teoría (simulación)', cobertura: 'ninguna' },
     ],
   });
 }

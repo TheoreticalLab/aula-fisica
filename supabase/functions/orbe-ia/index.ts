@@ -51,7 +51,8 @@ async function llamarModelo(p: Peticion): Promise<RespuestaModelo> {
   } catch (e) {
     if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) throw new HttpError(502, 'autenticacion');
     if (e instanceof Anthropic.RateLimitError) throw new HttpError(502, 'limite_api');
-    if (e instanceof Anthropic.BadRequestError) throw new HttpError(502, 'peticion_invalida');
+    // el motivo de la API (sin datos de estudiantes) queda en los registros de la función para diagnosticar
+    if (e instanceof Anthropic.BadRequestError) { console.error('orbe-ia: la API rechazó la petición:', String(e.message).slice(0, 500)); throw new HttpError(502, 'peticion_invalida'); }
     if (e instanceof Anthropic.APIConnectionError) throw new HttpError(502, 'red');
     if (e instanceof Anthropic.APIError) throw new HttpError(502, 'servidor_api');
     throw e;
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
         const bytes = new Uint8Array(await data.arrayBuffer());
         let bin = '';
         for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-        return { data: btoa(bin), media_type: data.type || (path.endsWith('.png') ? 'image/png' : path.endsWith('.jpg') ? 'image/jpeg' : 'image/webp') };
+        return { data: btoa(bin), media_type: path.endsWith('.png') ? 'image/png' : path.endsWith('.jpg') ? 'image/jpeg' : 'image/webp' };
       },
       consultarModelo: async (id) => {
         if (!cliente) return null;

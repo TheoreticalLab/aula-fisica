@@ -26,9 +26,9 @@ const respuestaBuena = JSON.stringify({
     { clave: 'inventada', cuerpo: 'no debe aparecer' },
   ],
   enlaces: [
-    { tipo: 'leccion', lesson_id: L1, unit_id: null, exercise_id: null, sim_key: null, apartado: 'Teorema trabajo-energía', concepto: null, cobertura: 'completa' },
-    { tipo: 'leccion', lesson_id: '99999999-9999-4999-8999-999999999999', unit_id: null, exercise_id: null, sim_key: null, apartado: null, concepto: null, cobertura: 'completa' },
-    { tipo: 'brecha', lesson_id: null, unit_id: null, exercise_id: null, sim_key: null, apartado: null, concepto: 'Potencia instantánea', cobertura: 'ninguna' },
+    { tipo: 'leccion', lesson_id: L1, unit_id: '', exercise_id: '', sim_key: '', apartado: 'Teorema trabajo-energía', concepto: '', cobertura: 'completa' },
+    { tipo: 'leccion', lesson_id: '99999999-9999-4999-8999-999999999999', unit_id: '', exercise_id: '', sim_key: '', apartado: '', concepto: '', cobertura: 'completa' },
+    { tipo: 'brecha', lesson_id: '', unit_id: '', exercise_id: '', sim_key: '', apartado: '', concepto: 'Potencia instantánea', cobertura: 'ninguna' },
   ],
 });
 
@@ -150,6 +150,20 @@ describe('Clases impartidas · generación con IA (API simulada)', () => {
     expect(d.comprobado).toBe(true);
     expect(d.modelos['claude-opus-5-5'].disponible).toBe(false);
     expect((await disponibilidad(mockDeps({ hayClave: false }).deps)).comprobado).toBe(false);
+  });
+  it('esquema de salida compatible con structured outputs (sin tipos combinados ni null en enum; objetos cerrados)', () => {
+    const revisar = (n: unknown, ruta: string): void => {
+      if (!n || typeof n !== 'object') return;
+      const o = n as Record<string, unknown>;
+      expect(Array.isArray(o.type), `${ruta}: tipo combinado`).toBe(false);
+      if (Array.isArray(o.enum)) expect(o.enum.includes(null), `${ruta}: null en enum`).toBe(false);
+      if (o.type === 'object') {
+        expect(o.additionalProperties, `${ruta}: additionalProperties`).toBe(false);
+        expect([...(o.required as string[])].sort(), `${ruta}: required`).toEqual(Object.keys(o.properties as object).sort());
+      }
+      for (const [k, v] of Object.entries(o)) if (typeof v === 'object') revisar(v, `${ruta}.${k}`);
+    };
+    revisar(SCHEMA_CLASE, 'raíz');
   });
   it('esquema de salida: secciones con claves cerradas y enlaces con todos los campos', () => {
     const p = construirPeticion('claude-sonnet-5-5', 'estandar', { catalogo: CATALOGO, clase: {} }, [], '');
