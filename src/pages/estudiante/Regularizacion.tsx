@@ -3,6 +3,7 @@
  * adjuntar UNA captura del envío y registrar. No se sube el documento de la práctica.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { EVENTO_REGULARIZACION } from '@/components/BloqueoRegularizacion';
 import {
   eliminarBorrador, guardarRegistro, misSecciones, quitarCaptura, registrar, subirCaptura, sugerir, terminar,
   type MiRegistro, type MiSeccion,
@@ -280,6 +281,7 @@ function Seccion({ s, recargar, varias, otros = 0 }: { s: MiSeccion; recargar: (
   const [notaFin, setNotaFin] = useState('');
   async function confirmarTerminar() {
     const res = await accion.run(() => terminar(s.class_id, enviados.length + otros === 0 && sinPracticas, notaFin.trim() || null));
+    if (res) window.dispatchEvent(new Event(EVENTO_REGULARIZACION));   // levanta el bloqueo del aula sin recargar
     if (!res) return;
     setTerminarAbierto(false);
     setAviso(res.sin_practicas ? 'Listo. Indicaste que no tienes prácticas anteriores que regularizar.' : `Listo. Terminaste la regularización con ${res.registradas} registro(s). El profesor los revisará.`);

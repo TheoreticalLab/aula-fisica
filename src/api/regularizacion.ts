@@ -102,5 +102,12 @@ export const terminados = (classId: string) => rpc<Terminado[]>('hist_terminados
 export const reabrirEstudiante = (classId: string, userId: string, nota: string | null) => rpc<void>('hist_reabrir_estudiante', { p_class: classId, p_user: userId, p_nota: nota });
 export const recordatorio = (classId: string, recordar: boolean) => rpc<void>('hist_recordatorio', { p_class: classId, p_recordar: recordar });
 
+// --- Regularización obligatoria: bloqueo del aula hasta terminar (migración 64) ---------------------------------------
+export interface SeccionBloqueo { class_id: string; class_name: string; course_title: string; mensaje: string }
+export const miBloqueo = () => rpc<SeccionBloqueo[]>('hist_mi_bloqueo');
+export interface EstadoBloqueo { bloquear: boolean; abierta: boolean; bloqueados: number }
+export const bloqueoEstado = (classId: string) => rpc<EstadoBloqueo>('hist_bloqueo_estado', { p_class: classId });
+export const bloqueoConfigurar = (classId: string, bloquear: boolean) => rpc<EstadoBloqueo>('hist_bloqueo_configurar', { p_class: classId, p_bloquear: bloquear });
+
 export const decidirSugerencias = (ids: string[], decision: 'confirmada' | 'relacionada' | 'descartada' | 'pendiente', practiceId: string | null, titulo: string | null, nota: string | null) =>
   rpc<string | null>('hist_sugerencias_decidir', { p_ids: ids, p_decision: decision, p_practice: practiceId, p_titulo: titulo, p_nota: nota });

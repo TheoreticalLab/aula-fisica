@@ -6,7 +6,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  archivarPractica, configSeccion, configurar, decidirSugerencias, guardarPractica, historial, reabrirEstudiante, recordatorio, registros as cargarRegistros,
+  archivarPractica, bloqueoConfigurar, bloqueoEstado, configSeccion, configurar, decidirSugerencias, guardarPractica, historial, reabrirEstudiante, recordatorio, registros as cargarRegistros,
   resumen, revisar, sugerencias as cargarSugerencias, terminados, unirPracticas, vincularActividad, type ConfigSeccion, type PracticaDocente, type SugerenciaDocente,
 } from '@/api/regularizacion';
 import { teacherOverview } from '@/api/docente';
@@ -462,6 +462,7 @@ function Catalogo({ classId, c, onCambio }: { classId: string; c: ConfigSeccion;
             <span>Aviso obligatorio al entrar: a quien no haya marcado «Terminé» le aparece un mensaje cada vez que accede a la plataforma (se guarda al momento).
               {typeof c.terminados === 'number' && <span className="block text-xs text-gray-500">{c.terminados} estudiante(s) ya marcaron que terminaron.</span>}</span>
           </label>
+          <BloqueoSeccion classId={classId} />
           <label className="sm:col-span-2">Mensaje para los estudiantes (opcional)<textarea className="campo min-h-[3rem]" maxLength={1000} value={f.mensaje} onChange={(e) => setF({ ...f, mensaje: e.target.value })} /></label>
           <label>Cantidad de prácticas (estimación)<input type="number" min={0} max={99} className="campo" value={f.espacios} onChange={(e) => setF({ ...f, espacios: Number(e.target.value) })} /></label>
           <label>Margen de búsqueda en el correo (días)<input type="number" min={0} max={60} className="campo" value={f.margen_dias} onChange={(e) => setF({ ...f, margen_dias: Number(e.target.value) })} /></label>
@@ -567,6 +568,26 @@ export default function Regularizacion() {
           {sel ? <RegularizacionSeccion key={sel} classId={sel} /> : <Localizador classId={null} margenInicial={7} />}
         </>
       )}
+    </div>
+  );
+}
+
+/** Regularización obligatoria (migración 64): bloqueo total del aula a quien no haya terminado; se guarda al momento. */
+function BloqueoSeccion({ classId }: { classId: string }) {
+  const st = useAsync(() => bloqueoEstado(classId), [classId]);
+  const accion = useAction();
+  const e = st.data;
+  return (
+    <div className="flex items-start gap-2 sm:col-span-2">
+      <input type="checkbox" className="mt-1" checked={!!e?.bloquear} disabled={!e || accion.busy} onChange={(ev) => {
+        const v = ev.target.checked;
+        if (v && !window.confirm('¿Bloquear el aula a quien no haya terminado la regularización? No podrán hacer nada (ni asistencia ni evaluaciones) hasta pulsar «Terminar».')) return;
+        void accion.run(async () => { await bloqueoConfigurar(classId, v); st.reload(); });
+      }} />
+      <span>Regularización obligatoria: <strong>bloquear todo el aula</strong> a quien no haya pulsado «Terminar» (ni prácticas, ni evaluaciones, ni asistencia, ni notas).
+        Al terminar, vuelve a la normalidad. Si cierra la regularización, el bloqueo deja de aplicarse.
+        {e && <span className="block text-xs text-gray-500">{e.bloquear ? (e.abierta ? `Activado: ${e.bloqueados} estudiante(s) bloqueado(s) ahora.` : 'Activado, pero la regularización está cerrada: no bloquea a nadie.') : 'Desactivado.'}</span>}
+        <ErrorBox error={accion.error ?? st.error} /></span>
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { AvisoControl } from '@/components/AvisoControl';
 import { OrbeIa } from '@/components/OrbeIa';
 import { PreguntaRelampago } from '@/components/PreguntaRelampago';
 import { RecordatorioRegularizacion } from '@/components/RecordatorioRegularizacion';
+import { PantallaBloqueo, useBloqueoRegularizacion } from '@/components/BloqueoRegularizacion';
 import { AVISO_PRIVACIDAD } from '@/lib/tiempo';
 import { useTema } from '@/lib/tema';
 import { Spinner } from './ui';
@@ -72,6 +73,9 @@ export function Layout() {
   }, [session, profile?.role]);
   const [menu, setMenu] = useState(false);
   const loc = useLocation();
+  // regularización obligatoria pendiente: el aula queda reducida a la regularización (el servidor ya lo impone)
+  const bloqueo = useBloqueoRegularizacion(!!session && !isTeacher && profile?.role === 'student' && !!profile?.active);
+  const bloqueado = bloqueo.bloqueado;
   const docente = loc.pathname.startsWith('/docente');
   // en la portada el formulario de ingreso ya está en la página: no se repite el botón «Ingresar»
   const portada = !session && loc.pathname === '/';
@@ -150,6 +154,8 @@ export function Layout() {
             <p className="mb-4 text-sm">Su cuenta está suspendida o todavía no ha sido autorizada. Consulte al profesor o al administrador del aula.</p>
             <button className="btn-secundario" onClick={() => void signOut()}>Salir</button>
           </div>
+        ) : bloqueado && !bloqueo.permitida ? (
+          <PantallaBloqueo secciones={bloqueo.secciones} onSalir={() => void signOut()} />
         ) : (
           <Outlet />
         )}
@@ -163,11 +169,11 @@ export function Layout() {
       <ConexionEnVivo />
       <BloqueoPantalla />
       <ReceptorMensajes />
-      {session && !isTeacher && <AvisoAsistencia />}
-      {session && !isTeacher && <AvisoControl />}
-      {session && !isTeacher && <OrbeIa />}
-      {session && !isTeacher && <PreguntaRelampago />}
-      {session && !isTeacher && profile?.active && <RecordatorioRegularizacion pausado={introVisible} />}
+      {session && !isTeacher && !bloqueado && <AvisoAsistencia />}
+      {session && !isTeacher && !bloqueado && <AvisoControl />}
+      {session && !isTeacher && !bloqueado && <OrbeIa />}
+      {session && !isTeacher && !bloqueado && <PreguntaRelampago />}
+      {session && !isTeacher && profile?.active && !bloqueado && <RecordatorioRegularizacion pausado={introVisible} />}
       {session && <BottomNav docente={docente && isTeacher} />}
     </div>
   );
