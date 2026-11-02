@@ -8,6 +8,8 @@ export interface EstadoAsistida {
   config?: { transferencia: boolean; max_correcciones: number; pesos: Pesos; verificacion: { tipo: string | null; fecha: string | null; nota: string | null };
     /** migración 58 (antes no viene) */
     regla?: { primer_intento: 'participacion' | 'acierto'; factor_ayuda: number } };
+  /** migración 59 (antes no viene) */
+  dependencia?: Dependencia | null;
   items?: EstadoItem[];
 }
 
@@ -29,7 +31,13 @@ export interface ConfigAsistida {
   verificacion_tipo: string | null; verificacion_fecha: string | null; verificacion_actividad: string | null; verificacion_nota: string | null;
   /** migración 58: el primer intento cuenta por participar o por acertar; la corrección tras fallar vale factor_ayuda × su crédito */
   nota_primer_intento?: 'participacion' | 'acierto'; factor_ayuda?: number;
+  /** migración 59: penalización por dependencia observada (null = desactivada) */
+  dependencia_umbral?: number | null; dependencia_descuento?: number;
 }
+/** Dependencia observada de la ayuda en un intento (migración 59). */
+export interface Dependencia { ejercicios: number; corregidos_tras_fallar: number; porcentaje: number; umbral: number | null; descuento: number; aplicado: boolean }
+export const asistidaDependenciaGuardar = (activityId: string, umbral: number | null, descuento: number, recalcular: boolean) =>
+  rpc<{ config: ConfigAsistida; recalculados: number }>('asistida_dependencia_guardar', { p_activity: activityId, p_umbral: umbral, p_descuento: descuento, p_recalcular: recalcular });
 /** Cambia la regla de nota de la práctica asistida y, si se pide, recalcula los intentos existentes (las notas manuales prevalecen). */
 export const asistidaNotaGuardar = (activityId: string, primerIntento: 'participacion' | 'acierto', factorAyuda: number, recalcular: boolean) =>
   rpc<{ config: ConfigAsistida; recalculados: number }>('asistida_nota_guardar', { p_activity: activityId, p_primer_intento: primerIntento, p_factor_ayuda: factorAyuda, p_recalcular: recalcular });

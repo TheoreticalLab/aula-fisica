@@ -76,6 +76,12 @@ export function PracticaAsistida({ view, onEntregado }: { view: AttemptView; onE
         {e.config.regla?.primer_intento === 'acierto' && (
           <span className="mt-1 block text-sm">Nota: su primer intento cuenta por acierto; si no fue correcto, la respuesta corregida después de buscar ayuda vale el {Math.round(100 * e.config.regla.factor_ayuda)} % de su parte. Declarar si usó ayuda no cambia la nota.</span>
         )}
+        {e.dependencia?.umbral != null && (
+          <span className={`mt-1 block text-sm ${e.dependencia.aplicado ? 'font-medium text-amber-800 dark:text-amber-200' : ''}`}>
+            Si corrige después de fallar el primer intento más del {e.dependencia.umbral} % de los ejercicios, la nota de la práctica baja un {e.dependencia.descuento} %.
+            Lleva {e.dependencia.corregidos_tras_fallar} de {e.dependencia.ejercicios} ({e.dependencia.porcentaje} %){e.dependencia.aplicado ? ': el descuento se está aplicando.' : '.'}
+          </span>
+        )}
       </Notice>
       {items.length > 1 && (
         <nav aria-label="Ejercicios" className="flex flex-wrap gap-1.5 pb-1">

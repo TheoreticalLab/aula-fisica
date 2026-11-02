@@ -1,6 +1,6 @@
 /** Configuración del aprendizaje asistido de una práctica: transferencia por ejercicio, pesos editables y verificación diferida. */
 import { useEffect, useState } from 'react';
-import { asistidaNotaGuardar, assistedSettingsDisable, assistedSettingsGet, assistedSettingsSave, type ConfigAsistida as Cfg } from '@/api/asistida';
+import { asistidaDependenciaGuardar, asistidaNotaGuardar, assistedSettingsDisable, assistedSettingsGet, assistedSettingsSave, type ConfigAsistida as Cfg } from '@/api/asistida';
 import { funcionAusente } from '@/api/examen';
 import { activityItems, listActivities, listExercises } from '@/api/docente';
 import { creditoConRegla, notaCompuesta } from '@/lib/asistida';
@@ -47,6 +47,7 @@ export function ConfigAsistida({ activityId, courseId, classId }: { activityId: 
     <Card title={<span>Aprendizaje asistido {st.data!.s.config ? <Badge tone="green">activo</Badge> : <Badge>sin guardar</Badge>}</span>} className="mt-4">
       <div className="space-y-4 text-sm">
         {st.data!.s.config && <ReglaNota activityId={activityId} cfg={cfg} pesos={ef} onGuardado={(c) => st.setData({ ...st.data!, s: { ...st.data!.s, config: { ...st.data!.s.config!, ...c } } })} />}
+        {st.data!.s.config && <PenalizacionDependencia activityId={activityId} cfg={cfg} onGuardado={(c) => st.setData({ ...st.data!, s: { ...st.data!.s, config: { ...st.data!.s.config!, ...c } } })} />}
         <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={cfg.transferencia} onChange={(e) => set({ transferencia: e.target.checked })} />
           <span><strong>Paso 4 · Demuestra lo que aprendiste</strong>: después de explicar, un ejercicio distinto con el mismo concepto (un solo intento).</span></label>
         {cfg.transferencia && (
@@ -117,6 +118,43 @@ export function ConfigAsistida({ activityId, courseId, classId }: { activityId: 
         {s.con_pasos && <p className="text-xs text-gray-500">Ya hay estudiantes con pasos registrados: el aprendizaje asistido no se puede desactivar en esta práctica.</p>}
       </div>
     </Card>
+  );
+}
+
+/** Penalización por dependencia OBSERVADA de la ayuda (migración 59): no depende de lo que el estudiante declare. */
+function PenalizacionDependencia({ activityId, cfg, onGuardado }: { activityId: string; cfg: Cfg; onGuardado: (c: Partial<Cfg>) => void }) {
+  const [activa, setActiva] = useState(cfg.dependencia_umbral != null);
+  const [umbral, setUmbral] = useState(cfg.dependencia_umbral ?? 50);
+  const [descuento, setDescuento] = useState(cfg.dependencia_descuento ?? 20);
+  const [recalcular, setRecalcular] = useState(true);
+  const [msg, setMsg] = useState<string | null>(null);
+  const accion = useAction();
+  const guardar = () => void accion.run(async () => {
+    const r = await asistidaDependenciaGuardar(activityId, activa ? umbral : null, descuento, recalcular);
+    onGuardado({ dependencia_umbral: activa ? umbral : null, dependencia_descuento: descuento });
+    setMsg(recalcular ? `Guardado; ${r.recalculados} intento(s) recalculado(s).` : 'Guardado: se aplicará a partir de los próximos pasos.');
+  });
+  return (
+    <div className="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+      <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={activa} onChange={(e) => { setActiva(e.target.checked); setMsg(null); }} />
+        <span><strong>Penalización por dependencia de la ayuda</strong>
+          <span className="block text-xs text-gray-500">Cuenta los ejercicios que el estudiante corrigió <em>después de fallar</em> su primer intento (se observa; no depende de lo que declare). Si superan el umbral, la nota de toda la práctica baja el porcentaje indicado.</span></span></label>
+      {activa && (
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <label className="text-xs"><span className="etiqueta">Si corrige tras fallar más del</span>
+            <span className="flex items-center gap-2"><input type="number" min={1} max={100} className="campo w-24" value={umbral} onChange={(e) => setUmbral(Math.max(1, Math.min(100, Number(e.target.value) || 50)))} /> % de los ejercicios</span></label>
+          <label className="text-xs"><span className="etiqueta">la nota de la práctica baja un</span>
+            <span className="flex items-center gap-2"><input type="number" min={0} max={100} className="campo w-24" value={descuento} onChange={(e) => setDescuento(Math.max(0, Math.min(100, Number(e.target.value) || 0)))} /> %</span></label>
+          <p className="text-xs text-gray-500 sm:col-span-2">Ejemplo: con 20 ejercicios, quien corrige tras fallar {Math.floor(umbral / 5) + 1} o más (más del {umbral} %) pasa de, por ejemplo, 50 % a {Math.round(50 * (1 - descuento / 100))} %. El estudiante ve la regla y su propio porcentaje mientras avanza.</p>
+        </div>
+      )}
+      <label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={recalcular} onChange={(e) => setRecalcular(e.target.checked)} /> Recalcular ahora las notas de los intentos existentes</label>
+      <div className="mt-2 flex items-center gap-3">
+        <button className="btn-secundario !py-1 text-sm" disabled={accion.busy} onClick={guardar}>{accion.busy ? 'Guardando…' : 'Guardar penalización'}</button>
+        {msg && <span className="text-xs text-emerald-700 dark:text-emerald-300">{msg}</span>}
+      </div>
+      <ErrorBox error={accion.error} />
+    </div>
   );
 }
 

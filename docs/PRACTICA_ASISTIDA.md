@@ -60,6 +60,12 @@ Por ejercicio: **intento inicial 20 % · corrección 30 % · explicación 20 % �
   `factor de ayuda × resultado` (por defecto 50 %): corregir después de buscar ayuda no puede valer lo mismo que acertar
   solo. Si el primer intento ya era correcto, cuenta completa. Con la regla original y factor 100 % quedaba
   exactamente como antes, y quien fallaba, consultaba y corregía sacaba 100 %: ese fue el defecto corregido.
+- **Penalización por dependencia de la ayuda** (migración 59, desactivada hasta que el profesor la active): si la
+  proporción de ejercicios corregidos DESPUÉS de fallar el primer intento supera el umbral (p. ej. 50 %), la nota de
+  toda la práctica se multiplica por (1 − descuento) (p. ej. −20 %). Se observa, no se declara: quien miente al declarar
+  no la esquiva y quien es honesto no paga por serlo. Ejemplo: A hace 2 de 4 solo y bien y deja 2 en blanco (nota 2);
+  B falla los 4 y los corrige con ayuda (2 → 1,6 con 50 %/20 %). Se recalcula en vivo con cada paso y el estudiante ve
+  la regla y su propio porcentaje. Actividad → Aprendizaje asistido → «Penalización por dependencia de la ayuda».
 - **Cambiar la regla:** Actividad → Aprendizaje asistido → «Regla de nota», con la opción de **recalcular** los intentos
   existentes (también los que están en curso). Las calificaciones manuales siempre prevalecen. El estudiante ve la regla
   en el aviso inicial y en la valoración de cada ejercicio.
