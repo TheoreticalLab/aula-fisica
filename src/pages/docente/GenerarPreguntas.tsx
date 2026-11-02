@@ -2,12 +2,14 @@
  * Generar preguntas con IA para el banco de una asignatura: por temas (lecciones), niveles y formatos, en la cantidad
  * pedida (50, 100…), con el COSTE ESTIMADO antes de empezar y el coste real al terminar. Todo queda como borrador del
  * banco (no publicado) para que el profesor lo revise. Las numéricas llegan con el cálculo comprobado en el servidor.
+ * Con «?clase=<id>» (botón «Proponer preguntas de esta clase»), las preguntas evalúan lo trabajado en esa clase impartida.
  */
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { listCourses } from '@/api/docente';
-import { generarEstimacion, generarIniciar, generarLote, generarResumen, generarTemas, type ResumenGeneracion } from '@/api/generacion';
-import { estimar, lotes, MAX_PREGUNTAS, planificar, type Formato, type Nivel } from '@/lib/generacion';
+import { generarClaseInfo, generarEstimacion, generarIniciar, generarIniciarClase, generarLote, generarResumen, generarTemas, type ResumenGeneracion } from '@/api/generacion';
+import { ENTRADA_CLASE, estimar, lotes, MAX_PREGUNTAS, planificar, type Formato, type Nivel } from '@/lib/generacion';
+import { fechaClase } from '@/lib/clases';
 import { useAsync } from '@/lib/util';
 import { Badge, Card, Empty, ErrorBox, Notice, PageTitle, Spinner } from '@/components/ui';
 
@@ -25,17 +27,25 @@ const DETIENEN = new Set(['apagado', 'limite_diario', 'presupuesto', 'permiso', 
 export default function GenerarPreguntas() {
   const [params, setParams] = useSearchParams();
   const cursos = useAsync(listCourses, []);
-  const courseId = params.get('curso') || cursos.data?.find((c) => !c.archived)?.id || '';
+  const claseId = params.get('clase') || '';
+  const clase = useAsync(() => (claseId ? generarClaseInfo(claseId) : Promise.resolve(null)), [claseId]);
+  const courseId = clase.data?.course_id || params.get('curso') || cursos.data?.find((c) => !c.archived)?.id || '';
   const temas = useAsync(() => (courseId ? generarTemas(courseId) : Promise.resolve(null)), [courseId]);
   const datos = useAsync(() => (courseId ? generarEstimacion(courseId) : Promise.resolve(null)), [courseId]);
   const [elegidas, setElegidas] = useState<string[]>([]);
   const [n, setN] = useState(50);
+  // desde una clase: se marcan las lecciones enlazadas a ella (o las de su unidad) y se proponen menos preguntas
+  useEffect(() => {
+    if (!clase.data) return;
+    setElegidas(clase.data.lecciones);
+    setN(10);
+  }, [clase.data]);
   const [niveles, setNiveles] = useState<Record<Nivel, number>>({ basico: 30, intermedio: 50, desafiante: 20 });
   const [formatos, setFormatos] = useState<Record<Formato, number>>({ numeric: 60, choice: 30, truefalse: 10 });
 
   const plan = useMemo(() => planificar(n, elegidas, niveles, formatos), [n, elegidas, niveles, formatos]);
   const grupos = useMemo(() => lotes(plan, datos.data?.por_lote ?? 4), [plan, datos.data]);
-  const est = datos.data ? estimar(grupos, datos.data) : null;
+  const est = datos.data ? estimar(grupos, datos.data, clase.data ? ENTRADA_CLASE : 0) : null;
 
   // ejecución
   const [corriendo, setCorriendo] = useState(false);
@@ -52,7 +62,9 @@ export default function GenerarPreguntas() {
     setProg({ ...p });
     let run: string | null = null;
     try {
-      run = await generarIniciar(courseId, { lecciones: elegidas, niveles, formatos, n }, plan.length);
+      run = clase.data
+        ? await generarIniciarClase(clase.data.session_id, { lecciones: elegidas, niveles, formatos, n }, plan.length)
+        : await generarIniciar(courseId, { lecciones: elegidas, niveles, formatos, n }, plan.length);
       let seguidos = 0;
       for (const g of grupos) {
         if (parar.current) { p.errores.push('Detenido por usted.'); break; }
@@ -84,19 +96,35 @@ export default function GenerarPreguntas() {
     }
   }
 
-  if (cursos.loading && !cursos.data) return <Spinner />;
+  if ((cursos.loading && !cursos.data) || (clase.loading && !clase.data)) return <Spinner />;
   const todas = (temas.data?.unidades ?? []).flatMap((u) => u.lecciones.map((l) => l.id));
   const alternar = (ids: string[], marcar: boolean) => setElegidas((x) => (marcar ? [...new Set([...x, ...ids])] : x.filter((y) => !ids.includes(y))));
   const sumaN = niveles.basico + niveles.intermedio + niveles.desafiante, sumaF = formatos.numeric + formatos.choice + formatos.truefalse;
 
   return (
     <div className="space-y-4">
-      <PageTitle title="✨ Generar preguntas con IA" subtitle="Preguntas nuevas para el banco de una asignatura, por temas, niveles y formatos. Quedan como borradores para su revisión; nunca entran solas en una práctica o evaluación." back={{ to: `/docente/ejercicios${courseId ? `?curso=${courseId}` : ''}`, label: 'Banco de ejercicios' }} />
-      <ErrorBox error={cursos.error ?? temas.error ?? datos.error ?? error} />
+      <PageTitle title={clase.data ? '✨ Proponer preguntas de esta clase' : '✨ Generar preguntas con IA'}
+        subtitle={clase.data ? 'Preguntas nuevas sobre lo trabajado en la clase impartida, para el banco. Quedan como borradores para su revisión; nunca entran solas en una práctica o evaluación.' : 'Preguntas nuevas para el banco de una asignatura, por temas, niveles y formatos. Quedan como borradores para su revisión; nunca entran solas en una práctica o evaluación.'}
+        back={clase.data ? { to: `/docente/clases-impartidas/${clase.data.session_id}`, label: clase.data.titulo } : { to: `/docente/ejercicios${courseId ? `?curso=${courseId}` : ''}`, label: 'Banco de ejercicios' }} />
+      <ErrorBox error={cursos.error ?? clase.error ?? temas.error ?? datos.error ?? error} />
+      {clase.data && (
+        <Card title={`Clase impartida · ${clase.data.titulo}`}>
+          <p className="text-sm">{fechaClase(clase.data.fecha)} · {clase.data.seccion}{clase.data.temas.length ? ` · temas: ${clase.data.temas.join(', ')}` : ''}</p>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+            El modelo recibe el tema y {clase.data.ampliada ? <>el texto de la <strong>clase ampliada</strong> ({clase.data.ampliada === 'publicada' ? 'versión publicada' : 'último borrador, aún sin publicar'})</> : <>la descripción (esta clase aún no tiene clase ampliada: las preguntas serán más generales)</>},
+            sin fotos ni datos de estudiantes. Pide situaciones y valores nuevos, no los ejemplos de la pizarra.
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            {clase.data.lecciones.length ? 'Ya están marcadas las lecciones enlazadas a la clase (o las de su unidad); puede cambiarlas. ' : 'La clase no tiene lecciones enlazadas: elija abajo en qué lecciones del banco se guardan. '}
+            {clase.data.ya_generadas > 0 && `Ya se propusieron ${clase.data.ya_generadas} pregunta(s) desde esta clase. `}
+            Al publicarlas en el banco, aparecen como sugerencias en el catálogo de control de las prácticas que comparten sus conceptos.
+          </p>
+        </Card>
+      )}
 
       <Card title="1. Asignatura y temas">
         <label className="text-sm"><span className="etiqueta">Asignatura</span>
-          <select className="campo" value={courseId} disabled={corriendo} onChange={(e) => { setElegidas([]); setParams({ curso: e.target.value }); }}>
+          <select className="campo" value={courseId} disabled={corriendo || !!clase.data} onChange={(e) => { setElegidas([]); setParams({ curso: e.target.value }); }}>
             {(cursos.data ?? []).filter((c) => !c.archived).map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
           </select></label>
         {temas.loading && !temas.data ? <Spinner /> : !temas.data?.unidades.length ? <Empty>Esta asignatura no tiene lecciones.</Empty> : (

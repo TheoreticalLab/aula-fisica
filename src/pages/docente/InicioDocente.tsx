@@ -9,6 +9,7 @@ import { createClass, gradebook, isCourseStaff, listCourses, teacherOverview, up
 import { seguimientoSeccion } from '@/lib/seguimiento';
 import { fecha, porcentaje, relativo, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, Empty, ErrorBox, Field, Notice, PageTitle, Spinner } from '@/components/ui';
+import { ResumenSemanalCard } from '@/components/ResumenSemanalCard';
 
 export default function InicioDocente() {
   const { profile, isAdmin } = useAuth();
@@ -82,6 +83,8 @@ export default function InicioDocente() {
           ) : <p className="text-sm text-emerald-700 dark:text-emerald-300">Nadie con avisos. ✓</p>}
         </div>
       </div>
+
+      <ResumenSemanalCard />
 
       <div className="grid gap-3 grid-cols-3">
         <Card><p className="text-xs text-gray-500 sm:text-sm">Secciones activas</p><p className="text-2xl font-semibold sm:text-3xl">{activas.length}</p></Card>

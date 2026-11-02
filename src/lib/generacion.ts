@@ -74,15 +74,18 @@ export interface Estimacion {
   restantePresupuesto: number; llamadasRestantesHoy: number; cabeHoy: boolean; cabePresupuesto: boolean; avisos: string[];
 }
 
-export function estimar(grupos: Especificacion[][], d: DatosEstimacion): Estimacion {
+/** Entrada adicional por llamada cuando la generación usa una clase impartida (tema + versión ampliada, hasta ~8000 caracteres). */
+export const ENTRADA_CLASE = 2500;
+
+export function estimar(grupos: Especificacion[][], d: DatosEstimacion, extraEntrada = 0): Estimacion {
   const preguntas = grupos.reduce((s, g) => s + g.length, 0);
   const llamadas = grupos.length;
   const salida = grupos.reduce((s, g) => s + Math.min(d.max_salida, g.length * TOKENS.salidaPorPregunta + TOKENS.razonamiento), 0);
-  const entrada = llamadas * TOKENS.entradaTipica;
+  const entrada = llamadas * (TOKENS.entradaTipica + extraEntrada);
   const precio = (ent: number, sal: number) => (ent * d.precio_entrada + sal * d.precio_salida) / 1e6;
   const simulado = !d.api_real;
   const costoTipico = simulado ? 0 : precio(entrada, salida);
-  const costoMaximo = simulado ? 0 : precio(llamadas * TOKENS.entradaMaxima, llamadas * d.max_salida);
+  const costoMaximo = simulado ? 0 : precio(llamadas * (TOKENS.entradaMaxima + extraEntrada), llamadas * d.max_salida);
   const restantePresupuesto = Math.max(0, d.presupuesto_mes - d.gastado_mes);
   const llamadasRestantesHoy = Math.max(0, d.limite_diario - d.llamadas_hoy);
   const avisos: string[] = [];

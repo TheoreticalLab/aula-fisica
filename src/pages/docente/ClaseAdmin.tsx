@@ -49,7 +49,7 @@ export default function ClaseAdmin() {
     <div className="space-y-4">
       <PageTitle title={c.title} back={{ to: `/docente/clases/${c.class_id}?t=clases`, label: c.seccion }}
         subtitle={<>{fechaClase(c.fecha)} · {c.asignatura} · {c.seccion} · subida por {c.subida_por ?? '—'} ({c.uploader_role})</>}
-        actions={<div className="flex gap-2"><Link className="btn-secundario" to={`/clases/${c.id}/editar`}>Editar datos y fotos</Link><Link className="btn-secundario" to={`/clases/${c.id}`}>Vista del estudiante</Link></div>} />
+        actions={<div className="flex flex-wrap gap-2"><Link className="btn-secundario" to={`/docente/generar-preguntas?clase=${c.id}`} title="Preguntas para el banco sobre lo trabajado en esta clase; quedan sin publicar hasta que usted las revise">✨ Proponer preguntas de esta clase</Link><Link className="btn-secundario" to={`/clases/${c.id}/editar`}>Editar datos y fotos</Link><Link className="btn-secundario" to={`/clases/${c.id}`}>Vista del estudiante</Link></div>} />
       <ErrorBox error={accion.error} />
 
       {/* ---------------- Proceso A ---------------- */}

@@ -19,3 +19,12 @@ export const generarIniciar = (courseId: string, spec: object, n: number) => rpc
 export const generarLote = (runId: string, especificaciones: Especificacion[]) =>
   invocar<ResultadoLote>('orbe-ia', { action: 'generar_preguntas', run_id: runId, especificaciones });
 export const generarResumen = (runId: string) => rpc<ResumenGeneracion>('generar_resumen', { p_run: runId });
+
+/** Generación desde una clase impartida (migración 68). */
+export interface ClaseParaGenerar {
+  session_id: string; course_id: string; titulo: string; fecha: string; temas: string[]; seccion: string; lecciones: string[];
+  ampliada: 'publicada' | 'borrador' | null; ya_generadas: number;
+}
+export const generarClaseInfo = (sessionId: string) => rpc<ClaseParaGenerar>('generar_clase_info', { p_session: sessionId });
+export const generarIniciarClase = (sessionId: string, spec: object, n: number) =>
+  rpc<string>('generar_iniciar_clase', { p_session: sessionId, p_spec: spec, p_solicitadas: n });

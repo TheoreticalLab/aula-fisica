@@ -153,7 +153,9 @@ reset role;
 
 -- 5) IA: no se genera al subir; solo el profesor; idempotente; borrador separado; publicación aparte
 do $$ begin
-  if exists (select 1 from public.class_ai_generations) then raise exception 'FALLO: se generó al subir'; end if;
+  -- solo las clases de esta prueba (la copia de producción puede tener generaciones reales)
+  if exists (select 1 from public.class_ai_generations where session_id::text in (current_setting('prueba.c1'), current_setting('prueba.c2'))) then
+    raise exception 'FALLO: se generó al subir'; end if;
 end $$;
 set local role service_role;
 do $$ declare r jsonb; f jsonb; begin

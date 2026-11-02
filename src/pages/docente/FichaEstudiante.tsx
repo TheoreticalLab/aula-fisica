@@ -19,6 +19,7 @@ import { nombreCodigo } from '@/lib/codigos';
 import { conceptMastery, getLessonList, getUnits, lessonProgress } from '@/api/estudiante';
 import { Badge, Card, ErrorBox, PageTitle, Spinner, Tabs } from '@/components/ui';
 import { COMO_SE_CALCULA, VistaDominio } from '../estudiante/Progreso';
+import { MapaTutoriaTab } from './MapaTutoria';
 
 type Iso = string | null;
 interface Ficha {
@@ -59,7 +60,7 @@ interface Ficha {
   cuenta: { fecha: string; accion: string; por: string | null }[];
 }
 
-type Tab = 'resumen' | 'accesos' | 'estudio' | 'examenes' | 'actividades' | 'respuestas' | 'proceso' | 'notas' | 'asistencia' | 'dominio' | 'comunicacion';
+type Tab = 'resumen' | 'accesos' | 'estudio' | 'examenes' | 'actividades' | 'respuestas' | 'proceso' | 'notas' | 'asistencia' | 'dominio' | 'tutoria' | 'comunicacion';
 
 const fecha = (iso: Iso) => (iso ? new Date(iso).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 const dia = (iso: string) => new Date(iso).toLocaleDateString('es-DO', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -570,7 +571,7 @@ export default function FichaEstudiante() {
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
         { id: 'resumen', label: 'Resumen' }, { id: 'accesos', label: 'Accesos' }, { id: 'estudio', label: 'Estudio y sesiones' },
         { id: 'examenes', label: 'Exámenes' }, { id: 'actividades', label: 'Actividades' }, { id: 'respuestas', label: 'Respuestas y errores' }, { id: 'proceso', label: 'Proceso de respuesta' }, { id: 'notas', label: 'Calificaciones' }, { id: 'asistencia', label: 'Asistencia y entregas' },
-        { id: 'dominio', label: 'Dominio' }, { id: 'comunicacion', label: 'Mensajes y cuenta' },
+        { id: 'dominio', label: 'Dominio' }, { id: 'tutoria', label: 'Mapa para tutoría' }, { id: 'comunicacion', label: 'Mensajes y cuenta' },
       ]} />
       {tab === 'resumen' && <Resumen f={f} x={x} />}
       {tab === 'accesos' && <Accesos f={f} />}
@@ -582,6 +583,7 @@ export default function FichaEstudiante() {
       {tab === 'proceso' && <ProcesoEstudiante userId={f.perfil.id} />}
       {tab === 'asistencia' && (x ?<AsistenciaEntregas x={x} /> : <ErrorBox error="No se pudo cargar la asistencia." onRetry={st.reload} />)}
       {tab === 'dominio' &&<Dominio f={f} userId={f.perfil.id} />}
+      {tab === 'tutoria' && <MapaTutoriaTab clases={f.clases.some((c) => !c.archivada) ? f.clases.filter((c) => !c.archivada) : f.clases} userId={f.perfil.id} />}
       {tab === 'comunicacion' && <Comunicacion f={f} />}
       <p className="text-xs text-gray-500">Datos al {fecha(f.generado)}. Cada consulta de esta ficha queda registrada. Solo se muestran las secciones a su cargo.</p>
     </div>

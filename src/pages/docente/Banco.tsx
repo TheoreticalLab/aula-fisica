@@ -1,15 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { bankPerformance, listBankMeta, listCourses, listExercises } from '@/api/docente';
+import { bankOrigin, bankPerformance, listBankMeta, listCourses, listExercises, type OrigenEjercicio } from '@/api/docente';
 import { getConcepts, getLessonList } from '@/api/estudiante';
 import {
   CODIGOS_ERROR, cumpleFiltros, errorPrincipal, FAMILIAS, resumenRendimiento, TIPOS_CHOQUE, TIPOS_PREGUNTA,
   type FiltrosBanco, type MetaBanco, type RendimientoEjercicio,
 } from '@/lib/banco';
 import { CATEGORIA, DIFICULTAD, FORMATO, useAsync } from '@/lib/util';
+import { fechaClase } from '@/lib/clases';
 import { Badge, Empty, ErrorBox, PageTitle, Spinner } from '@/components/ui';
 
 const pct = (x: number | null) => (x === null ? '—' : `${Math.round(100 * x)} %`);
+/** Origen de un ejercicio (migración 68): de dónde salió. */
+const ORIGENES: Record<OrigenEjercicio['origen'], string> = {
+  contenido: 'Contenido del curso', docente: 'Creados por el profesorado', ia: 'IA por temas', clase: 'IA desde clases impartidas', control: 'Variantes de control',
+};
+const TONO_ORIGEN: Record<OrigenEjercicio['origen'], 'gray' | 'blue' | 'purple' | 'green' | 'amber'> = { contenido: 'gray', docente: 'blue', ia: 'purple', clase: 'green', control: 'amber' };
 
 export default function Banco() {
   const [params, setParams] = useSearchParams();
@@ -22,6 +28,7 @@ export default function Banco() {
     role: params.get('rol') || '',
     search: params.get('q') || '',
   };
+  const origen = params.get('origen') || '', claseF = params.get('clase') || '', estadoF = params.get('estado') || '';
   const fb: FiltrosBanco = {
     tipo: params.get('tipo') || '', choque: params.get('choque') || '', familia: params.get('familia') || '',
     etapas: params.get('etapas') || '', previo: params.get('previo') || '',
@@ -38,6 +45,16 @@ export default function Banco() {
   const metas = useAsync(() => (courseId ? listBankMeta(courseId) : Promise.resolve([])), [courseId]);
   const rend = useAsync(() => (courseId ? bankPerformance(courseId) : Promise.resolve([] as RendimientoEjercicio[])), [courseId]);
   const conceptos = useAsync(() => (courseId ? getConcepts(courseId) : Promise.resolve([])), [courseId]);
+  const origenes = useAsync(() => (courseId ? bankOrigin(courseId) : Promise.resolve([] as OrigenEjercicio[])), [courseId]);
+  const origenPorId = useMemo(() => new Map((origenes.data ?? []).map((o) => [o.exercise_id, o])), [origenes.data]);
+  const conteoOrigen = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const o of origenes.data ?? []) m.set(o.origen, (m.get(o.origen) ?? 0) + 1);
+    return m;
+  }, [origenes.data]);
+  // clases impartidas de las que salieron preguntas (para elegir una)
+  const clasesOrigen = useMemo(() => [...new Map((origenes.data ?? []).filter((o) => o.session_id).map((o) => [o.session_id!, o])).values()]
+    .sort((a, b) => (b.clase_fecha ?? '').localeCompare(a.clase_fecha ?? '')), [origenes.data]);
   const meta = useMemo(() => new Map((metas.data ?? []).map((x) => [x.exercise_id, x.meta])), [metas.data]);
   const rendPorId = useMemo(() => new Map((rend.data ?? []).map((r) => [r.exercise_id, r])), [rend.data]);
   const nombreConcepto = useMemo(() => new Map((conceptos.data ?? []).map((c) => [c.slug, c.name])), [conceptos.data]);
@@ -49,12 +66,21 @@ export default function Banco() {
     const p = new URLSearchParams(params);
     if (v) p.set(k, v);
     else p.delete(k);
-    if (k === 'curso') p.delete('leccion');
+    if (k === 'curso') { p.delete('leccion'); p.delete('clase'); }
+    if (k === 'origen' && v !== 'clase') p.delete('clase');
     setParams(p, { replace: true });
   };
   if (courses.loading) return <Spinner />;
   const lessonTitle = (id: string | null) => lessons.data?.find((l) => l.id === id)?.title ?? 'Sin lección (banco)';
-  const visibles = (list.data ?? []).filter((e) => cumpleFiltros(meta.get(e.id), fb));
+  const visibles = (list.data ?? []).filter((e) => {
+    if (!cumpleFiltros(meta.get(e.id), fb)) return false;
+    const o = origenPorId.get(e.id);
+    if (origen && (o?.origen ?? 'contenido') !== origen) return false;
+    if (claseF && o?.session_id !== claseF) return false;
+    if (estadoF === 'borrador' && e.published) return false;
+    if (estadoF === 'publicado' && !e.published) return false;
+    return true;
+  });
   return (
     <div>
       <PageTitle title="Banco de ejercicios" subtitle="Filtre, revise y edite los ejercicios y sus claves. Para usarlos en una práctica o evaluación: sección → + Crear actividad."
@@ -88,6 +114,23 @@ export default function Banco() {
         <form onSubmit={(e) => { e.preventDefault(); setP('q', search.trim()); }}>
           <input className="campo" placeholder="Buscar…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Buscar" />
         </form>
+        {origenPorId.size > 0 && <>
+          <select className="campo" value={origen} onChange={(e) => setP('origen', e.target.value)} aria-label="Origen">
+            <option value="">Todo origen</option>
+            {Object.entries(ORIGENES).map(([k, v]) => <option key={k} value={k}>{v} ({conteoOrigen.get(k) ?? 0})</option>)}
+          </select>
+          {origen === 'clase' && (
+            <select className="campo sm:col-span-2" value={claseF} onChange={(e) => setP('clase', e.target.value)} aria-label="Clase impartida">
+              <option value="">Todas las clases impartidas</option>
+              {clasesOrigen.map((o) => <option key={o.session_id} value={o.session_id!}>{o.clase_fecha ? `${fechaClase(o.clase_fecha)} · ` : ''}{o.clase_titulo ?? 'Clase'}</option>)}
+            </select>
+          )}
+        </>}
+        <select className="campo" value={estadoF} onChange={(e) => setP('estado', e.target.value)} aria-label="Publicación">
+          <option value="">Publicados y borradores</option>
+          <option value="borrador">Solo borradores (por revisar)</option>
+          <option value="publicado">Solo publicados</option>
+        </select>
       </div>
 
       {hayBanco && (
@@ -131,7 +174,7 @@ export default function Banco() {
         </details>
       )}
 
-      <ErrorBox error={list.error ?? metas.error ?? rend.error} />
+      <ErrorBox error={list.error ?? metas.error ?? rend.error ?? origenes.error} />
       {list.loading ? <Spinner /> : visibles.length ? (
         <>
           <p className="mb-2 text-sm text-gray-500">{visibles.length} ejercicios</p>
@@ -149,6 +192,7 @@ export default function Banco() {
                     <Badge>{CATEGORIA[e.category]}</Badge>
                     <span className="text-gray-500">{FORMATO[e.format]} · {e.points} pt</span>
                     {!e.published && <Badge tone="amber">No publicado</Badge>}
+                    <OrigenBadge o={origenPorId.get(e.id)} />
                     <span className="ml-auto text-xs text-gray-500">{lessonTitle(e.lesson_id)}</span>
                   </div>
                   {m && <MetaLinea m={m} />}
@@ -169,6 +213,18 @@ export default function Banco() {
         <Empty>No hay ejercicios con esos filtros.</Empty>
       )}
     </div>
+  );
+}
+
+function OrigenBadge({ o }: { o: OrigenEjercicio | undefined }) {
+  if (!o || o.origen === 'contenido') return null;
+  const etiqueta = o.origen === 'clase' ? `IA · clase${o.clase_fecha ? ` del ${fechaClase(o.clase_fecha)}` : ''}` : o.origen === 'ia' ? 'IA por temas' : o.origen === 'control' ? 'Variante de control' : 'Profesorado';
+  return (
+    <span className="inline-flex items-center gap-1">
+      <Badge tone={TONO_ORIGEN[o.origen]}>{etiqueta}</Badge>
+      {o.origen === 'clase' && o.session_id && <Link className="enlace text-xs" to={`/docente/clases-impartidas/${o.session_id}`} title={o.clase_titulo ?? ''}>ver clase</Link>}
+      {o.verificacion === 'calculo_comprobado' && <Badge tone="green">cálculo comprobado</Badge>}
+    </span>
   );
 }
 

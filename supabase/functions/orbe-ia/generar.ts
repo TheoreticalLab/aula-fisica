@@ -2,6 +2,8 @@
 //
 // Un lote = hasta POR_LOTE especificaciones (lección, nivel, formato) elegidas por el profesor. El modelo solo recibe
 // títulos y resúmenes de lecciones, nombres de conceptos y el comienzo de enunciados existentes (para no repetir).
+// Si la generación nace de una CLASE IMPARTIDA (migración 68), recibe además su tema y el texto de su versión ampliada
+// (lo trabajado en la pizarra; sin fotos ni datos de estudiantes) y las preguntas deben evaluar lo trabajado en ella.
 // Capa C (determinista) por pregunta:
 //  - numéricas: datos con unidades que APARECEN en el enunciado; expresión de gramática cerrada evaluada en SI con
 //    ANÁLISIS DIMENSIONAL; el resultado declarado debe coincidir (≤ 1 %) y tener las dimensiones de su unidad; la clave
@@ -22,7 +24,8 @@ export type Formato = 'numeric' | 'choice' | 'truefalse';
 export type Nivel = 'basico' | 'intermedio' | 'desafiante';
 export interface Especificacion { leccion_id: string; dificultad: Nivel; formato: Formato }
 export interface LeccionCtx { id: string; titulo: string; unidad: string; resumen: string; conceptos: { slug: string; nombre: string }[] }
-export interface Contexto { asignatura: string; lecciones: LeccionCtx[]; existentes: string[] }
+export interface ClaseCtx { titulo: string; fecha: string; temas: string[]; descripcion: string; contenido: string }
+export interface Contexto { asignatura: string; lecciones: LeccionCtx[]; existentes: string[]; clase?: ClaseCtx | null }
 export interface ItemGuardable {
   lesson_id: string; difficulty: Nivel; format: Formato; concepts: string[]; prompt: string; options: string[] | null; unit_hint: string | null;
   answer: AnswerKey; hints: string[]; explanation: string; verificacion: 'calculo_comprobado' | 'revisar';
@@ -48,6 +51,7 @@ const SISTEMA = [
   'Escribes en español claro. Puedes usar LaTeX entre $…$ para fórmulas. Sin HTML.',
   'Cada pregunta debe evaluar el contenido de SU lección, con el nivel y el formato pedidos, ser autocontenida y tener una única respuesta correcta.',
   'No copies ni parafrasees de cerca los enunciados existentes que se te muestran.',
+  'Si los datos incluyen una «Clase impartida», cada pregunta evalúa lo que se trabajó en esa clase (dentro de su lección): mismas ideas y métodos, con situaciones y valores numéricos NUEVOS (no repitas los ejemplos de la clase).',
   'Numéricas: en «numerica.datos» lista TODOS los datos con su valor y su unidad (símbolos SI: m, s, kg, N, J, W, m/s, m/s^2, °, etc.; "" si es adimensional) y escribe esos MISMOS números en el enunciado.',
   '  «numerica.expresion» es la fórmula del resultado usando solo los nombres de los datos, números, + - * / ^, paréntesis, pi y sqrt, abs, sin, cos, tan, asin, acos, atan, exp, ln, log10 (ángulos: el servidor los pasa a radianes). Incluye g como dato si la usas.',
   '  «numerica.resultado» es el valor numérico en «numerica.unidad». «numerica.errores»: hasta 3 errores típicos, cada uno con su expresión y un mensaje que explique el error.',
@@ -101,6 +105,7 @@ export function construirPeticion(specs: Especificacion[], ctx: Contexto, model:
     `Asignatura: ${limpiarDato(ctx.asignatura, 120)}`,
     'Lecciones:',
     ...ctx.lecciones.map((l, i) => `L${i + 1}. ${limpiarDato(l.unidad, 120)} → ${limpiarDato(l.titulo, 160)}. ${limpiarDato(l.resumen, 500)}${l.conceptos.length ? ` Conceptos (usa estos identificadores en «conceptos»): ${l.conceptos.map((c) => `${c.slug} (${limpiarDato(c.nombre, 60)})`).join(', ')}.` : ''}`),
+    ...lineasClase(ctx.clase),
     ctx.existentes.length ? 'Comienzo de enunciados que YA existen (no repetir):' : '',
     ...ctx.existentes.slice(0, 30).map((e) => `- ${limpiarDato(e, 160)}`),
     '</datos>',
@@ -108,6 +113,16 @@ export function construirPeticion(specs: Especificacion[], ctx: Contexto, model:
     ...specs.map((s, i) => `P${i + 1}: lección L${idx.get(s.leccion_id)}, nivel ${NIVELES[s.dificultad]}, formato ${FORMATOS[s.formato]}.`),
   ].filter(Boolean);
   return { model, max_tokens, system: SISTEMA, user: lineas.join('\n'), schema: ESQUEMA, effort: 'medium' };
+}
+
+/** Bloque de la clase impartida (si la hay): tema, temas y lo trabajado (texto ya acotado por el servidor). */
+export function lineasClase(c: ClaseCtx | null | undefined): string[] {
+  if (!c) return [];
+  return [
+    `Clase impartida (${limpiarDato(c.fecha, 10)}): ${limpiarDato(c.titulo, 160)}${c.temas?.length ? `. Temas: ${c.temas.map((t) => limpiarDato(t, 80)).join(', ')}` : ''}.`,
+    c.descripcion ? `Descripción: ${limpiarDato(c.descripcion, 1000)}` : '',
+    c.contenido ? `Lo trabajado en la clase: ${limpiarDato(c.contenido, 8000)}` : '',
+  ].filter(Boolean);
 }
 
 const fmt3 = (x: number) => String(Number(x.toPrecision(3)));

@@ -99,6 +99,17 @@ export const bankPerformance = (courseId: string) =>
     .then((r) => r ?? [])
     .catch((e) => { if (/Could not find the function|PGRST202|schema cache/i.test(e instanceof Error ? e.message : String(e))) return [] as RendimientoEjercicio[]; throw e; });
 
+/** Origen de cada ejercicio del banco (migración 68). Sin la migración, lista vacía: la página funciona como siempre. */
+export interface OrigenEjercicio {
+  exercise_id: string; origen: 'contenido' | 'docente' | 'ia' | 'clase' | 'control';
+  session_id: string | null; clase_titulo: string | null; clase_fecha: string | null; verificacion: 'calculo_comprobado' | 'revisar' | null;
+}
+export const bankOrigin = (courseId: string) =>
+  rpc<OrigenEjercicio[]>('banco_origen', { p_course: courseId })
+    .then((r) => r ?? [])
+    // sin la migración o sin permiso de generación en esa asignatura: la página no muestra el filtro de origen
+    .catch((e) => { if (/Could not find the function|PGRST202|schema cache|Sin permiso/i.test(e instanceof Error ? e.message : String(e))) return [] as OrigenEjercicio[]; throw e; });
+
 export const getExerciseFull = async (id: string) => {
   const ex = await q<Exercise>(supabase.from('exercises').select('*').eq('id', id).single());
   const { data: key, error } = await supabase.from('exercise_keys').select('*').eq('exercise_id', id).maybeSingle();
