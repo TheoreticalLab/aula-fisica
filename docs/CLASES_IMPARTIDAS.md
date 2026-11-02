@@ -61,8 +61,11 @@ Delegar no convierte al estudiante en monitor ni en administrador. Un estudiante
    validados (los identificadores inventados se descartan y se cuentan); nunca dos veces.
 5. Simulador (Orbe IA con `api_real = false`): todo el flujo sin coste ni llamadas.
 
-Contenido: identificación, reconstrucción (visible vs. «(inferido)» / «(dudoso)»), explicación, desarrollo paso a paso,
-ejemplos, ampliaciones (marcadas como IA), errores frecuentes, conclusiones e incertidumbres (incluida la falta de audio).
+Contenido (decisión del profesor, 2 nov 2026): primero una «Nota sobre la lectura de las pizarras» con lo que no se lee
+con seguridad («en la pizarra 2 se observa…; si fuera…, el procedimiento es el mismo sustituyendo…»); después el texto
+LIMPIO con la lectura más probable (sin marcas «(dudoso)» ni «(inferido)»): tema, lo trabajado en cada pizarra, explicación,
+desarrollo paso a paso, ejemplos, ampliaciones (separadas de lo trabajado en clase), errores frecuentes y conclusiones.
+Se presenta solo como «Clase ampliada», sin aviso de IA.
 Se depura: sin HTML, imágenes ni enlaces web.
 
 ## 6. Configuración necesaria

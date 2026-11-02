@@ -4,18 +4,24 @@ import type { Contenido, Enlace } from '@/lib/clases';
 import { Markdown } from '@/components/Markdown';
 import { Badge } from '@/components/ui';
 import { casoCobertura, COBERTURA, urlEnlace } from '@/lib/clases';
+import { SECCIONES } from '../../../supabase/functions/_shared/clases/estimacion';
 
-export function ClaseAmpliada({ contenido, aviso = true }: { contenido: Contenido; aviso?: boolean }) {
+/** Orden y títulos vigentes (la nota sobre la lectura de las pizarras primero), también para versiones ya generadas. */
+export function ordenarSecciones(secciones: Contenido['secciones']): Contenido['secciones'] {
+  const pos = new Map<string, number>(SECCIONES.map(([c], i) => [c, i]));
+  const titulo = new Map<string, string>(SECCIONES.map(([c, t]) => [c, t]));
+  return secciones
+    .map((s, i) => ({ s: s.clave && titulo.has(s.clave) ? { ...s, titulo: titulo.get(s.clave)! } : s, i }))
+    .filter(({ s }) => s.cuerpo.trim() !== '')
+    .sort((a, b) => (pos.get(a.s.clave ?? '') ?? 100 + a.i) - (pos.get(b.s.clave ?? '') ?? 100 + b.i))
+    .map(({ s }) => s);
+}
+
+export function ClaseAmpliada({ contenido }: { contenido: Contenido; aviso?: boolean }) {
   return (
     <div className="space-y-5">
-      {aviso && (
-        <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-900/20 dark:text-amber-100">
-          Versión ampliada con inteligencia artificial a partir de las fotografías de las pizarras y aprobada por el profesor. Distingue lo visible en la pizarra de lo
-          inferido; las «ampliaciones» son material complementario, no necesariamente lo dicho en clase. Sin audio, no recoge las explicaciones orales.
-        </p>
-      )}
-      {contenido.secciones.map((s, i) => (
-        <section key={i} className={s.clave === 'incertidumbres' ? 'rounded-lg border border-amber-300 p-3 dark:border-amber-800' : ''}>
+      {ordenarSecciones(contenido.secciones).map((s, i) => (
+        <section key={i} className={s.clave === 'incertidumbres' ? 'rounded-lg border border-amber-300 bg-amber-50/50 p-3 dark:border-amber-800 dark:bg-amber-900/10' : ''}>
           <h2 className="mb-2 font-serif text-lg font-semibold">{s.titulo}</h2>
           <Markdown>{s.cuerpo}</Markdown>
         </section>

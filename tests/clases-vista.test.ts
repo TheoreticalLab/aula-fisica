@@ -20,7 +20,18 @@ describe('Clases impartidas · presentación', () => {
     expect(html).toContain('class="katex"');
     expect(html).toContain('katex-display');
     expect(html).not.toContain('<script>');
-    expect(html).toMatch(/inteligencia artificial/);       // aviso visible para el estudiante
+  });
+  it('sin aviso de IA; la nota sobre la lectura de las pizarras va primero; títulos vigentes también en versiones antiguas', () => {
+    const html = renderToStaticMarkup(createElement(ClaseAmpliada, { contenido: { secciones: [
+      { clave: 'reconstruccion', titulo: 'Reconstrucción de la pizarra', cuerpo: 'Pizarra 1: $v = 3{,}5$ m/s' },
+      { clave: 'ampliaciones', titulo: 'Ampliaciones generadas por IA', cuerpo: 'Complemento.' },
+      { clave: 'incertidumbres', titulo: 'Incertidumbres de la reconstrucción', cuerpo: 'En la pizarra 1 se observa 3,5 m/s; si fuera 3,8 m/s, el procedimiento es el mismo.' },
+      { clave: 'errores', titulo: 'Errores frecuentes', cuerpo: '' },
+    ] } }));
+    expect(html).not.toMatch(/inteligencia artificial|generadas por IA/i);
+    expect(html.indexOf('Nota sobre la lectura de las pizarras')).toBeLessThan(html.indexOf('Lo trabajado en la pizarra'));
+    expect(html).toContain('>Ampliaciones<');
+    expect(html).not.toContain('Errores frecuentes');      // secciones vacías no se muestran
   });
   it('enlaces internos solo con identificadores devueltos por la base; apartado exacto por parámetro', () => {
     expect(urlEnlace(enlace({ lesson_id: 'L1', apartado: 'Teorema trabajo-energía' }) as EnlaceMin, C)).toBe('/curso/curso-1/leccion/L1?s=teoria&a=Teorema%20trabajo-energ%C3%ADa');

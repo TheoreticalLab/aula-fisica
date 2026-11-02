@@ -57,16 +57,20 @@ export function estimar(t: Tarifa, nivel: Nivel, fotos: { ancho: number; alto: n
   };
 }
 
-/** Secciones de la clase ampliada (orden y títulos fijos; el contenido lo genera la IA y lo revisa el profesor). */
+/**
+ * Secciones de la clase ampliada (orden y títulos fijos; el profesor revisa el contenido). Decisión del profesor
+ * (2 nov 2026): lo que no se lee con seguridad va AL PRINCIPIO, en una sola nota («en la pizarra se observa…; si fuera…,
+ * la explicación es la misma sustituyendo…»), y el resto se escribe limpio, sin marcas «(dudoso)» en medio del texto.
+ */
 export const SECCIONES = [
-  ['identificacion', 'Identificación del tema'],
-  ['reconstruccion', 'Reconstrucción de la pizarra'],
+  ['incertidumbres', 'Nota sobre la lectura de las pizarras'],
+  ['identificacion', 'Tema de la clase'],
+  ['reconstruccion', 'Lo trabajado en la pizarra'],
   ['explicacion', 'Explicación teórica'],
   ['desarrollo', 'Desarrollo matemático'],
   ['ejemplos', 'Ejemplos resueltos'],
-  ['ampliaciones', 'Ampliaciones generadas por IA'],
+  ['ampliaciones', 'Ampliaciones'],
   ['errores', 'Errores frecuentes'],
   ['conclusiones', 'Conclusiones'],
-  ['incertidumbres', 'Incertidumbres de la reconstrucción'],
 ] as const;
 export type ClaveSeccion = (typeof SECCIONES)[number][0];

@@ -106,7 +106,7 @@ describe('Clases impartidas · generación con IA (API simulada)', () => {
     const cuerpo = JSON.stringify(s.contenido);
     expect(cuerpo).not.toMatch(/<script>|espia|https:\/\/ejemplo/);
     expect(cuerpo).toMatch(/Delta K/);
-    expect((s.contenido.secciones as { clave: string }[]).map((x) => x.clave)).toEqual(['reconstruccion', 'incertidumbres']);
+    expect((s.contenido.secciones as { clave: string }[]).map((x) => x.clave)).toEqual(['incertidumbres', 'reconstruccion']);   // la nota sobre la lectura va primero
     expect(s.enlaces).toHaveLength(2);   // la lección inventada (alias L99) no pasa; la brecha sí
     expect(s.enlaces[0]).toMatchObject({ lesson_id: L1, exercise_id: E1, unit_id: null });   // alias → identificador real
     expect(depurar('<img src=x onerror=alert(1)>texto')).toBe('texto');
