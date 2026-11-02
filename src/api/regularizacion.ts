@@ -105,7 +105,9 @@ export const recordatorio = (classId: string, recordar: boolean) => rpc<void>('h
 // --- Regularización obligatoria: bloqueo del aula hasta terminar (migración 64) ---------------------------------------
 export interface SeccionBloqueo { class_id: string; class_name: string; course_title: string; mensaje: string }
 export const miBloqueo = () => rpc<SeccionBloqueo[]>('hist_mi_bloqueo');
-export interface EstadoBloqueo { bloquear: boolean; abierta: boolean; bloqueados: number }
+export interface EstadoBloqueo { bloquear: boolean; abierta: boolean; bloqueados: number;
+  /** el servidor informa la ruta de cada petición (necesario para que el bloqueo se aplique) */
+  servidor_ok?: boolean }
 export const bloqueoEstado = (classId: string) => rpc<EstadoBloqueo>('hist_bloqueo_estado', { p_class: classId });
 export const bloqueoConfigurar = (classId: string, bloquear: boolean) => rpc<EstadoBloqueo>('hist_bloqueo_configurar', { p_class: classId, p_bloquear: bloquear });
 

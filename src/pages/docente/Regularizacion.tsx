@@ -587,6 +587,7 @@ function BloqueoSeccion({ classId }: { classId: string }) {
       <span>Regularización obligatoria: <strong>bloquear todo el aula</strong> a quien no haya pulsado «Terminar» (ni prácticas, ni evaluaciones, ni asistencia, ni notas).
         Al terminar, vuelve a la normalidad. Si cierra la regularización, el bloqueo deja de aplicarse.
         {e && <span className="block text-xs text-gray-500">{e.bloquear ? (e.abierta ? `Activado: ${e.bloqueados} estudiante(s) bloqueado(s) ahora.` : 'Activado, pero la regularización está cerrada: no bloquea a nadie.') : 'Desactivado.'}</span>}
+        {e?.bloquear && e.servidor_ok === false && <span className="block text-xs text-red-700 dark:text-red-300">Atención: el servidor no informa la ruta de las peticiones, así que el bloqueo NO se está aplicando (nadie queda sin salida). Avise al administrador.</span>}
         <ErrorBox error={accion.error ?? st.error} /></span>
     </div>
   );

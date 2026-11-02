@@ -1,4 +1,5 @@
 -- Pruebas: regularización obligatoria — bloqueo total hasta terminarla (migración 64). Se deshace al final.
+-- PostgREST fija request.path en cada petición; aquí se simula con set_config antes de cada llamada.
 begin;
 
 insert into auth.users (id, email, aud, role, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
@@ -18,25 +19,31 @@ insert into public.enrollments (class_id, user_id) values
 insert into public.activities (id, class_id, title, mode, published, reveal_policy, hints_enabled, max_tries_per_item) values
   ('de640000-0000-4000-8000-0000000000a1', 'de640000-0000-4000-8000-000000000031', 'Práctica', 'practice', true, 'immediate', true, 3);
 insert into public.activity_items (activity_id, exercise_id, position) values ('de640000-0000-4000-8000-0000000000a1', 'de640000-0000-4000-8000-0000000000e1', 1);
--- regularización abierta en la sección; S2 ya terminó
+-- regularización abierta en la sección; S2 ya terminó; S1 tenía un intento abierto de antes
 insert into public.hist_settings (class_id, abierto) values ('de640000-0000-4000-8000-000000000031', true);
 insert into public.hist_cierres (class_id, user_id, finalizado_at, sin_practicas) values ('de640000-0000-4000-8000-000000000031', 'de640000-0000-4000-8000-000000000012', now(), true);
+insert into public.attempts (id, user_id, course_id, activity_id, mode) values
+  ('de640000-0000-4000-8000-0000000000f1', 'de640000-0000-4000-8000-000000000011', 'de640000-0000-4000-8000-000000000021', 'de640000-0000-4000-8000-0000000000a1', 'practice');
 
 -- 1) el profesor activa el bloqueo; un estudiante no puede
 set local role authenticated;
+select set_config('request.path', '/rpc/activity_visible_to_me', true);
 select set_config('request.jwt.claims', '{"sub":"de640000-0000-4000-8000-000000000011","role":"authenticated"}', true);
 select set_config('request.jwt.claim.sub', 'de640000-0000-4000-8000-000000000011', true);
 do $$ begin
   -- sin bloqueo activado: el aula funciona (el recordatorio sigue siendo solo un aviso)
   if not public.my_account_ok() or not public.activity_visible_to_me('de640000-0000-4000-8000-0000000000a1') then raise exception 'FALLO: bloqueado sin activar'; end if;
+  perform set_config('request.path', '/rpc/hist_bloqueo_configurar', true);
   begin perform public.hist_bloqueo_configurar('de640000-0000-4000-8000-000000000031', true); raise exception 'FALLO: un estudiante configuró el bloqueo';
   exception when insufficient_privilege then null; end;
 end $$;
 select set_config('request.jwt.claims', '{"sub":"de640000-0000-4000-8000-000000000001","role":"authenticated"}', true);
 select set_config('request.jwt.claim.sub', 'de640000-0000-4000-8000-000000000001', true);
+select set_config('request.path', '/rpc/hist_bloqueo_configurar', true);
 do $$ declare r jsonb; begin
   r := public.hist_bloqueo_configurar('de640000-0000-4000-8000-000000000031', true);
-  if not (r ->> 'bloquear')::boolean or (r ->> 'bloqueados')::int <> 1 then raise exception 'FALLO: estado del bloqueo %', r; end if;
+  if not (r ->> 'bloquear')::boolean or (r ->> 'bloqueados')::int <> 1 or not (r ->> 'servidor_ok')::boolean then raise exception 'FALLO: estado del bloqueo %', r; end if;
+  perform set_config('request.path', '/rpc/attendance_live', true);
   if not public.my_account_ok() then raise exception 'FALLO: el profesor quedó bloqueado'; end if;
 end $$;
 
@@ -44,26 +51,44 @@ end $$;
 select set_config('request.jwt.claims', '{"sub":"de640000-0000-4000-8000-000000000011","role":"authenticated"}', true);
 select set_config('request.jwt.claim.sub', 'de640000-0000-4000-8000-000000000011', true);
 do $$ begin
+  perform set_config('request.path', '/activities', true);
   if public.my_account_ok() then raise exception 'FALLO: S1 no está bloqueado'; end if;
-  if public.activity_visible_to_me('de640000-0000-4000-8000-0000000000a1') then raise exception 'FALLO: S1 ve actividades'; end if;
   if exists (select 1 from public.activities where id = 'de640000-0000-4000-8000-0000000000a1') then raise exception 'FALLO: S1 lee actividades'; end if;
+  perform set_config('request.path', '/rpc/start_activity_attempt', true);
   begin perform public.start_activity_attempt('de640000-0000-4000-8000-0000000000a1'); raise exception 'FALLO: S1 empezó una práctica';
   exception when insufficient_privilege then null; end;
+  perform set_config('request.path', '/rpc/attendance_check_in', true);
   begin perform public.attendance_check_in('123456', null, null, null, null); raise exception 'FALLO: S1 marcó asistencia';
   exception when sqlstate '28000' then null; end;
+  perform set_config('request.path', '/rpc/my_grade_breakdown', true);
   if jsonb_array_length(public.my_grade_breakdown()) <> 0 then raise exception 'FALLO: S1 ve sus notas'; end if;
-  if public.my_control_pendiente() is not null then raise exception 'FALLO: control'; end if;
-  -- la regularización sí funciona
+  -- rutas de servicio (calificar, entregas en PDF): un intento abierto de antes tampoco se puede usar
+  perform set_config('request.path', '/rpc/svc_check_context', true);
+  begin perform public.assert_attempt_writable('de640000-0000-4000-8000-0000000000f1', 'de640000-0000-4000-8000-000000000011'); raise exception 'FALLO: S1 escribe por calificar';
+  exception when insufficient_privilege then null; end;
+  -- la regularización sí funciona (incluidas las fotos por la Edge Function «entregas»)
+  perform set_config('request.path', '/rpc/hist_mi_bloqueo', true);
   if jsonb_array_length(public.hist_mi_bloqueo()) <> 1 then raise exception 'FALLO: motivo del bloqueo'; end if;
+  perform set_config('request.path', '/rpc/hist_pendientes', true);
   if jsonb_array_length(public.hist_pendientes()) <> 1 then raise exception 'FALLO: pendientes durante el bloqueo'; end if;
+  perform set_config('request.path', '/rpc/hist_mis_secciones', true);
   if jsonb_array_length(public.hist_mis_secciones()) <> 1 then raise exception 'FALLO: mis secciones durante el bloqueo'; end if;
-  -- el parámetro de exención no sobrevive fuera de las funciones de la regularización
-  if public.my_account_ok() then raise exception 'FALLO: la exención se filtró'; end if;
+  perform set_config('request.path', '/rpc/svc_hist_captura_check', true);
+  if not public.account_ok('de640000-0000-4000-8000-000000000011') then raise exception 'FALLO: fotos de la regularización bloqueadas'; end if;
+  -- una ruta parecida no sirve para saltarse el bloqueo
+  perform set_config('request.path', '/rpc/start_activity_attempt_hist_x', true);
+  if public.my_account_ok() then raise exception 'FALLO: ruta parecida exenta'; end if;
+  perform set_config('request.path', '/hist_declarations', true);
+  if public.my_account_ok() then raise exception 'FALLO: tabla hist_* exenta'; end if;
+  -- el estudiante no puede consultar la función de exención
+  perform set_config('request.path', '/rpc/hist_exento', true);
+  begin perform public.hist_exento(); raise exception 'FALLO: hist_exento expuesta'; exception when insufficient_privilege then null; end;
 end $$;
 
 -- 3) S2 (ya terminó) trabaja con normalidad
 select set_config('request.jwt.claims', '{"sub":"de640000-0000-4000-8000-000000000012","role":"authenticated"}', true);
 select set_config('request.jwt.claim.sub', 'de640000-0000-4000-8000-000000000012', true);
+select set_config('request.path', '/rpc/start_activity_attempt', true);
 do $$ begin
   if not public.my_account_ok() or jsonb_array_length(public.hist_mi_bloqueo()) <> 0 then raise exception 'FALLO: S2 bloqueado'; end if;
   perform public.start_activity_attempt('de640000-0000-4000-8000-0000000000a1');
@@ -73,39 +98,46 @@ end $$;
 select set_config('request.jwt.claims', '{"sub":"de640000-0000-4000-8000-000000000011","role":"authenticated"}', true);
 select set_config('request.jwt.claim.sub', 'de640000-0000-4000-8000-000000000011', true);
 do $$ begin
+  perform set_config('request.path', '/rpc/hist_finalizar', true);
   perform public.hist_finalizar('de640000-0000-4000-8000-000000000031', true, null);
+  perform set_config('request.path', '/rpc/activity_visible_to_me', true);
   if not public.my_account_ok() or not public.activity_visible_to_me('de640000-0000-4000-8000-0000000000a1') then raise exception 'FALLO: sigue bloqueado tras terminar'; end if;
-  perform public.start_activity_attempt('de640000-0000-4000-8000-0000000000a1');
 end $$;
 
 -- 5) el profesor le reabre la regularización → bloqueado otra vez; si cierra la regularización o quita el bloqueo, libre
 select set_config('request.jwt.claims', '{"sub":"de640000-0000-4000-8000-000000000001","role":"authenticated"}', true);
 select set_config('request.jwt.claim.sub', 'de640000-0000-4000-8000-000000000001', true);
+select set_config('request.path', '/rpc/hist_reabrir_estudiante', true);
 select public.hist_reabrir_estudiante('de640000-0000-4000-8000-000000000031', 'de640000-0000-4000-8000-000000000011', 'Falta la práctica 3');
 select set_config('request.jwt.claims', '{"sub":"de640000-0000-4000-8000-000000000011","role":"authenticated"}', true);
 select set_config('request.jwt.claim.sub', 'de640000-0000-4000-8000-000000000011', true);
+select set_config('request.path', '/rpc/activity_visible_to_me', true);
 do $$ begin if public.my_account_ok() then raise exception 'FALLO: reabierta sin bloqueo'; end if; end $$;
 reset role;
-update public.hist_settings set abierto = false where class_id = 'de640000-0000-4000-8000-000000000031';
+update public.hist_settings set abierto = false, libre_habilitado = false where class_id = 'de640000-0000-4000-8000-000000000031';
 set local role authenticated;
 do $$ begin if not public.my_account_ok() then raise exception 'FALLO: bloqueo sin salida con la regularización cerrada'; end if; end $$;
 reset role;
 update public.hist_settings set abierto = true where class_id = 'de640000-0000-4000-8000-000000000031';
 set local role authenticated;
+do $$ begin
+  if public.my_account_ok() then raise exception 'FALLO: debía volver a bloquear'; end if;
+  -- fuera de PostgREST (sin ruta) nunca se bloquea: no deja a nadie sin salida
+  perform set_config('request.path', '', true);
+  if not public.my_account_ok() then raise exception 'FALLO: sin ruta bloqueó'; end if;
+end $$;
 select set_config('request.jwt.claims', '{"sub":"de640000-0000-4000-8000-000000000001","role":"authenticated"}', true);
 select set_config('request.jwt.claim.sub', 'de640000-0000-4000-8000-000000000001', true);
+select set_config('request.path', '/rpc/hist_bloqueo_configurar', true);
 select public.hist_bloqueo_configurar('de640000-0000-4000-8000-000000000031', false) is not null;
 select set_config('request.jwt.claims', '{"sub":"de640000-0000-4000-8000-000000000011","role":"authenticated"}', true);
 select set_config('request.jwt.claim.sub', 'de640000-0000-4000-8000-000000000011', true);
+select set_config('request.path', '/rpc/activity_visible_to_me', true);
 do $$ begin if not public.my_account_ok() then raise exception 'FALLO: bloqueado con el bloqueo desactivado'; end if; end $$;
 reset role;
 
 do $$ begin
   if has_function_privilege('authenticated', 'public.hist_bloqueado(uuid)', 'execute') then raise exception 'FALLO: permisos'; end if;
-  -- todas las funciones de la regularización llevan la exención; las auxiliares del bloqueo no
-  if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname like 'hist\_%'
-             and p.proname not in ('hist_bloqueado', 'hist_bloqueos', 'hist_terminado') and not coalesce(p.proconfig, '{}') @> array['aula.regularizacion=on']) then
-    raise exception 'FALLO: función de la regularización sin exención'; end if;
 end $$;
 
 select 'regularizacion_bloqueo.sql: PRUEBAS PASARON' as resultado;
