@@ -21,7 +21,7 @@ insert into public.activities (id, class_id, title, mode, published, reveal_poli
   ('de580000-0000-4000-8000-0000000000a1', 'de580000-0000-4000-8000-000000000031', 'Asistida', 'practice', true, 'after_submit', false, 2);
 insert into public.activity_items (activity_id, exercise_id, position) values ('de580000-0000-4000-8000-0000000000a1', 'de580000-0000-4000-8000-0000000000e1', 1);
 -- práctica asistida «existente» (con la regla anterior): se simula fijando los valores antiguos
-insert into public.assisted_settings (activity_id, nota_primer_intento, factor_ayuda) values ('de580000-0000-4000-8000-0000000000a1', 'participacion', 1);
+insert into public.assisted_settings (activity_id, nota_primer_intento, factor_ayuda, factor_declarada) values ('de580000-0000-4000-8000-0000000000a1', 'participacion', 1, 1);
 
 -- intentos: E1 falla, consulta con IA y corrige bien; E2 acierta solo
 insert into public.attempts (id, user_id, course_id, activity_id, mode) values

@@ -145,4 +145,13 @@ describe('regla de nota con ayuda (migración 58, espejo de asistida_credito)', 
     // con transferencia correcta: (0 + 30·0,5 + 20 + 30) / 100
     expect(creditoConRegla(p, r, { iniCredito: 0, corBruto: 1, justificacion: true, transferencia: 1 })).toBe(0.65);
   });
+  it('ayuda declarada (migración 60): acierta declarando ayuda con factor 0,5 = 45/70, como en la prueba SQL', () => {
+    const r = { primerIntento: 'acierto' as const, factorAyuda: 0.5, factorDeclarada: 0.5 };
+    expect(creditoConRegla(p, r, { iniCredito: 1, corBruto: 1, justificacion: true, transferencia: null, declaroAyuda: true })).toBe(0.643);
+    expect(creditoConRegla(p, r, { iniCredito: 1, corBruto: 1, justificacion: true, transferencia: null, declaroAyuda: false })).toBe(1);
+    // falla declarando ayuda: el primer intento ya valía 0; la corrección sigue con factor_ayuda
+    expect(creditoConRegla(p, r, { iniCredito: 0, corBruto: 1, justificacion: true, transferencia: null, declaroAyuda: true })).toBe(0.5);
+    // factor 1: la declaración no cambia nada
+    expect(creditoConRegla(p, { ...r, factorDeclarada: 1 }, { iniCredito: 1, corBruto: 1, justificacion: true, transferencia: null, declaroAyuda: true })).toBe(1);
+  });
 });

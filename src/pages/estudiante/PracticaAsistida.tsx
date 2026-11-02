@@ -56,6 +56,7 @@ export function PracticaAsistida({ view, onEntregado }: { view: AttemptView; onE
   if (st.loading && !st.data) return <Spinner />;
   if (st.error) return <ErrorBox error={st.error} onRetry={st.reload} />;
   const e = st.data as Required<EstadoAsistida>;
+  const fd = e.config.regla?.factor_declarada ?? 1;
   const items = e.items;
   const actualizar = (it: EstadoItem) => st.setData({ ...e, items: items.map((x) => (x.exercise_id === it.exercise_id ? it : x)) });
   const completos = items.filter((x) => x.siguiente === 'completo').length;
@@ -74,7 +75,10 @@ export function PracticaAsistida({ view, onEntregado }: { view: AttemptView; onE
         <strong>Práctica con aprendizaje asistido.</strong> En cada ejercicio: <strong>1 Intentar</strong> por su cuenta · <strong>2 Aprender</strong> con ayuda (IA, libros, apuntes…) ·
         <strong> 3 Explicar</strong> lo que aprendió{e.config.transferencia ? <> · <strong>4 Comprobar</strong> con un ejercicio nuevo</> : null}. Lo que importa es entender, no solo acertar.
         {e.config.regla?.primer_intento === 'acierto' && (
-          <span className="mt-1 block text-sm">Nota: su primer intento cuenta por acierto; si no fue correcto, la respuesta corregida después de buscar ayuda vale el {Math.round(100 * e.config.regla.factor_ayuda)} % de su parte. Declarar si usó ayuda no cambia la nota.</span>
+          <span className="mt-1 block text-sm">Nota: su primer intento cuenta por acierto; si no fue correcto, la respuesta corregida después de buscar ayuda vale el {Math.round(100 * e.config.regla.factor_ayuda)} % de su parte.{fd >= 1 ? ' Declarar si usó ayuda no cambia la nota.' : ''}</span>
+        )}
+        {fd < 1 && (
+          <span className="mt-1 block text-sm">Si declara que consultó ayuda en un primer intento, ese primer intento (y su corrección, si ya era correcto) vale el {Math.round(100 * fd)} % de su parte. Se le pide declarar con honestidad.</span>
         )}
         {e.dependencia?.umbral != null && (
           <span className={`mt-1 block text-sm ${e.dependencia.aplicado ? 'font-medium text-amber-800 dark:text-amber-200' : ''}`}>
@@ -136,7 +140,7 @@ function EjercicioAsistido({ index, attemptId, item, ex, config, editable, onAct
       </header>
       <EnunciadoEjercicio ex={ex} attemptId={attemptId} />
 
-      {item.siguiente === 'inicial' && editable && <PasoInicial attemptId={attemptId} item={item} ex={ex} clave={`${base}:inicial`} onActualizar={onActualizar} />}
+      {item.siguiente === 'inicial' && editable && <PasoInicial attemptId={attemptId} item={item} ex={ex} clave={`${base}:inicial`} factorDeclarada={config.regla?.factor_declarada ?? 1} onActualizar={onActualizar} />}
 
       {ini && <RespuestaGuardada ex={ex} paso={ini} titulo="Tu respuesta inicial (guardada, no cambia)" />}
 
@@ -175,7 +179,7 @@ function EjercicioAsistido({ index, attemptId, item, ex, config, editable, onAct
 
       {item.siguiente === 'completo' && (
         <Recuadro titulo="✓ Ejercicio completado" tono="verde">
-          {item.calificacion && <p>Valoración de este ejercicio: <strong>{porcentaje(item.calificacion.credito)}</strong> ({item.calificacion.regla?.primer_intento === 'acierto' ? 'primer intento por acierto, corrección con ayuda' : 'participación, corrección'}, explicación{item.calificacion.transferencia !== null ? ' y comprobación' : ''}; no depende de si declaró usar ayuda).</p>}
+          {item.calificacion && <p>Valoración de este ejercicio: <strong>{porcentaje(item.calificacion.credito)}</strong> ({item.calificacion.regla?.primer_intento === 'acierto' ? 'primer intento por acierto, corrección con ayuda' : 'participación, corrección'}, explicación{item.calificacion.transferencia !== null ? ' y comprobación' : ''}{item.calificacion.ayuda_declarada ? `; primer intento con ayuda declarada al ${Math.round(100 * (item.calificacion.regla?.factor_declarada ?? 1))} %` : (item.calificacion.regla?.factor_declarada ?? 1) < 1 ? '' : '; no depende de si declaró usar ayuda'}).</p>}
           {onSiguiente && <button className="btn-primario mt-1" onClick={onSiguiente}>Siguiente ejercicio →</button>}
         </Recuadro>
       )}
@@ -215,7 +219,7 @@ function useEnvio() {
   return { estado, mensaje, enviar, setMensaje };
 }
 
-function PasoInicial({ attemptId, item, ex, clave, onActualizar }: { attemptId: string; item: EstadoItem; ex: AttemptItem['exercise']; clave: string; onActualizar: (it: EstadoItem) => void }) {
+function PasoInicial({ attemptId, item, ex, clave, factorDeclarada, onActualizar }: { attemptId: string; item: EstadoItem; ex: AttemptItem['exercise']; clave: string; factorDeclarada: number; onActualizar: (it: EstadoItem) => void }) {
   const [b, set, limpiar] = useBorrador(clave, () => vacio());
   const [declarar, setDeclarar] = useState(false);
   const env = useEnvio();
@@ -246,7 +250,9 @@ function PasoInicial({ attemptId, item, ex, clave, onActualizar }: { attemptId: 
           {(Object.keys(DECLARACION) as Declaracion[]).map((d) => (
             <label key={d} className="flex items-start gap-2 py-1.5 text-sm"><input type="radio" name={`decl-${item.exercise_id}`} checked={b.declaracion === d} onChange={() => set({ declaracion: d })} className="mt-1" /> {DECLARACION[d]}</label>
           ))}
-          <p className="mt-1 text-xs text-gray-500">Es una declaración voluntaria para fines pedagógicos. No cambia tu nota y no se presenta como una verificación técnica.</p>
+          <p className="mt-1 text-xs text-gray-500">Es una declaración voluntaria para fines pedagógicos y no se presenta como una verificación técnica. {factorDeclarada < 1
+            ? <strong>En esta práctica, si declaras que consultaste ayuda, este primer intento vale el {Math.round(100 * factorDeclarada)} % de su parte.</strong>
+            : 'No cambia tu nota.'}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button className="btn-primario" disabled={!b.declaracion || env.estado === 'enviando'} onClick={() => void guardar()}>{env.estado === 'enviando' ? 'Guardando…' : 'Confirmar y guardar'}</button>
             <button className="btn-secundario" onClick={() => setDeclarar(false)} disabled={env.estado === 'enviando'}>Volver</button>

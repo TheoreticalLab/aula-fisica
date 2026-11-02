@@ -1,6 +1,6 @@
 /** Configuración del aprendizaje asistido de una práctica: transferencia por ejercicio, pesos editables y verificación diferida. */
 import { useEffect, useState } from 'react';
-import { asistidaDependenciaGuardar, asistidaNotaGuardar, assistedSettingsDisable, assistedSettingsGet, assistedSettingsSave, type ConfigAsistida as Cfg } from '@/api/asistida';
+import { asistidaDeclaradaGuardar, asistidaDependenciaGuardar, asistidaNotaGuardar, assistedSettingsDisable, assistedSettingsGet, assistedSettingsSave, type ConfigAsistida as Cfg } from '@/api/asistida';
 import { funcionAusente } from '@/api/examen';
 import { activityItems, listActivities, listExercises } from '@/api/docente';
 import { creditoConRegla, notaCompuesta } from '@/lib/asistida';
@@ -162,21 +162,24 @@ function PenalizacionDependencia({ activityId, cfg, onGuardado }: { activityId: 
 function ReglaNota({ activityId, cfg, pesos, onGuardado }: { activityId: string; cfg: Cfg; pesos: { inicial: number; correccion: number; justificacion: number; transferencia: number }; onGuardado: (c: Partial<Cfg>) => void }) {
   const [modo, setModo] = useState<'participacion' | 'acierto'>(cfg.nota_primer_intento ?? 'participacion');
   const [factor, setFactor] = useState(Math.round(100 * (cfg.factor_ayuda ?? 1)));
+  const [declarada, setDeclarada] = useState(Math.round(100 * (cfg.factor_declarada ?? 1)));
   const [recalcular, setRecalcular] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
   const accion = useAction();
   const p = { inicial: cfg.peso_inicial, correccion: cfg.peso_correccion, justificacion: cfg.peso_justificacion, transferencia: cfg.peso_transferencia };
-  const regla = { primerIntento: modo, factorAyuda: factor / 100 };
+  const regla = { primerIntento: modo, factorAyuda: factor / 100, factorDeclarada: declarada / 100 };
   const t = cfg.transferencia ? 1 : null;
   const pct = (x: number) => `${Math.round(100 * x)} %`;
   const solo = creditoConRegla(p, regla, { iniCredito: 1, corBruto: 1, justificacion: true, transferencia: t });
   const conAyuda = creditoConRegla(p, regla, { iniCredito: 0, corBruto: 1, justificacion: true, transferencia: t });
+  const aciertaDeclarando = creditoConRegla(p, regla, { iniCredito: 1, corBruto: 1, justificacion: true, transferencia: t, declaroAyuda: true });
   const guardar = () => void accion.run(async () => {
-    const r = await asistidaNotaGuardar(activityId, modo, factor / 100, recalcular);
-    onGuardado({ nota_primer_intento: modo, factor_ayuda: factor / 100 });
+    await asistidaNotaGuardar(activityId, modo, factor / 100, false);
+    const r = await asistidaDeclaradaGuardar(activityId, declarada / 100, recalcular);   // un solo recálculo, con las dos reglas ya guardadas
+    onGuardado({ nota_primer_intento: modo, factor_ayuda: factor / 100, factor_declarada: declarada / 100 });
     setMsg(recalcular ? `Regla guardada y ${r.recalculados} respuesta(s) recalculada(s). Las notas puestas a mano no cambian.` : 'Regla guardada: se aplicará a los pasos nuevos.');
   });
-  const cambiada = modo !== (cfg.nota_primer_intento ?? 'participacion') || factor !== Math.round(100 * (cfg.factor_ayuda ?? 1));
+  const cambiada = modo !== (cfg.nota_primer_intento ?? 'participacion') || factor !== Math.round(100 * (cfg.factor_ayuda ?? 1)) || declarada !== Math.round(100 * (cfg.factor_declarada ?? 1));
   return (
     <div className={`rounded-lg border p-3 ${modo === 'participacion' && factor === 100 ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20' : 'border-gray-200 dark:border-white/10'}`}>
       <p className="font-medium">Regla de nota</p>
@@ -190,9 +193,12 @@ function ReglaNota({ activityId, cfg, pesos, onGuardado }: { activityId: string;
         <label className="text-xs"><span className="etiqueta">La corrección hecha con ayuda tras fallar vale</span>
           <span className="flex items-center gap-2"><input type="range" min={0} max={100} step={5} value={factor} onChange={(e) => setFactor(Number(e.target.value))} className="flex-1" /><span className="w-12 text-right tabular-nums">{factor} %</span></span>
           <span className="block text-gray-500">de su valor. Si el primer intento ya era correcto, la corrección cuenta completa.</span></label>
+        <label className="text-xs sm:col-span-2"><span className="etiqueta">El primer intento hecho con ayuda declarada (p. ej. IA) vale</span>
+          <span className="flex items-center gap-2"><input type="range" min={0} max={100} step={5} value={declarada} onChange={(e) => setDeclarada(Number(e.target.value))} className="flex-1" /><span className="w-12 text-right tabular-nums">{declarada} %</span></span>
+          <span className="block text-gray-500">100 % = la declaración no cambia la nota. Por debajo, el estudiante lo verá antes de declarar. Tenga en cuenta que puede animar a declarar «sin ayuda»; la penalización por dependencia (abajo) no depende de lo que declaren.</span></label>
       </div>
       <p className="mt-2 text-xs">Con estos pesos ({pesos.inicial}/{pesos.correccion}/{pesos.justificacion}{cfg.transferencia ? `/${pesos.transferencia}` : ''}) y la explicación presentada:
-        acierta solo → <strong>{pct(solo)}</strong> · falla y corrige con ayuda → <strong>{pct(conAyuda)}</strong>. Declarar que usó IA no cambia nada (si cambiara, se castigaría la honestidad).</p>
+        acierta solo → <strong>{pct(solo)}</strong> · acierta declarando ayuda → <strong>{pct(aciertaDeclarando)}</strong> · falla y corrige con ayuda → <strong>{pct(conAyuda)}</strong>.</p>
       <label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={recalcular} onChange={(e) => setRecalcular(e.target.checked)} /> Recalcular ahora las notas de los intentos que ya existen (incluidos los que están en curso)</label>
       <div className="mt-2 flex items-center gap-3">
         <button className="btn-primario !py-1 text-sm" disabled={accion.busy || (!cambiada && !recalcular)} onClick={guardar}>{accion.busy ? 'Guardando…' : 'Guardar regla de nota'}</button>

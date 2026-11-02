@@ -87,7 +87,7 @@ export default function Ayuda() {
               <li>Configuración → <strong>Aprendizaje asistido</strong>: elija el ejercicio de transferencia de cada pregunta; en opciones avanzadas, los pesos (20/30/20/30, editables) y una verificación posterior.</li>
               <li>Resultados → <strong>Proceso de aprendizaje</strong>: primera y segunda respuesta lado a lado, ayudas, cambio, explicación, transferencia y retención.</li>
             </Pasos>
-            <p>La declaración de uso de IA no cambia la nota y no es una prueba de nada; tampoco una explicación «que parece de IA».</p>
+            <p>La declaración de uso de IA no es una prueba de nada; tampoco una explicación «que parece de IA». Por defecto no cambia la nota; en «Regla de nota» puede fijar cuánto vale un primer intento con ayuda declarada (el estudiante lo ve antes de declarar).</p>
           </Tema>
           <Tema titulo="Durante un examen: seguimiento en vivo y prórrogas">
             <p>En la actividad, pestaña <strong>Resultados</strong>, el panel <strong>En vivo</strong> muestra quién está respondiendo, en pausa o sin conexión, en qué pregunta va y cuánto le queda.</p>

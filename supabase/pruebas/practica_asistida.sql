@@ -64,7 +64,7 @@ end $$;
 
 -- esta prueba verifica la regla de nota de la migración 38 (primer intento por participación, corrección completa);
 -- la regla nueva (migración 58, por defecto en las prácticas nuevas) la cubre asistida_nota_con_ayuda.sql
-update public.assisted_settings set nota_primer_intento = 'participacion', factor_ayuda = 1 where activity_id = 'de380000-0000-4000-8000-0000000000a1';
+update public.assisted_settings set nota_primer_intento = 'participacion', factor_ayuda = 1, factor_declarada = 1 where activity_id = 'de380000-0000-4000-8000-0000000000a1';
 
 -- 2) los estudiantes empiezan; 16) la vía clásica de comprobación sigue funcionando en la práctica tradicional y está cerrada en la asistida
 set local role authenticated;

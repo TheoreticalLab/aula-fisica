@@ -7,7 +7,7 @@ export interface EstadoAsistida {
   asistida: boolean;
   config?: { transferencia: boolean; max_correcciones: number; pesos: Pesos; verificacion: { tipo: string | null; fecha: string | null; nota: string | null };
     /** migración 58 (antes no viene) */
-    regla?: { primer_intento: 'participacion' | 'acierto'; factor_ayuda: number } };
+    regla?: { primer_intento: 'participacion' | 'acierto'; factor_ayuda: number; factor_declarada?: number } };
   /** migración 59 (antes no viene) */
   dependencia?: Dependencia | null;
   items?: EstadoItem[];
@@ -33,7 +33,11 @@ export interface ConfigAsistida {
   nota_primer_intento?: 'participacion' | 'acierto'; factor_ayuda?: number;
   /** migración 59: penalización por dependencia observada (null = desactivada) */
   dependencia_umbral?: number | null; dependencia_descuento?: number;
+  /** migración 60: el primer intento con ayuda declarada vale esta fracción (1 = sin efecto) */
+  factor_declarada?: number;
 }
+export const asistidaDeclaradaGuardar = (activityId: string, factor: number, recalcular: boolean) =>
+  rpc<{ config: ConfigAsistida; recalculados: number }>('asistida_declarada_guardar', { p_activity: activityId, p_factor: factor, p_recalcular: recalcular });
 /** Dependencia observada de la ayuda en un intento (migración 59). */
 export interface Dependencia { ejercicios: number; corregidos_tras_fallar: number; porcentaje: number; umbral: number | null; descuento: number; aplicado: boolean }
 export const asistidaDependenciaGuardar = (activityId: string, umbral: number | null, descuento: number, recalcular: boolean) =>

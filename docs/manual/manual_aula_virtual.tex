@@ -166,8 +166,10 @@ En estas prácticas puede usar inteligencia artificial, libros, apuntes o la ayu
 Al terminar todos los ejercicios, pulse \boton{Finalizar la práctica}.
 
 \begin{importante}[Sobre la declaración de ayuda]
-Declarar que usó ayuda \textbf{no le quita puntos}, y declarar que no la usó \textbf{no le da puntos extra}. Es una
-información voluntaria para que el profesor entienda mejor cómo aprende el grupo; no es una verificación técnica.
+Es una información voluntaria para que el profesor entienda mejor cómo aprende el grupo; no es una verificación
+técnica. Salvo que la práctica indique otra cosa, declarar que usó ayuda \textbf{no le quita puntos}. Si el profesor
+lo configuró, la práctica le muestra \emph{antes de declarar} cuánto vale un primer intento hecho con ayuda (por
+ejemplo, «vale el 50\,\% de su parte»). Declare con honestidad.
 \end{importante}
 
 \begin{nota}[Sin conexión]
@@ -486,8 +488,14 @@ Transferencia & 30\,\% & Resultado del ejercicio nuevo \\
         primer intento más de un porcentaje de los ejercicios (por ejemplo, 50\,\%), la nota de toda la práctica baja
         otro porcentaje (por ejemplo, 20\,\%). Se basa en lo que hizo, no en lo que declaró, y el estudiante ve la regla y
         su propio porcentaje mientras avanza.
-  \item \textbf{La declaración de uso de IA no cambia la nota}: el descuento se aplica a toda corrección tras un primer
-        intento fallido, con o sin IA. Si dependiera de declarar, se castigaría la honestidad.
+  \item \textbf{Primer intento con ayuda declarada} (en «Regla de nota»): si el estudiante declara que consultó
+        ayuda y acierta, ese primer intento ya no vale como uno hecho solo; vale el porcentaje que usted fije (por
+        defecto 50\,\% en las prácticas nuevas; 100\,\% = la declaración no cambia nada, como en las prácticas
+        anteriores). Con pesos 20/30/20: acierta solo $\rightarrow$ 100\,\%; acierta declarando ayuda
+        $\rightarrow$ 64\,\%. El estudiante lo ve antes de declarar. Tenga en cuenta que esto premia declarar
+        «sin ayuda»: combínelo con la penalización por dependencia, que se basa en lo que el estudiante hizo. Si lo
+        aplica con recálculo a una práctica ya respondida, avise al grupo: declararon cuando se les dijo que no
+        afectaba.
   \item La nota se integra en el libro de calificaciones como cualquier práctica, y puede corregirla con la
         calificación manual de la revisión.
 \end{itemize}
@@ -726,7 +734,8 @@ El detalle técnico está en \texttt{docs/DESPLIEGUE\_REDISENO.md}.
   \item[Cerré la página sin querer.]
         Vuelva a entrar en la evaluación: continúa en la misma pregunta con sus respuestas.
   \item[¿Me bajan la nota por decir que usé inteligencia artificial en una práctica asistida?]
-        No. La declaración no interviene en la nota.
+        Solo si el profesor lo configuró en esa práctica, y en ese caso se lo indica antes de declarar (por ejemplo,
+        «este primer intento vale el 50\,\%»). Si no aparece ese aviso, la declaración no interviene en la nota.
   \item[¿Puedo corregir mi primer intento en una práctica asistida?]
         El primer intento no cambia, pero en el paso «Aprender» puede dar una respuesta corregida, que es la que se
         califica.

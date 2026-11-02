@@ -66,13 +66,21 @@ Por ejercicio: **intento inicial 20 % · corrección 30 % · explicación 20 % �
   no la esquiva y quien es honesto no paga por serlo. Ejemplo: A hace 2 de 4 solo y bien y deja 2 en blanco (nota 2);
   B falla los 4 y los corrige con ayuda (2 → 1,6 con 50 %/20 %). Se recalcula en vivo con cada paso y el estudiante ve
   la regla y su propio porcentaje. Actividad → Aprendizaje asistido → «Penalización por dependencia de la ayuda».
+- **Primer intento con ayuda declarada** (migración 60): si el estudiante declara «consulté alguna ayuda» en el primer
+  intento, ese primer intento (y, con la regla por acierto, la corrección que cuenta completa porque ya acertó) vale
+  `factor_declarada` de su parte. Por defecto **50 %** en las prácticas nuevas; las existentes quedan en **100 %** (la
+  declaración no cambia nada) hasta que el profesor lo cambie. Ejemplo con pesos 20/30/20 y 50 %: acierta declarando
+  ayuda → (10 + 15 + 20)/70 = 64,3 %; acierta solo → 100 %. El estudiante ve el porcentaje **antes de declarar**.
+  *Advertencia pedagógica:* premia indirectamente declarar «sin ayuda»; por eso conviene combinarlo con la penalización
+  por dependencia (observada, no declarada). Aplicarlo con recálculo a declaraciones hechas cuando se prometía «no cambia
+  la nota» es retroactivo: conviene avisar al grupo.
 - **Cambiar la regla:** Actividad → Aprendizaje asistido → «Regla de nota», con la opción de **recalcular** los intentos
   existentes (también los que están en curso). Las calificaciones manuales siempre prevalecen. El estudiante ve la regla
   en el aviso inicial y en la valoración de cada ejercicio.
 - **Explicación:** presentada, con al menos una respuesta de una frase (≥ 15 caracteres). La calidad la puede ajustar el profesor con la calificación manual de la revisión.
 - **Transferencia:** su resultado.
 
-Sin transferencia, los pesos activos se reparten proporcionalmente (20/30/20 → 28,6/42,9/28,6 %), y la tarjeta de configuración lo muestra. **La declaración de uso de IA no interviene:** no da puntos por declarar «sin IA» ni quita por reconocer ayuda. Las prácticas tradicionales y las calificaciones históricas no cambian.
+Sin transferencia, los pesos activos se reparten proporcionalmente (20/30/20 → 28,6/42,9/28,6 %), y la tarjeta de configuración lo muestra. **La declaración de uso de IA solo interviene si el profesor fija «ayuda declarada» por debajo de 100 %** (ver arriba); con 100 % no da puntos por declarar «sin IA» ni quita por reconocer ayuda. Las prácticas tradicionales y las calificaciones históricas no cambian.
 
 ## Indicadores pedagógicos (no LIEIA)
 
