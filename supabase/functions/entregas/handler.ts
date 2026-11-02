@@ -60,6 +60,25 @@ export function nombreSeguro(nombre: string): string {
 
 export const rutaArchivo = (box: string, user: string, file: string) => `${box}/${user}/${file}.pdf`;
 
+/** Duplicados entre estudiantes (migración 67): mensaje al bloquear; nunca dice quién subió el otro archivo. */
+export function mensajeDuplicado(r: { exacto?: boolean }, que: 'imagen' | 'documento'): string {
+  return (r.exacto ? `Este ${que === 'imagen' ? 'archivo' : 'documento'} es idéntico a uno que ya subió otro estudiante de la asignatura.`
+    : 'Esta imagen coincide con una que ya subió otro estudiante de la asignatura (aunque cambie la resolución o el formato).')
+    + ' No se guardó. Si es un trabajo en grupo, el profesor puede autorizarlo: la solicitud quedó registrada.';
+}
+
+/** Comprobación de duplicados antes de guardar. Si la función aún no existe (migración pendiente), no bloquea. */
+export async function comprobarDuplicado(rpc: Deps['rpc'], args: Record<string, unknown>, que: 'imagen' | 'documento') {
+  const { data, error } = await rpc('svc_huella_check', args);
+  if (error) {
+    if (/svc_huella_check|does not exist|function/i.test(error.message)) return;
+    const status = error.code === '42501' ? 403 : error.code === '22023' || error.code === 'P0001' ? 400 : 500;
+    throw new HttpError(status, status === 500 ? 'Error interno' : error.message);
+  }
+  const r = data as { ok?: boolean; exacto?: boolean } | null;
+  if (r && r.ok === false) throw new HttpError(409, mensajeDuplicado(r, que));
+}
+
 export async function subir(boxId: unknown, archivo: { name: string; bytes: Uint8Array } | null, userId: string, d: Deps) {
   const box = uuid(boxId, 'box_id');
   if (!archivo || !archivo.bytes.length) throw new HttpError(400, 'No se recibió ningún archivo');
@@ -70,12 +89,16 @@ export async function subir(boxId: unknown, archivo: { name: string; bytes: Uint
   const id = d.newId();
   const path = rutaArchivo(box, userId, id);
   const sha = await d.sha256(archivo.bytes);
+  // el mismo PDF que ya subió otro estudiante de la asignatura: no se guarda (salvo autorización del profesor)
+  await comprobarDuplicado(d.rpc, { p_user: userId, p_class: null, p_box: box, p_kind: 'pdf', p_sha: sha, p_sha_original: null, p_dhash: null }, 'documento');
   await d.ensureBucket();
   await d.upload(path, archivo.bytes);
   try {
-    return await call<{ id: string; estado: string }>(d, 'svc_upload_record', {
+    const r = await call<{ id: string; estado: string }>(d, 'svc_upload_record', {
       p_user: userId, p_box: box, p_file: id, p_path: path, p_name: nombreSeguro(archivo.name), p_size: archivo.bytes.length, p_sha: sha,
     });
+    await d.rpc('svc_huella_guardar', { p_kind: 'pdf', p_object: r.id ?? id, p_user: userId, p_class: null, p_box: box, p_sha: sha, p_sha_original: null, p_dhash: null });
+    return r;
   } catch (e) {
     // si no se pudo registrar (p. ej. otra subida simultánea llenó el cupo), no queda un archivo huérfano
     await d.remove(path).catch(() => undefined);

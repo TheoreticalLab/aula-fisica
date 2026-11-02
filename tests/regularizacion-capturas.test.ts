@@ -28,6 +28,8 @@ export function jpeg(w: number, h: number) {
   return relleno([0xff, 0xd8, 0xff, 0xe0, 0, 16, ...txt('JFIF'), 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xff, 0xc0, 0, 17, 8, (h >> 8) & 255, h & 255, (w >> 8) & 255, w & 255, 3]);
 }
 
+let duplicado = false;
+
 function deps(over: Partial<DepsCapturas> & { existe?: boolean } = {}) {
   const llamadas: { fn: string; args: Record<string, unknown> }[] = [];
   const subidos: { path: string; bytes: number; mime: string }[] = [];
@@ -35,6 +37,8 @@ function deps(over: Partial<DepsCapturas> & { existe?: boolean } = {}) {
   const d: DepsCapturas = {
     rpc: async (fn, args) => {
       llamadas.push({ fn, args });
+      if (fn === 'svc_huella_check') return { data: duplicado ? { ok: false, exacto: false, distancia: 3 } : { ok: true }, error: null };
+      if (fn === 'svc_huella_guardar') return { data: null, error: null };
       if (fn === 'svc_hist_captura_check') return { data: { class_id: CLASE, max_bytes: 2 * 1048576 }, error: null };
       if (fn === 'svc_hist_captura_registrar') return { data: { id: args.p_id, liberar: null }, error: null };
       if (fn === 'svc_hist_captura_ruta') return { data: `${CLASE}/${USER}/${SHA}.webp`, error: null };
@@ -100,7 +104,8 @@ describe('subirCaptura', () => {
   });
   it('si el registro falla, borra el archivo nuevo; si ya existía (misma imagen reutilizada), no lo toca', async () => {
     const fallo = async (fn: string) => (fn === 'svc_hist_captura_check'
-      ? { data: { class_id: CLASE }, error: null } : { data: null, error: { message: 'Esa misma imagen ya está adjunta en este registro', code: 'P0001' } });
+      ? { data: { class_id: CLASE }, error: null } : fn.startsWith('svc_huella') ? { data: { ok: true }, error: null }
+      : { data: null, error: { message: 'Esa misma imagen ya está adjunta en este registro', code: 'P0001' } });
     const a = deps({ rpc: fallo });
     await expect(subirCaptura({ declaration_id: DECL, posicion: 2 }, { bytes: jpeg(1600, 900) }, USER, a.d)).rejects.toMatchObject({ status: 400 });
     expect(a.borrados).toEqual([`${CLASE}/${USER}/${SHA}.jpg`]);
@@ -128,12 +133,15 @@ describe('fotos de prácticas sin envío por correo (destino «libre»)', () => 
     const { d, subidos } = deps({
       rpc: async (fn, args) => {
         llamadas.push({ fn, args });
+      if (fn === 'svc_huella_check') return { data: duplicado ? { ok: false, exacto: false, distancia: 3 } : { ok: true }, error: null };
+      if (fn === 'svc_huella_guardar') return { data: null, error: null };
         return fn === 'svc_hist_libre_foto_check' ? { data: { class_id: CLASE }, error: null }
           : fn === 'svc_hist_libre_foto_registrar' ? { data: { id: args.p_id, liberar: null }, error: null } : { data: null, error: { message: 'x', code: 'XX' } };
       },
     });
     await subirCaptura({ destino: 'libre', libre_id: DECL, posicion: '4' }, { bytes: jpeg(1600, 1200) }, USER, d);
-    expect(llamadas.map((l) => l.fn)).toEqual(['svc_hist_libre_foto_check', 'svc_hist_libre_foto_registrar']);
+    expect(llamadas.map((l) => l.fn)).toEqual(['svc_hist_libre_foto_check', 'svc_huella_check', 'svc_hist_libre_foto_registrar', 'svc_huella_guardar']);
+    expect(llamadas[1].args.p_kind).toBe('foto_libre');
     expect(llamadas[0].args).toMatchObject({ p_libre: DECL, p_posicion: 4 });
     expect(subidos[0].path).toBe(`libre/${CLASE}/${USER}/${SHA}.jpg`);
   });
@@ -169,5 +177,30 @@ describe('ver, quitar y eliminar', () => {
     const b = deps();
     await eliminarBorrador(DECL, USER, b.d);
     expect(b.borrados).toEqual([`${CLASE}/${USER}/${SHA}.webp`]);
+  });
+});
+
+describe('subirCaptura · duplicados entre estudiantes (migración 67)', () => {
+  it('si la misma imagen ya la subió otro estudiante (aunque cambie la resolución), no se guarda nada y se explica', async () => {
+    duplicado = true;
+    try {
+      const { d, subidos, llamadas } = deps();
+      await expect(subirCaptura({ declaration_id: DECL, posicion: 1, dhash: '0123456789abcdef' }, { bytes: png(1170, 2532) }, USER, d))
+        .rejects.toMatchObject({ status: 409, message: expect.stringMatching(/otro estudiante.*profesor puede autorizarlo/s) });
+      expect(subidos).toHaveLength(0);
+      const chk = llamadas.find((l) => l.fn === 'svc_huella_check')!.args;
+      expect(chk).toMatchObject({ p_kind: 'captura', p_dhash: '0123456789abcdef', p_user: USER });
+      expect(String(chk.p_sha)).toMatch(/^[0-9a-f]{64}$/);   // SHA calculado en el servidor
+    } finally { duplicado = false; }
+  });
+  it('sin duplicado: se guarda y se registra la huella (exacta y perceptual)', async () => {
+    const { d, llamadas } = deps();
+    await subirCaptura({ declaration_id: DECL, posicion: 1, dhash: 'fedcba9876543210' }, { bytes: png(1170, 2532) }, USER, d);
+    expect(llamadas.find((l) => l.fn === 'svc_huella_guardar')!.args).toMatchObject({ p_kind: 'captura', p_dhash: 'fedcba9876543210' });
+  });
+  it('una huella mal formada se ignora (es un dato del navegador)', async () => {
+    const { d, llamadas } = deps();
+    await subirCaptura({ declaration_id: DECL, posicion: 1, dhash: '<script>' }, { bytes: png(1170, 2532) }, USER, d);
+    expect(llamadas.find((l) => l.fn === 'svc_huella_check')!.args.p_dhash).toBeNull();
   });
 });

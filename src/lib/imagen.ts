@@ -10,6 +10,8 @@
  * La parte de decisión es pura (planificar, elegir) y se prueba en Node; la del lienzo es una capa delgada.
  */
 
+import { dhashImagen } from './huella';
+
 export const OBJETIVO_BYTES = 400 * 1024;
 export const LADO_CORTO_PREFERIDO = 1440;
 export const LADO_CORTO_MINIMO = 1080;
@@ -54,6 +56,8 @@ export async function optimizarCon<B>(ancho: number, alto: number, codificar: (p
 export interface CapturaOptimizada {
   blob: Blob; tipo: string; ancho: number; alto: number; bytes: number;
   anchoOriginal: number; altoOriginal: number; bytesOriginal: number; shaOriginal: string | null; enObjetivo: boolean; calidad: number;
+  /** huella perceptual (migración 67): detecta la misma imagen subida por otro estudiante aunque cambie la resolución */
+  dhash: string | null;
 }
 
 async function sha256(buf: ArrayBuffer): Promise<string | null> {
@@ -95,6 +99,7 @@ export async function optimizarCaptura(archivo: File, maxBytes: number): Promise
   };
   const r = await optimizarCon(bmp.width, bmp.height, codificar);
   const anchoOriginal = bmp.width, altoOriginal = bmp.height;
+  const dhash = dhashImagen(bmp, bmp.width, bmp.height);
   bmp.close();
   if (!r) throw new Error('No se pudo procesar la imagen.');
   if (r.bytes > maxBytes) {
@@ -102,7 +107,7 @@ export async function optimizarCaptura(archivo: File, maxBytes: number): Promise
   }
   return {
     blob: r.blob, tipo: r.tipo, ancho: r.paso.ancho, alto: r.paso.alto, bytes: r.bytes, anchoOriginal, altoOriginal,
-    bytesOriginal: archivo.size, shaOriginal, enObjetivo: r.bytes <= OBJETIVO_BYTES, calidad: r.paso.calidad,
+    bytesOriginal: archivo.size, shaOriginal, enObjetivo: r.bytes <= OBJETIVO_BYTES, calidad: r.paso.calidad, dhash,
   };
 }
 

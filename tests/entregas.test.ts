@@ -43,7 +43,8 @@ describe('entregas en PDF (Edge Function)', () => {
     expect(r).toEqual({ id: FILE, estado: 'recibido' });
     expect(log[0]).toMatch(/^rpc:svc_upload_check/);
     expect(log).toContain(`upload:${rutaArchivo(BOX, USER, FILE)}`);
-    expect(log.at(-1)).toMatch(/^rpc:svc_upload_record/);
+    expect(log.some((x) => /^rpc:svc_upload_record/.test(x))).toBe(true);
+    expect(log.at(-1)).toMatch(/^rpc:svc_huella_guardar:.*"p_kind":"pdf"/);   // huella registrada después de guardar
   });
 
   it('sin autorización no toca el almacenamiento', async () => {
@@ -72,5 +73,16 @@ describe('entregas en PDF (Edge Function)', () => {
     expect(r.url).toBe(`https://firmado/${BOX}/${USER}/${FILE}.pdf?s=120`);
     const sin = deps({ svc_upload_file_path: { message: 'No tiene acceso a este archivo', code: '42501' } });
     await expect(descargar(FILE, USER, sin.d)).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe('entregas en PDF · duplicados entre estudiantes (migración 67)', () => {
+  it('el mismo PDF que ya subió otro estudiante de la asignatura no se guarda', async () => {
+    const { d, log } = deps();
+    const rpc = d.rpc;
+    d.rpc = async (fn, args) => (fn === 'svc_huella_check' ? { data: { ok: false, exacto: true, distancia: 0 }, error: null } : rpc(fn, args));
+    await expect(subir(BOX, { name: 'p.pdf', bytes: pdf() }, USER, d))
+      .rejects.toMatchObject({ status: 409, message: expect.stringMatching(/idéntico.*otro estudiante/) });
+    expect(log.some((x) => x.startsWith('upload:'))).toBe(false);
   });
 });

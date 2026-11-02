@@ -13,7 +13,7 @@
  *
  * Las imágenes nunca se envían a servicios externos.
  */
-import { HttpError } from './handler.ts';
+import { comprobarDuplicado, HttpError } from './handler.ts';
 
 export interface DepsCapturas {
   rpc(fn: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
@@ -118,7 +118,7 @@ const DESTINOS = {
 export const destino = (v: unknown): Destino => (v === 'libre' ? 'libre' : 'declaracion');
 
 export async function subirCaptura(
-  campos: { declaration_id?: unknown; libre_id?: unknown; destino?: unknown; posicion: unknown; sha_original?: unknown; bytes_original?: unknown },
+  campos: { declaration_id?: unknown; libre_id?: unknown; destino?: unknown; posicion: unknown; sha_original?: unknown; bytes_original?: unknown; dhash?: unknown },
   archivo: { bytes: Uint8Array } | null, userId: string, d: DepsCapturas,
 ) {
   const D = DESTINOS[destino(campos.destino)];
@@ -139,6 +139,10 @@ export async function subirCaptura(
   if (Math.max(info.ancho, info.alto) > 16384) throw new HttpError(400, 'La imagen es demasiado grande en píxeles; recórtela o divídala');
 
   const sha = await d.sha256(archivo.bytes);
+  // la misma imagen que ya subió otro estudiante de la asignatura (exacta o a otra resolución): no se guarda
+  const kind = D.campo === 'libre_id' ? 'foto_libre' : 'captura';
+  const dhash = typeof campos.dhash === 'string' && /^[0-9a-f]{16}$/.test(campos.dhash) ? campos.dhash : null;
+  await comprobarDuplicado(d.rpc, { p_user: userId, p_class: chk.class_id, p_box: null, p_kind: kind, p_sha: sha, p_sha_original: shaOriginal, p_dhash: dhash }, 'imagen');
   const path = D.prefijo + rutaCaptura(chk.class_id, userId, sha, info.mime);
   await d.ensureBucket();
   const estado = await d.upload(path, archivo.bytes, info.mime);
@@ -148,6 +152,7 @@ export async function subirCaptura(
       p_ancho: info.ancho, p_alto: info.alto, p_sha: sha, p_sha_original: shaOriginal, p_bytes_original: bytesOriginal,
     });
     if (r.liberar) await d.remove([r.liberar]).catch(() => undefined);
+    await d.rpc('svc_huella_guardar', { p_kind: kind, p_object: r.id, p_user: userId, p_class: chk.class_id, p_box: null, p_sha: sha, p_sha_original: shaOriginal, p_dhash: dhash });
     return { id: r.id, bytes: archivo.bytes.length, ancho: info.ancho, alto: info.alto, mime: info.mime, reutilizada: estado === 'existe' };
   } catch (e) {
     // si no se pudo registrar, no queda un archivo huérfano (pero nunca se borra uno que ya existía y otro registro usa)

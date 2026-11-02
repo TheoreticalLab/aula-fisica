@@ -41,6 +41,7 @@ export function subirCaptura(declId: string, posicion: number, c: CapturaOptimiz
   f.append('declaration_id', declId);
   f.append('posicion', String(posicion));
   if (c.shaOriginal) f.append('sha_original', c.shaOriginal);
+  if (c.dhash) f.append('dhash', c.dhash);
   f.append('bytes_original', String(c.bytesOriginal));
   f.append('archivo', c.blob, `captura.${c.tipo === 'image/webp' ? 'webp' : 'jpg'}`);
   return invocar<{ id: string; bytes: number; ancho: number; alto: number; reutilizada: boolean }>('entregas', f);

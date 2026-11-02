@@ -34,6 +34,7 @@ export function subirFoto(libreId: string, posicion: number, c: CapturaOptimizad
   f.append('libre_id', libreId);
   f.append('posicion', String(posicion));
   if (c.shaOriginal) f.append('sha_original', c.shaOriginal);
+  if (c.dhash) f.append('dhash', c.dhash);
   f.append('bytes_original', String(c.bytesOriginal));
   f.append('archivo', c.blob, `foto.${c.tipo === 'image/webp' ? 'webp' : 'jpg'}`);
   return invocar<{ id: string; bytes: number; ancho: number; alto: number }>('entregas', f);

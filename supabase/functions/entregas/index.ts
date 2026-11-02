@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
         const imagen = f instanceof File && f.size <= MAX_BYTES_CAPTURA ? { bytes: new Uint8Array(await f.arrayBuffer()) } : null;
         if (f instanceof File && !imagen) throw new HttpError(413, 'La imagen es demasiado grande');
         out = await subirCaptura({ declaration_id: form.get('declaration_id'), libre_id: form.get('libre_id'), destino: form.get('destino'),
-          posicion: form.get('posicion'), sha_original: form.get('sha_original'), bytes_original: form.get('bytes_original') }, imagen, userData.user.id, depsCapturas);
+          posicion: form.get('posicion'), sha_original: form.get('sha_original'), bytes_original: form.get('bytes_original'), dhash: form.get('dhash') }, imagen, userData.user.id, depsCapturas);
       } else {
         const archivo = f instanceof File ? { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) } : null;
         out = await subir(form.get('box_id'), archivo, userData.user.id, deps);

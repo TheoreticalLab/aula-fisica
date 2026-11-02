@@ -31,13 +31,14 @@ import { downloadText, fecha, porcentaje, puntaje, toCsv, useAction, useAsync } 
 import { Badge, Card, Empty, ErrorBox, Field, Notice, PageTitle, Spinner, Tabs } from '@/components/ui';
 import { TabAsistencia } from './AsistenciaTab';
 import { TabClasesImpartidas } from './ClasesTab';
+import { TabCoincidencias } from './CoincidenciasTab';
 import { informeAsistencia } from '@/api/asistencia';
 import { porcentajeAsistencia, tonoAsistencia } from '@/lib/asistencia';
 import { TabEntregas } from './EntregasPdf';
 import { RegularizacionSeccion } from './Regularizacion';
 import { TabSeguimiento } from './SeguimientoTab';
 
-type Tab = 'estudiantes' | 'asistencia' | 'clases' | 'avisos' | 'actividades' | 'seguimiento' | 'entregas' | 'regularizacion' | 'calificaciones' | 'revision' | 'estadisticas';
+type Tab = 'estudiantes' | 'asistencia' | 'clases' | 'avisos' | 'actividades' | 'seguimiento' | 'entregas' | 'regularizacion' | 'coincidencias' | 'calificaciones' | 'revision' | 'estadisticas';
 
 export default function Clase() {
   const { classId = '' } = useParams();
@@ -79,6 +80,7 @@ export default function Clase() {
           { id: 'seguimiento', label: 'Seguimiento' },
           { id: 'entregas', label: 'Entregas en PDF' },
           { id: 'regularizacion', label: 'Prácticas anteriores' },
+          { id: 'coincidencias', label: 'Coincidencias de archivos' },
           { id: 'calificaciones', label: 'Calificaciones' },
           { id: 'revision', label: 'Revisión manual' },
           { id: 'estadisticas', label: 'Estadísticas' },
@@ -89,6 +91,7 @@ export default function Clase() {
       {tab === 'clases' && <TabClasesImpartidas classId={c.id} />}
       {tab === 'entregas' && <TabEntregas classId={c.id} />}
       {tab === 'regularizacion' && <RegularizacionSeccion classId={c.id} />}
+      {tab === 'coincidencias' && <TabCoincidencias classId={c.id} />}
       {tab === 'avisos' && <TabAvisos c={c} />}
       {tab === 'actividades' && <TabActividades c={c} />}
       {tab === 'seguimiento' && <TabSeguimiento classId={c.id} />}
