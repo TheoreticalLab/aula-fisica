@@ -37,7 +37,7 @@ const fecha = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('e
 const pct = (x: number) => `${Math.round(100 * x)} %`;
 const nuevoId = () => crypto.randomUUID();
 
-export function ControlPractica({ classId, attendanceId }: { classId: string; attendanceId: string }) {
+export function ControlPractica({ classId, attendanceId }: { classId: string; attendanceId: string | null }) {
   const [practicas, setPracticas] = useState<Practica[]>([]);
   const [sesiones, setSesiones] = useState<Sesion[]>([]);
   const [elegida, setElegida] = useState('');
@@ -125,6 +125,7 @@ export function ControlPractica({ classId, attendanceId }: { classId: string; at
               setSesion(r.session.id);
             }, `¿Preparar la Práctica de Control de «${p.title}» (${duracion} min)? Se elegirá un problema para cada estudiante. NO empieza todavía: usted la inicia después.`)}>Preparar controles</button>
             <p className="tenue pequeno">Preparar no inicia nada: verá el problema de cada estudiante y podrá cambiarlo. La asistencia sigue igual.</p>
+            {!attendanceId && <p className="aviso pequeno">Sin asistencia abierta: al iniciar, el control se dará a TODOS los que entregaron la práctica (no se comprueba quién está presente).</p>}
           </>
         )}
         {error && <p className="error">{error}</p>}
@@ -317,6 +318,44 @@ function RevisarControl({ sesion, usuario, onCerrar }: { sesion: string; usuario
           <p className="tenue pequeno">Queda registrada con su nombre y hora. Una nota baja en el control no es prueba de uso indebido de IA.</p>
         </>}
       </section>
+    </div>
+  );
+}
+
+interface AsistenciaAbierta { id: string; class_id: string; clase: string; presentes: number }
+
+/**
+ * Pestaña «Control»: punto de entrada visible. Elige la sección; si tiene una asistencia abierta, el control se vincula a
+ * ella (solo los presentes lo reciben). Si no, avisa y permite seguir sin asistencia.
+ */
+export function ControlTab({ secciones }: { secciones: [string, string][] }) {
+  const [clase, setClase] = useState('');
+  const [abiertas, setAbiertas] = useState<AsistenciaAbierta[]>([]);
+  const [sinAsistencia, setSinAsistencia] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    void rpc<AsistenciaAbierta[]>('attendance_open_sessions').then(setAbiertas).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  }, [clase]);
+  const asistencia = abiertas.find((a) => a.class_id === clase) ?? null;
+  return (
+    <div className="asistencia">
+      <section className="tarjeta modal-plano">
+        <h2>🎯 PRÁCTICA DE CONTROL</h2>
+        <p className="tenue pequeno">Prueba corta, individual y presencial sobre una práctica ya hecha. Elija la sección: si tiene la asistencia abierta,
+          el control se da solo a los presentes. La política de nota de cada práctica se anuncia en el aula (Actividad → Configuración).</p>
+        <label>Sección
+          <select value={clase} onChange={(e) => { setClase(e.target.value); setSinAsistencia(false); }}>
+            <option value="">Elija una sección…</option>
+            {secciones.map(([id, t]) => <option key={id} value={id}>{t}</option>)}
+          </select>
+        </label>
+        {clase && (asistencia
+          ? <p className="verde pequeno">Asistencia abierta en esta sección · {asistencia.presentes} presente(s). El control se vinculará a ella.</p>
+          : <p className="aviso pequeno">Esta sección no tiene la asistencia abierta. Lo recomendable es abrirla primero (pestaña 📋 Asistencia) para dar el control solo a los presentes.
+              {!sinAsistencia && <button className="boton secundario pequeno" onClick={() => setSinAsistencia(true)}>Continuar sin asistencia</button>}</p>)}
+        {error && <p className="error">{error}</p>}
+      </section>
+      {clase && (asistencia || sinAsistencia) && <ControlPractica key={clase + (asistencia?.id ?? '')} classId={clase} attendanceId={asistencia?.id ?? null} />}
     </div>
   );
 }

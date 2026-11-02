@@ -246,6 +246,7 @@ export function Asistencia() {
           });
           setActiva(r.id);
         })}>{paso ?? 'Abrir asistencia y mostrar el código'}</button>
+        <p className="tenue pequeno">🎯 Después de abrirla verá, debajo del código, la sección «Práctica de Control» (también en la pestaña 🎯 Control).</p>
         <p className="tenue pequeno">Muestre esta pantalla en el proyector o léala en voz alta. Con el código que cambia, quien lo reciba por mensaje fuera del aula probablemente llegue tarde. Con la ubicación, el servidor rechaza a quien esté fuera del radio. Un mismo dispositivo no puede marcar a dos estudiantes. Verá cada rechazo aquí. Si abre otra asistencia en la misma sección, la anterior se cierra (también una activada por quórum).</p>
       </section>
       {clase ? <QuorumConfig classId={clase} /> : <p className="tenue pequeno">Elija una sección para configurar también la asistencia autónoma por quórum (activación por los estudiantes a la hora de clase).</p>}

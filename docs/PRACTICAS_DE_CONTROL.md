@@ -141,7 +141,8 @@ procesos distintos.
    (posteriores, o también anteriores con antelación mínima), condiciones y política de ayudas → «Anunciar política».
    Los estudiantes ven el aviso en la práctica y, si lo deja marcado, un aviso fijado en la sección.
 2. (Recomendado) En «Problemas de transferencia», cree y apruebe fichas a partir de las sugerencias del banco.
-3. **En clase**: Orbe Control → Asistencia → abra la asistencia como siempre. En «PRÁCTICA DE CONTROL» elija la
+3. **En clase**: Orbe Control → Asistencia → abra la asistencia como siempre (o use la pestaña **🎯 Control**, que
+   detecta la asistencia abierta de la sección o permite seguir sin ella). En «PRÁCTICA DE CONTROL» elija la
    práctica (o deje «Ninguna»), la duración → «Preparar controles». Revise la vista previa, cambie problemas, exente o
    dé tiempo adicional si hace falta.
 4. Cuando la presencia esté comprobada → «Iniciar control». A los estudiantes presentes les aparece «Comenzar ahora».
