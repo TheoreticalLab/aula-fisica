@@ -18,6 +18,9 @@ interface Vinculo { activity_id: string; title: string; mode: string; closes_at:
 interface Origen { user_id: string; category: Categoria; score: number | null; source: 'manual' | 'actividades' | null; pendientes: number }
 /** Parte manual dentro de un apartado (migración 69). */
 interface Partes { partes: { category: Categoria; label: string; max: number }[]; notas: { user_id: string; category: Categoria; score: number | null }[] }
+/** Puntos perdidos y alerta (migración 70). */
+interface Perdido { user_id: string; perdidos: number; detalle: Record<string, number>; avisos: number; ultimo_aviso: string | null; ultimo_leido: string | null }
+interface ConfigAlerta { activo: boolean; umbral: number; repeticiones: number; intervalo_horas: number; espera_segundos: number; firma: string; publicado: boolean }
 interface Hist { cuando: string; tipo: string; categoria: string | null; antes: number | null; despues: number | null; puntos: number | null; motivo: string | null; estado: string | null; autor: string }
 
 const n = (v: unknown) => (v === null || v === undefined ? null : Number(v));
@@ -67,6 +70,17 @@ export default function RegistroCalificaciones() {
   }), [classId]);
   const partePor = new Map((partes.data?.partes ?? []).map((p) => [p.category, { ...p, max: Number(p.max) }]));
   const notaParte = new Map((partes.data?.notas ?? []).map((x) => [`${x.user_id}:${x.category}`, x.score === null ? null : Number(x.score)]));
+  const sinFuncion = (e: unknown) => /Could not find the function|PGRST202|schema cache/i.test(String(e));
+  const perdidos = useAsync(() => rpc<Perdido[]>('gradebook_lost', { p_class: classId }).catch((e) => { if (sinFuncion(e)) return null; throw e; }), [classId, filas.data]);
+  const perdidoDe = new Map((perdidos.data ?? []).map((p) => [p.user_id, { ...p, perdidos: Number(p.perdidos) }]));
+  const alerta = useAsync(() => rpc<ConfigAlerta>('lost_alert_config', { p_class: classId }).catch((e) => { if (sinFuncion(e)) return null; throw e; }), [classId]);
+  const [formAlerta, setFormAlerta] = useState<ConfigAlerta | null>(null);
+  const cfg = formAlerta ?? alerta.data;
+  async function guardarAlerta(c: ConfigAlerta) {
+    const r = await accion.run(() => rpc<ConfigAlerta>('set_lost_alert_config', { p_class: classId, p_activo: c.activo, p_umbral: Number(c.umbral),
+      p_repeticiones: Number(c.repeticiones), p_intervalo_horas: Number(c.intervalo_horas), p_espera_segundos: Number(c.espera_segundos), p_firma: c.firma }));
+    if (r) { setFormAlerta(null); alerta.reload(); }
+  }
   const [formParte, setFormParte] = useState<{ category: Categoria; label: string; max: string }>({ category: 'practica', label: 'Prácticas anteriores', max: '15' });
   const origenes = useAsync(async () => {
     const m = new Map<string, Origen>();
@@ -174,7 +188,9 @@ export default function RegistroCalificaciones() {
                   <th key={c.id} className="px-1 py-1 text-right">{c.label}<br /><span className="text-gray-500">/{c.max}{p ? ` (${c.max - p.max} act. + ${p.max})` : ''}</span></th>,
                 ];
               })}
-              <th className="px-1 py-1 text-right">Extras</th><th className="px-1 py-1 text-right">Bruto</th><th className="px-1 py-1 text-right">Final</th><th className="px-1 py-1" />
+              <th className="px-1 py-1 text-right">Extras</th><th className="px-1 py-1 text-right">Bruto</th><th className="px-1 py-1 text-right">Final</th>
+              {perdidos.data && <th className="px-1 py-1 text-right" title="Puntos que ya no se pueden recuperar: notas puestas y actividades cerradas">Perdidos<br /><span className="text-gray-500">/100</span></th>}
+              <th className="px-1 py-1" />
             </tr></thead>
             <tbody>
               {(filas.data ?? []).map((f) => (
@@ -200,6 +216,17 @@ export default function RegistroCalificaciones() {
                   <td className="px-1 py-1 text-right tabular-nums">{f.extras}{f.extras_pendientes > 0 && <span className="block text-xs text-amber-700">+{f.extras_pendientes} pend.</span>}</td>
                   <td className="px-1 py-1 text-right tabular-nums">{f.bruto}</td>
                   <td className="px-1 py-1 text-right font-semibold tabular-nums">{f.nota_final}{f.pendientes > 0 && <span className="block text-xs font-normal text-gray-500">{f.pendientes} pend.</span>}</td>
+                  {perdidos.data && (() => {
+                    const p = perdidoDe.get(f.user_id);
+                    const alto = !!p && !!cfg && p.perdidos > Number(cfg.umbral);
+                    return (
+                      <td className={`px-1 py-1 text-right tabular-nums ${alto ? 'font-semibold text-red-700 dark:text-red-300' : ''}`}
+                        title={p ? Object.entries(p.detalle).filter(([, v]) => Number(v) > 0).map(([k, v]) => `${ETIQUETA[k] ?? k}: ${Number(v)}`).join(' · ') || 'Nada perdido' : ''}>
+                        {p ? p.perdidos : '—'}
+                        {p && p.avisos > 0 && <span className="block text-[10px] font-normal text-gray-500" title={p.ultimo_leido ? `Último leído: ${fecha(p.ultimo_leido)}` : 'El último aviso aún no se ha leído'}>{p.avisos}{cfg ? `/${cfg.repeticiones}` : ''} aviso(s)</span>}
+                      </td>
+                    );
+                  })()}
                   <td className="whitespace-nowrap px-1 py-1 text-right text-xs">
                     <button className="enlace mr-2" onClick={() => setExtraPara(f)}>+ extra</button>
                     <button className="enlace mr-2" onClick={() => void verHistorial(f)}>historial</button>
@@ -211,6 +238,27 @@ export default function RegistroCalificaciones() {
           </table>
         </div>
       </Card>
+
+      {cfg && (
+        <Card title="Alerta de puntos perdidos">
+          <p className="mb-2 text-xs text-gray-500">
+            Si un estudiante pierde más de {Number(cfg.umbral)} puntos (de 100; solo lo que ya no puede recuperar), recibe un aviso urgente con la cantidad
+            perdida y una invitación a dar su mayor esfuerzo, hasta {cfg.repeticiones} veces, cada uno {cfg.intervalo_horas} h después de que confirmó haber
+            leído el anterior. El aviso ocupa la pantalla, no se puede cerrar y solo se confirma tras {cfg.espera_segundos} s, marcando una casilla y pulsando
+            «Entendido». Se genera cuando el estudiante entra en el aula. Solo con el registro publicado.
+          </p>
+          {!cfg.publicado && <Notice tone="warn">El registro de esta sección no está publicado: no se enviará ningún aviso hasta publicarlo.</Notice>}
+          <div className="mt-2 flex flex-wrap items-end gap-3 text-sm">
+            <label className="flex items-center gap-2"><input type="checkbox" checked={cfg.activo} onChange={(e) => setFormAlerta({ ...cfg, activo: e.target.checked })} /> Activada</label>
+            <label><span className="etiqueta">Más de (puntos)</span><input className="campo !w-20 !py-1 text-right" inputMode="decimal" value={cfg.umbral} onChange={(e) => setFormAlerta({ ...cfg, umbral: e.target.value as unknown as number })} /></label>
+            <label><span className="etiqueta">Avisos</span><input className="campo !w-20 !py-1 text-right" inputMode="numeric" value={cfg.repeticiones} onChange={(e) => setFormAlerta({ ...cfg, repeticiones: e.target.value as unknown as number })} /></label>
+            <label><span className="etiqueta">Horas entre avisos</span><input className="campo !w-20 !py-1 text-right" inputMode="numeric" value={cfg.intervalo_horas} onChange={(e) => setFormAlerta({ ...cfg, intervalo_horas: e.target.value as unknown as number })} /></label>
+            <label><span className="etiqueta">Espera (s)</span><input className="campo !w-20 !py-1 text-right" inputMode="numeric" value={cfg.espera_segundos} onChange={(e) => setFormAlerta({ ...cfg, espera_segundos: e.target.value as unknown as number })} /></label>
+            <label><span className="etiqueta">Firma</span><input className="campo !py-1" maxLength={120} placeholder="Prof. …" value={cfg.firma ?? ''} onChange={(e) => setFormAlerta({ ...cfg, firma: e.target.value })} /></label>
+            <button className="btn-secundario !py-1" disabled={accion.busy || !formAlerta} onClick={() => void guardarAlerta(cfg)}>Guardar</button>
+          </div>
+        </Card>
+      )}
 
       <Card title="Actividades del aula en el registro">
         <p className="mb-2 text-xs text-gray-500">

@@ -69,6 +69,9 @@ function Apartado({ c, publicado }: { c: CategoriaV; publicado: boolean }) {
 
 export function MisNotasOficiales() {
   const { data } = useAsync(() => rpc<Seccion[]>('my_grade_breakdown'), []);
+  // puntos perdidos (migración 70): sin la función en el servidor, no se muestra
+  const perdidos = useAsync(() => rpc<{ class_id: string; perdidos: number }[]>('mis_puntos_perdidos').catch(() => []), []);
+  const perdidosDe = new Map((perdidos.data ?? []).map((p) => [p.class_id, Number(p.perdidos)]));
   if (!data?.length) return null;
   return (
     <>
@@ -95,6 +98,12 @@ export function MisNotasOficiales() {
                 <span className="text-lg font-semibold tabular-nums">{t.final} / 100</span>
               </div>
             ) : <p className="mt-2 text-sm text-gray-500">El profesor todavía no ha publicado las notas de esta sección.</p>}
+            {s.published && perdidosDe.has(s.class_id) && (
+              <p className={`mt-1 text-sm ${(perdidosDe.get(s.class_id) ?? 0) > 21 ? 'font-semibold text-red-700 dark:text-red-300' : 'text-gray-600 dark:text-gray-300'}`}>
+                Puntos perdidos hasta ahora: {perdidosDe.get(s.class_id)} de 100 · nota máxima posible: {Math.round((100 - (perdidosDe.get(s.class_id) ?? 0)) * 100) / 100}
+                <span className="block text-xs font-normal text-gray-500">Cuenta solo lo que ya no se puede recuperar (notas puestas y actividades cerradas); lo pendiente aún puede ganarlo.</span>
+              </p>
+            )}
             {s.published && t.bruto > 100 && <p className="text-xs text-gray-500">Total bruto: {t.bruto} (la nota oficial tiene un máximo de 100).</p>}
             {s.published && t.pendientes.length > 0 && <p className="text-xs text-gray-500">«Pendiente» = todavía sin calificar (no es un cero).</p>}
           </section>

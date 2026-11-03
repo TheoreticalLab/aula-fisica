@@ -16,9 +16,17 @@ export interface MensajeVivo {
   created_at: string;
   expires_at: string | null;
   delivered_at: string | null;
+  /** Lectura obligatoria (migración 70): espera en segundos y texto de la casilla. Sin «cerrar». */
+  confirmacion?: { tipo: 'caja'; espera: number; caja?: string } | null;
 }
 
 const PRIORIDAD: Record<TipoMensaje, number> = { urgente: 0, importante: 1, informativo: 2 };
+
+/** Aviso con lectura obligatoria: primero la espera, después la casilla y por último «Entendido». */
+export function estadoConfirmacion(restante: number, marcada: boolean) {
+  const esperando = restante > 0;
+  return { esperando, cajaHabilitada: !esperando, botonHabilitado: !esperando && marcada };
+}
 
 /** Une la cola actual con lo que devuelve el servidor, sin duplicar y sin lo ya respondido localmente. */
 export function fusionarCola(cola: MensajeVivo[], servidor: MensajeVivo[], respondidos: Set<string>, ahora = Date.now()): MensajeVivo[] {

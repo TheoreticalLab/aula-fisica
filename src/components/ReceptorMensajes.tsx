@@ -14,6 +14,7 @@ import { rpc, supabase, supabaseConfigured } from '@/lib/supabase';
 import { ETIQUETA_TIPO, fusionarCola, porMarcarRecibidos, type MensajeVivo } from '@/lib/mensajes';
 import { useEmergente } from '@/lib/emergentes';
 import { TarjetaEmergente } from './Emergente';
+import { AvisoConfirmado } from './AvisoConfirmado';
 
 const RESPONDIDOS = 'aula-mensajes-respondidos';
 const ACKS = 'aula-mensajes-acks';
@@ -33,6 +34,9 @@ function guardar(k: string, v: unknown) {
     /* sin almacenamiento */
   }
 }
+const FALTA_FUNCION = /Could not find the function|PGRST202|schema cache/i;
+/** Cada cuánto se pide al servidor que revise la alerta de puntos perdidos (migración 70). */
+const CADA_ALERTA_MS = 5 * 60_000;
 const hora = (iso: string) => new Date(iso).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' });
 
 export function ReceptorMensajes() {
@@ -42,6 +46,8 @@ export function ReceptorMensajes() {
   const [cola, setCola] = useState<MensajeVivo[]>([]);
   const marcados = useRef(new Set<string>());
   const respondidos = useRef(new Set<string>(leer<string[]>(RESPONDIDOS, [])));
+  const ultimaAlerta = useRef(0);
+  const sinAlertas = useRef(false);
 
   const reintentarAcks = useCallback(async () => {
     const pend = leer<{ id: string; accion: Accion }[]>(ACKS, []);
@@ -60,11 +66,20 @@ export function ReceptorMensajes() {
   const recuperar = useCallback(async () => {
     if (!activo) return;
     await reintentarAcks();
+    // alerta de puntos perdidos: el servidor decide si toca un aviso (umbral, número de avisos, 24 h desde el último leído)
+    if (!sinAlertas.current && Date.now() - ultimaAlerta.current >= CADA_ALERTA_MS) {
+      ultimaAlerta.current = Date.now();
+      await rpc('mi_alerta_puntos').catch((e) => { if (FALTA_FUNCION.test(String(e))) sinAlertas.current = true; });
+    }
     try {
-      // v2 trae el remitente (aviso del aula, migración 57); sin ella en el servidor, la consulta de siempre
-      const srv = await rpc<MensajeVivo[]>('my_pending_messages_v2').catch((e) => {
-        if (/Could not find the function|PGRST202|schema cache/i.test(e instanceof Error ? e.message : String(e))) return rpc<MensajeVivo[]>('my_pending_messages');
-        throw e;
+      // v3 trae la lectura obligatoria (migración 70); v2, el remitente (migración 57); si faltan, la consulta de siempre
+      const texto = (e: unknown) => (e instanceof Error ? e.message : String(e));
+      const srv = await rpc<MensajeVivo[]>('my_pending_messages_v3').catch((e) => {
+        if (!FALTA_FUNCION.test(texto(e))) throw e;
+        return rpc<MensajeVivo[]>('my_pending_messages_v2').catch((e2) => {
+          if (FALTA_FUNCION.test(texto(e2))) return rpc<MensajeVivo[]>('my_pending_messages');
+          throw e2;
+        });
       });
       setCola((c) => fusionarCola(c, srv, respondidos.current));
       const nuevos = porMarcarRecibidos(srv, marcados.current);
@@ -130,9 +145,9 @@ export function ReceptorMensajes() {
   const actual = cola[0];
   useEmergente('mensajes-profesor', activo && !!actual);
 
-  // los informativos se retiran solos a los 20 s (sin contar como leídos)
+  // los informativos se retiran solos a los 20 s (sin contar como leídos); nunca uno de lectura obligatoria
   useEffect(() => {
-    if (!actual || actual.kind !== 'informativo') return;
+    if (!actual || actual.kind !== 'informativo' || actual.confirmacion) return;
     const t = window.setTimeout(() => responder(actual, 'descartado'), 20_000);
     return () => window.clearTimeout(t);
   }, [actual, responder]);
@@ -151,6 +166,8 @@ export function ReceptorMensajes() {
       <p className="text-xs opacity-75">{hora(actual.created_at)}</p>
     </>
   );
+
+  if (actual.confirmacion) return <AvisoConfirmado m={actual} cabecera={cabecera} quedan={quedan} onEntendido={() => responder(actual, 'leido')} />;
 
   if (actual.kind === 'informativo') {
     return (
