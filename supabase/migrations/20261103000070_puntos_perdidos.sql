@@ -6,6 +6,9 @@
 --       perdido = lo que vale − lo que sacó (la nota oficial del registro: a mano, o calculada con las actividades y la
 --       parte a mano). Un apartado todavía sin nota no cuenta. Total = suma de los apartados − puntos extras aprobados
 --       (nunca menos de 0).
+--     Hasta la fecha «parte_hasta» de la sección (exclusive, hora de Santo Domingo), un apartado con parte escrita a mano
+--     (migración 69) se mide SOLO por esa parte: valor de la parte − nota de la parte (p. ej. Práctica: 15 − «Prácticas
+--     anteriores»). Desde esa fecha, por el apartado completo (30 − nota de Práctica).
 --  2) Alerta por sección (desactivada por defecto; solo con el registro PUBLICADO): si los puntos perdidos pasan del
 --     umbral (21), el estudiante recibe un aviso URGENTE del profesor, hasta N veces (10), cada uno cuando han pasado
 --     H horas (24) desde que CONFIRMÓ haber leído el anterior. Se genera al entrar o seguir en el aula (no hace falta
@@ -17,13 +20,38 @@
 -- -----------------------------------------------------------------------------
 -- 1) Puntos perdidos
 -- -----------------------------------------------------------------------------
+create table if not exists public.lost_alert_settings (
+  class_id uuid primary key references public.classes (id) on delete cascade,
+  activo boolean not null default false,
+  umbral numeric(5, 2) not null default 21 check (umbral between 0 and 100),
+  repeticiones integer not null default 10 check (repeticiones between 1 and 30),
+  intervalo_horas integer not null default 24 check (intervalo_horas between 1 and 168),
+  espera_segundos integer not null default 20 check (espera_segundos between 5 and 120),
+  firma text check (firma is null or char_length(firma) <= 120),
+  parte_hasta date,                                                  -- antes de esta fecha, los apartados con parte a mano se miden solo por la parte     -- p. ej. «Prof. Francisco Orbe»; si no, el nombre del perfil
+  updated_by uuid references public.profiles (id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
 create or replace function public.official_lost(p_class uuid)
-returns table (user_id uuid, category text, perdidos numeric)
+returns table (user_id uuid, category text, perdidos numeric, etiqueta text)
 language sql stable security definer set search_path = ''
 as $$
+  with solo_parte as (
+    select gp.category, gp.max, gp.label from public.grade_parts gp
+    join public.lost_alert_settings s on s.class_id = gp.class_id
+    where gp.class_id = p_class and s.parte_hasta is not null and (now() at time zone 'America/Santo_Domingo')::date < s.parte_hasta
+  )
   select o.user_id, o.category,
-    case when o.score is null then 0 else round(greatest(0, public.grade_category_max(o.category) - o.score), 2) end
+    case when sp.category is not null then
+           case when ps.score is null then 0 else round(greatest(0, sp.max - least(ps.score, sp.max)), 2) end
+         when o.score is null then 0
+         else round(greatest(0, public.grade_category_max(o.category) - o.score), 2) end,
+    coalesce(sp.label, case o.category when 'parcial1' then 'Primer parcial' when 'parcial2' then 'Segundo parcial' when 'parcial3' then 'Tercer parcial'
+                                       when 'practica' then 'Práctica' else 'Examen final' end)
   from public.official_scores(p_class) o
+  left join solo_parte sp on sp.category = o.category
+  left join public.grade_part_scores ps on ps.class_id = p_class and ps.user_id = o.user_id and ps.category = o.category
 $$;
 
 -- Total por estudiante: suma de los apartados − puntos extras aprobados (mínimo 0), con el detalle
@@ -40,17 +68,7 @@ $$;
 -- -----------------------------------------------------------------------------
 -- 2) Configuración de la alerta, registro de avisos y confirmación obligatoria
 -- -----------------------------------------------------------------------------
-create table if not exists public.lost_alert_settings (
-  class_id uuid primary key references public.classes (id) on delete cascade,
-  activo boolean not null default false,
-  umbral numeric(5, 2) not null default 21 check (umbral between 0 and 100),
-  repeticiones integer not null default 10 check (repeticiones between 1 and 30),
-  intervalo_horas integer not null default 24 check (intervalo_horas between 1 and 168),
-  espera_segundos integer not null default 20 check (espera_segundos between 5 and 120),
-  firma text check (firma is null or char_length(firma) <= 120),     -- p. ej. «Prof. Francisco Orbe»; si no, el nombre del perfil
-  updated_by uuid references public.profiles (id) on delete set null,
-  updated_at timestamptz not null default now()
-);
+
 create table if not exists public.lost_alerts (
   id uuid primary key default gen_random_uuid(),
   class_id uuid not null references public.classes (id) on delete cascade,
@@ -179,10 +197,9 @@ begin
     end if;
     select t.perdidos, t.extras into v_perdidos, v_extras from public.official_lost_total(c.class_id) t where t.user_id = v_uid;
     v_perdidos := coalesce(v_perdidos, 0);
-    select string_agg(case o.category when 'parcial1' then 'Primer parcial' when 'parcial2' then 'Segundo parcial' when 'parcial3' then 'Tercer parcial'
-                        when 'practica' then 'Práctica' else 'Examen final' end || ' ' || public.puntos_texto(o.perdidos), ' · '
+    select string_agg(o.etiqueta || ' ' || public.puntos_texto(o.perdidos), ' · '
                       order by array_position(array['parcial1', 'parcial2', 'parcial3', 'practica', 'final'], o.category)) filter (where o.perdidos > 0)
-             || case when coalesce(v_extras, 0) > 0 then ' (ya descontados ' || public.puntos_texto(v_extras) || ' puntos extras)' else '' end
+             || case when coalesce(v_extras, 0) > 0 then case when v_extras = 1 then ' (ya descontado 1 punto extra)' else ' (ya descontados ' || public.puntos_texto(v_extras) || ' puntos extras)' end else '' end
       into v_detalle
       from public.official_lost(c.class_id) o where o.user_id = v_uid;
     continue when v_perdidos <= c.umbral;
@@ -216,12 +233,12 @@ begin
   perform public.grades_assert_teacher(p_class);
   select * into s from public.lost_alert_settings where class_id = p_class;
   return jsonb_build_object('activo', coalesce(s.activo, false), 'umbral', coalesce(s.umbral, 21), 'repeticiones', coalesce(s.repeticiones, 10),
-    'intervalo_horas', coalesce(s.intervalo_horas, 24), 'espera_segundos', coalesce(s.espera_segundos, 20), 'firma', coalesce(s.firma, ''),
+    'intervalo_horas', coalesce(s.intervalo_horas, 24), 'espera_segundos', coalesce(s.espera_segundos, 20), 'firma', coalesce(s.firma, ''), 'parte_hasta', s.parte_hasta,
     'publicado', coalesce((select published from public.grade_settings where class_id = p_class), false));
 end;
 $$;
 
-create or replace function public.set_lost_alert_config(p_class uuid, p_activo boolean, p_umbral numeric, p_repeticiones integer, p_intervalo_horas integer, p_espera_segundos integer, p_firma text default null)
+create or replace function public.set_lost_alert_config(p_class uuid, p_activo boolean, p_umbral numeric, p_repeticiones integer, p_intervalo_horas integer, p_espera_segundos integer, p_firma text default null, p_parte_hasta date default null)
 returns jsonb language plpgsql security definer set search_path = ''
 as $$
 begin
@@ -230,10 +247,10 @@ begin
      or p_intervalo_horas is null or p_intervalo_horas not between 1 and 168 or p_espera_segundos is null or p_espera_segundos not between 5 and 120 then
     raise exception 'Valores fuera de rango (umbral 0–100, avisos 1–30, horas 1–168, espera 5–120 s)' using errcode = '22023';
   end if;
-  insert into public.lost_alert_settings (class_id, activo, umbral, repeticiones, intervalo_horas, espera_segundos, firma, updated_by)
-    values (p_class, coalesce(p_activo, false), p_umbral, p_repeticiones, p_intervalo_horas, p_espera_segundos, left(nullif(btrim(p_firma), ''), 120), auth.uid())
+  insert into public.lost_alert_settings (class_id, activo, umbral, repeticiones, intervalo_horas, espera_segundos, firma, parte_hasta, updated_by)
+    values (p_class, coalesce(p_activo, false), p_umbral, p_repeticiones, p_intervalo_horas, p_espera_segundos, left(nullif(btrim(p_firma), ''), 120), p_parte_hasta, auth.uid())
     on conflict (class_id) do update set activo = excluded.activo, umbral = excluded.umbral, repeticiones = excluded.repeticiones,
-      intervalo_horas = excluded.intervalo_horas, espera_segundos = excluded.espera_segundos, firma = excluded.firma, updated_by = excluded.updated_by, updated_at = now();
+      intervalo_horas = excluded.intervalo_horas, espera_segundos = excluded.espera_segundos, firma = excluded.firma, parte_hasta = excluded.parte_hasta, updated_by = excluded.updated_by, updated_at = now();
   return public.lost_alert_config(p_class);
 end;
 $$;
@@ -274,7 +291,7 @@ revoke all on function public.lost_alert_texto(text, text, text, numeric, text, 
 revoke all on function public.puntos_texto(numeric) from public, anon, authenticated;
 do $$ declare f text; begin
   foreach f in array array['my_pending_messages_v3()', 'ack_live_message(uuid, text)', 'mi_alerta_puntos()', 'lost_alert_config(uuid)',
-                           'set_lost_alert_config(uuid, boolean, numeric, integer, integer, integer, text)', 'gradebook_lost(uuid)', 'mis_puntos_perdidos()'] loop
+                           'set_lost_alert_config(uuid, boolean, numeric, integer, integer, integer, text, date)', 'gradebook_lost(uuid)', 'mis_puntos_perdidos()'] loop
     execute format('revoke all on function public.%s from public, anon', f);
     execute format('grant execute on function public.%s to authenticated', f);
   end loop;

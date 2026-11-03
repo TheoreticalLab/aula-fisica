@@ -20,7 +20,7 @@ interface Origen { user_id: string; category: Categoria; score: number | null; s
 interface Partes { partes: { category: Categoria; label: string; max: number }[]; notas: { user_id: string; category: Categoria; score: number | null }[] }
 /** Puntos perdidos y alerta (migración 70). */
 interface Perdido { user_id: string; perdidos: number; detalle: Record<string, number>; extras: number; avisos: number; ultimo_aviso: string | null; ultimo_leido: string | null }
-interface ConfigAlerta { activo: boolean; umbral: number; repeticiones: number; intervalo_horas: number; espera_segundos: number; firma: string; publicado: boolean }
+interface ConfigAlerta { activo: boolean; umbral: number; repeticiones: number; intervalo_horas: number; espera_segundos: number; firma: string; parte_hasta: string | null; publicado: boolean }
 interface Hist { cuando: string; tipo: string; categoria: string | null; antes: number | null; despues: number | null; puntos: number | null; motivo: string | null; estado: string | null; autor: string }
 
 const n = (v: unknown) => (v === null || v === undefined ? null : Number(v));
@@ -78,7 +78,7 @@ export default function RegistroCalificaciones() {
   const cfg = formAlerta ?? alerta.data;
   async function guardarAlerta(c: ConfigAlerta) {
     const r = await accion.run(() => rpc<ConfigAlerta>('set_lost_alert_config', { p_class: classId, p_activo: c.activo, p_umbral: Number(c.umbral),
-      p_repeticiones: Number(c.repeticiones), p_intervalo_horas: Number(c.intervalo_horas), p_espera_segundos: Number(c.espera_segundos), p_firma: c.firma }));
+      p_repeticiones: Number(c.repeticiones), p_intervalo_horas: Number(c.intervalo_horas), p_espera_segundos: Number(c.espera_segundos), p_firma: c.firma, p_parte_hasta: c.parte_hasta || null }));
     if (r) { setFormAlerta(null); alerta.reload(); }
   }
   const [formParte, setFormParte] = useState<{ category: Categoria; label: string; max: string }>({ category: 'practica', label: 'Prácticas anteriores', max: '15' });
@@ -243,6 +243,7 @@ export default function RegistroCalificaciones() {
         <Card title="Alerta de puntos perdidos">
           <p className="mb-2 text-xs text-gray-500">
             Puntos perdidos: en cada apartado con nota, lo que vale menos lo que sacó (un apartado sin nota no cuenta), menos los puntos extras aprobados.
+            {cfg.parte_hasta && partePor.size > 0 && ` Hasta el ${new Date(cfg.parte_hasta + 'T12:00:00').toLocaleDateString('es-DO', { dateStyle: 'long' })} (sin incluir), en ${[...partePor.values()].map((p) => `${ETIQUETA[p.category]} solo cuenta «${p.label}» (${p.max} − su nota)`).join('; ')}.`}
             Si un estudiante pierde más de {Number(cfg.umbral)} de 100, recibe un aviso urgente con la cantidad
             perdida y una invitación a dar su mayor esfuerzo, hasta {cfg.repeticiones} veces, cada uno {cfg.intervalo_horas} h después de que confirmó haber
             leído el anterior. El aviso ocupa la pantalla, no se puede cerrar y solo se confirma tras {cfg.espera_segundos} s, marcando una casilla y pulsando
@@ -255,6 +256,7 @@ export default function RegistroCalificaciones() {
             <label><span className="etiqueta">Avisos</span><input className="campo !w-20 !py-1 text-right" inputMode="numeric" value={cfg.repeticiones} onChange={(e) => setFormAlerta({ ...cfg, repeticiones: e.target.value as unknown as number })} /></label>
             <label><span className="etiqueta">Horas entre avisos</span><input className="campo !w-20 !py-1 text-right" inputMode="numeric" value={cfg.intervalo_horas} onChange={(e) => setFormAlerta({ ...cfg, intervalo_horas: e.target.value as unknown as number })} /></label>
             <label><span className="etiqueta">Espera (s)</span><input className="campo !w-20 !py-1 text-right" inputMode="numeric" value={cfg.espera_segundos} onChange={(e) => setFormAlerta({ ...cfg, espera_segundos: e.target.value as unknown as number })} /></label>
+            {partePor.size > 0 && <label title="Antes de esta fecha, en un apartado con parte escrita a mano solo cuenta lo perdido en esa parte (p. ej. 15 − «Prácticas anteriores»); desde esa fecha, el apartado completo"><span className="etiqueta">Solo la parte a mano hasta</span><input type="date" className="campo !py-1" value={cfg.parte_hasta ?? ''} onChange={(e) => setFormAlerta({ ...cfg, parte_hasta: e.target.value || null })} /></label>}
             <label><span className="etiqueta">Firma</span><input className="campo !py-1" maxLength={120} placeholder="Prof. …" value={cfg.firma ?? ''} onChange={(e) => setFormAlerta({ ...cfg, firma: e.target.value })} /></label>
             <button className="btn-secundario !py-1" disabled={accion.busy || !formAlerta} onClick={() => void guardarAlerta(cfg)}>Guardar</button>
           </div>

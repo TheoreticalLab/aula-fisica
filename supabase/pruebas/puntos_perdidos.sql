@@ -162,6 +162,26 @@ do $$ declare v uuid; begin
   if not public.ack_live_message(v, 'descartado') then raise exception 'FALLO: descartar un mensaje normal'; end if;
 end $$;
 
+-- hasta «parte_hasta», un apartado con parte a mano se mide solo por la parte (15 − su nota); desde esa fecha, completo
+insert into public.grade_parts (class_id, category, label, max) values ('de700000-0000-4000-8000-000000000031', 'practica', 'Prácticas anteriores', 15);
+insert into public.grade_part_scores (class_id, user_id, category, score) values ('de700000-0000-4000-8000-000000000031', 'de700000-0000-4000-8000-000000000011', 'practica', 5);
+update public.lost_alert_settings set parte_hasta = (now() at time zone 'America/Santo_Domingo')::date + 30 where class_id = 'de700000-0000-4000-8000-000000000031';
+do $$ declare r record; begin
+  select * into r from public.official_lost('de700000-0000-4000-8000-000000000031') where user_id = 'de700000-0000-4000-8000-000000000011' and category = 'practica';
+  if r.perdidos <> 10 or r.etiqueta <> 'Prácticas anteriores' then raise exception 'FALLO: solo la parte %', r; end if;
+  -- B no tiene nota de la parte: nada perdido todavía en Práctica
+  if (select perdidos from public.official_lost('de700000-0000-4000-8000-000000000031') where user_id = 'de700000-0000-4000-8000-000000000012' and category = 'practica') <> 0 then
+    raise exception 'FALLO: parte sin nota'; end if;
+  if (select perdidos from public.official_lost_total('de700000-0000-4000-8000-000000000031') where user_id = 'de700000-0000-4000-8000-000000000011') <> 21 then
+    raise exception 'FALLO: total con solo la parte (15 + 10 − 4)'; end if;
+end $$;
+update public.lost_alert_settings set parte_hasta = (now() at time zone 'America/Santo_Domingo')::date where class_id = 'de700000-0000-4000-8000-000000000031';
+do $$ declare r record; begin
+  -- desde la fecha: Práctica completa = 30 − nota de Práctica (actividad de valor fijo 30 × 20 % = 6, + parte 5 = 11) = 19
+  select * into r from public.official_lost('de700000-0000-4000-8000-000000000031') where user_id = 'de700000-0000-4000-8000-000000000011' and category = 'practica';
+  if r.perdidos <> 19 or r.etiqueta <> 'Práctica' then raise exception 'FALLO: práctica completa desde la fecha %', r; end if;
+end $$;
+
 do $$ begin
   if has_function_privilege('authenticated', 'public.official_lost(uuid)', 'execute') or has_function_privilege('authenticated', 'public.official_lost_total(uuid)', 'execute') or has_function_privilege('anon', 'public.mi_alerta_puntos()', 'execute') then
     raise exception 'FALLO: permisos'; end if;
