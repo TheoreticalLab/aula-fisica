@@ -16,6 +16,8 @@ interface Ajustes { published: boolean; extra_max_per_student: number; extra_max
 interface Extra { id: string; user_id: string; alumno: string; asignado_por: string; assigner_role: string; points: number; reason: string; status: string; created_at: string; review_note: string | null }
 interface Vinculo { activity_id: string; title: string; mode: string; closes_at: string | null; category: Categoria | null; points: number | null; peso_efectivo: number | null }
 interface Origen { user_id: string; category: Categoria; score: number | null; source: 'manual' | 'actividades' | null; pendientes: number }
+/** Parte manual dentro de un apartado (migración 69). */
+interface Partes { partes: { category: Categoria; label: string; max: number }[]; notas: { user_id: string; category: Categoria; score: number | null }[] }
 interface Hist { cuando: string; tipo: string; categoria: string | null; antes: number | null; despues: number | null; puntos: number | null; motivo: string | null; estado: string | null; autor: string }
 
 const n = (v: unknown) => (v === null || v === undefined ? null : Number(v));
@@ -58,6 +60,14 @@ export default function RegistroCalificaciones() {
   const ajustes = useAsync(() => rpc<Ajustes>('official_grade_settings', { p_class: classId }), [classId]);
   const extras = useAsync(() => rpc<Extra[]>('class_extra_points', { p_class: classId }), [classId]);
   const vinculos = useAsync(() => rpc<Vinculo[]>('class_activity_links', { p_class: classId }), [classId]);
+  // sin la migración 69, sin partes
+  const partes = useAsync(() => rpc<Partes>('class_grade_parts', { p_class: classId }).catch((e) => {
+    if (/Could not find the function|PGRST202|schema cache/i.test(String(e))) return { partes: [], notas: [] } as Partes;
+    throw e;
+  }), [classId]);
+  const partePor = new Map((partes.data?.partes ?? []).map((p) => [p.category, { ...p, max: Number(p.max) }]));
+  const notaParte = new Map((partes.data?.notas ?? []).map((x) => [`${x.user_id}:${x.category}`, x.score === null ? null : Number(x.score)]));
+  const [formParte, setFormParte] = useState<{ category: Categoria; label: string; max: string }>({ category: 'practica', label: 'Prácticas anteriores', max: '15' });
   const origenes = useAsync(async () => {
     const m = new Map<string, Origen>();
     for (const o of await rpc<Origen[]>('gradebook_sources', { p_class: classId })) m.set(`${o.user_id}:${o.category}`, o);
@@ -72,6 +82,17 @@ export default function RegistroCalificaciones() {
     const ok = await accion.run(() => rpc('set_official_grade', { p_class: classId, p_user: f.user_id, p_category: cat, p_score: v }));
     if (ok !== undefined) void filas.reload();
     return ok !== undefined;
+  }
+  async function guardarParte(f: Fila, cat: Categoria, v: number | null) {
+    const ok = await accion.run(() => rpc('set_grade_part_score', { p_class: classId, p_user: f.user_id, p_category: cat, p_score: v }));
+    if (ok !== undefined) { partes.reload(); filas.reload(); }
+    return ok !== undefined;
+  }
+  async function definirParte(quitar: boolean) {
+    const max = Number(formParte.max.replace(',', '.'));
+    if (quitar && !window.confirm(`¿Quitar la parte manual de ${ETIQUETA[formParte.category]}? Sus notas se conservan, pero dejan de contar y las actividades vuelven a repartir el apartado completo.`)) return;
+    const r = await accion.run(() => rpc('set_grade_part', { p_class: classId, p_category: formParte.category, p_label: quitar ? null : formParte.label, p_max: quitar ? null : max }));
+    if (r !== undefined) { partes.reload(); vinculos.reload(); filas.reload(); }
   }
   async function guardarAjustes(patch: Partial<Ajustes>) {
     const a = { ...ajustes.data!, ...patch };
@@ -146,7 +167,13 @@ export default function RegistroCalificaciones() {
           <table className="w-full text-sm">
             <thead><tr className="border-b border-gray-200 text-left text-xs dark:border-white/10">
               <th className="px-1 py-1">Estudiante</th>
-              {CATEGORIAS.map((c) => <th key={c.id} className="px-1 py-1 text-right">{c.label}<br /><span className="text-gray-500">/{c.max}</span></th>)}
+              {CATEGORIAS.map((c) => {
+                const p = partePor.get(c.id);
+                return [
+                  p && <th key={`${c.id}-parte`} className="px-1 py-1 text-right" title={`Parte de ${c.label} escrita a mano`}>{p.label}<br /><span className="text-gray-500">/{p.max}</span></th>,
+                  <th key={c.id} className="px-1 py-1 text-right">{c.label}<br /><span className="text-gray-500">/{c.max}{p ? ` (${c.max - p.max} act. + ${p.max})` : ''}</span></th>,
+                ];
+              })}
               <th className="px-1 py-1 text-right">Extras</th><th className="px-1 py-1 text-right">Bruto</th><th className="px-1 py-1 text-right">Final</th><th className="px-1 py-1" />
             </tr></thead>
             <tbody>
@@ -156,12 +183,19 @@ export default function RegistroCalificaciones() {
                     <span className="block text-xs text-gray-500">{f.student_code}</span></td>
                   {CATEGORIAS.map((c) => {
                     const o = origenes.data?.get(`${f.user_id}:${c.id}`);
-                    return (
+                    const p = partePor.get(c.id);
+                    const vp = notaParte.get(`${f.user_id}:${c.id}`) ?? null;
+                    return [
+                      p && (
+                        <td key={`${c.id}-parte`} className="bg-gray-50 px-1 py-1 text-right dark:bg-white/5">
+                          <Celda key={`parte-${vp}`} valor={vp} max={p.max} onGuardar={(v) => guardarParte(f, c.id, v)} />
+                        </td>
+                      ),
                       <td key={c.id} className="px-1 py-1 text-right">
                         <Celda key={`${f[c.id]}`} valor={f[c.id]} max={c.max} onGuardar={(v) => guardarNota(f, c.id, v)} />
-                        {o?.source === 'actividades' && <span className="block text-[10px] text-primario-700 dark:text-primario-300" title="Calculada con las actividades vinculadas. Escriba un valor para fijarla a mano.">auto{o.pendientes ? ` · ${o.pendientes} pend.` : ''}</span>}
-                      </td>
-                    );
+                        {o?.source === 'actividades' && <span className="block text-[10px] text-primario-700 dark:text-primario-300" title={p ? `Actividades vinculadas + «${p.label}». Escriba un valor para fijar el apartado completo a mano.` : 'Calculada con las actividades vinculadas. Escriba un valor para fijarla a mano.'}>auto{o.pendientes ? ` · ${o.pendientes} pend.` : ''}</span>}
+                      </td>,
+                    ];
                   })}
                   <td className="px-1 py-1 text-right tabular-nums">{f.extras}{f.extras_pendientes > 0 && <span className="block text-xs text-amber-700">+{f.extras_pendientes} pend.</span>}</td>
                   <td className="px-1 py-1 text-right tabular-nums">{f.bruto}</td>
@@ -224,6 +258,29 @@ export default function RegistroCalificaciones() {
           </table>
           {!(vinculos.data ?? []).length && <p className="text-sm text-gray-500">Esta sección todavía no tiene actividades.</p>}
         </div>
+        <div className="mt-4 border-t border-gray-100 pt-3 dark:border-white/10">
+          <p className="text-sm font-medium">Parte escrita a mano dentro de un apartado</p>
+          <p className="mb-2 text-xs text-gray-500">
+            Divide un apartado en una parte que usted califica a mano (p. ej. «Prácticas anteriores», 15) y otra que calculan las actividades
+            vinculadas (el resto, p. ej. 15 de los 30 de Práctica). La parte aparece como columna propia en la tabla de estudiantes.
+          </p>
+          {[...partePor.values()].map((p) => <p key={p.category} className="text-sm">{ETIQUETA[p.category]}: «{p.label}» vale {p.max}; las actividades reparten {(CATEGORIAS.find((c) => c.id === p.category)?.max ?? 0) - p.max}.</p>)}
+          <div className="mt-2 flex flex-wrap items-end gap-2 text-sm">
+            <label><span className="etiqueta">Apartado</span>
+              <select className="campo !py-1" value={formParte.category} onChange={(e) => {
+                const cat = e.target.value as Categoria, p = partePor.get(cat);
+                setFormParte({ category: cat, label: p?.label ?? formParte.label, max: String(p?.max ?? formParte.max) });
+              }}>
+                {CATEGORIAS.map((c) => <option key={c.id} value={c.id}>{c.label} ({c.max})</option>)}
+              </select></label>
+            <label><span className="etiqueta">Nombre de la parte</span>
+              <input className="campo !py-1" maxLength={80} value={formParte.label} onChange={(e) => setFormParte({ ...formParte, label: e.target.value })} /></label>
+            <label><span className="etiqueta">Vale</span>
+              <input className="campo !w-20 !py-1 text-right" inputMode="decimal" value={formParte.max} onChange={(e) => setFormParte({ ...formParte, max: e.target.value })} /></label>
+            <button className="btn-secundario !py-1" disabled={accion.busy} onClick={() => void definirParte(false)}>{partePor.has(formParte.category) ? 'Cambiar parte' : 'Crear parte'}</button>
+            {partePor.has(formParte.category) && <button className="btn-texto !py-1" disabled={accion.busy} onClick={() => void definirParte(true)}>Quitar</button>}
+          </div>
+        </div>
       </Card>
 
       <Card title={`Puntos extras${pendientesExtra.length ? ` · ${pendientesExtra.length} por aprobar` : ''}`}>
@@ -259,7 +316,7 @@ export default function RegistroCalificaciones() {
               <li key={i} className="border-b border-gray-100 pb-1 dark:border-white/10">
                 <span className="text-xs text-gray-500">{fecha(h.cuando)} · {h.autor}</span><br />
                 {h.tipo === 'nota'
-                  ? <>{ETIQUETA[h.categoria ?? ''] ?? h.categoria}: {h.antes ?? 'pendiente'} → <strong>{h.despues ?? 'pendiente'}</strong></>
+                  ? <>{h.categoria?.endsWith(':parte') ? `${ETIQUETA[h.categoria.slice(0, -6)] ?? ''} · ${partePor.get(h.categoria.slice(0, -6) as Categoria)?.label ?? 'parte a mano'}` : ETIQUETA[h.categoria ?? ''] ?? h.categoria}: {h.antes ?? 'pendiente'} → <strong>{h.despues ?? 'pendiente'}</strong></>
                   : <>Extra +{h.puntos} ({h.tipo.replace('extra:', '')}) · {h.motivo} · <span className="capitalize">{h.estado}</span></>}
               </li>
             ))}

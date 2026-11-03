@@ -11,7 +11,9 @@ import { calcularNota, CATEGORIAS, type Categoria, type Notas } from '@/lib/nota
 interface ActividadV { activity_id: string; title: string; mode: string; closes_at: string | null; peso: number | null; por_definir: boolean; visible: boolean; mejor: number | null;
   /** migración 62: Práctica de Control confirmada que ajusta la nota */
   control?: { resultado: number; factor: number; ajustada: number } | null }
-interface CategoriaV { category: Categoria; max: number; score: number | null; source: 'manual' | 'actividades' | null; pendientes: number | null; actividades: ActividadV[] }
+interface CategoriaV { category: Categoria; max: number; score: number | null; source: 'manual' | 'actividades' | null; pendientes: number | null; actividades: ActividadV[];
+  /** Parte escrita a mano por el profesor dentro del apartado (migración 69), p. ej. «Prácticas anteriores» 15 de 30. */
+  parte?: { label: string; max: number; score: number | null } | null }
 interface Seccion { class_id: string; class_name: string; course_title: string; published: boolean; categorias: CategoriaV[]; extras: { points: number; reason: string; created_at: string }[] }
 
 const ETIQUETA = Object.fromEntries(CATEGORIAS.map((c) => [c.id, c.label])) as Record<Categoria, string>;
@@ -19,7 +21,7 @@ const ETIQUETA = Object.fromEntries(CATEGORIAS.map((c) => [c.id, c.label])) as R
 function Apartado({ c, publicado }: { c: CategoriaV; publicado: boolean }) {
   const [abierto, setAbierto] = useState(false);
   const calificado = publicado && c.score !== null;
-  const hayActs = c.actividades.length > 0;
+  const hayActs = c.actividades.length > 0 || !!c.parte;
   return (
     <li className="py-2">
       <div className="flex items-center justify-between gap-2">
@@ -28,7 +30,7 @@ function Apartado({ c, publicado }: { c: CategoriaV; publicado: boolean }) {
           <p className="text-xs text-gray-500">
             {!publicado ? 'Notas aún no publicadas'
               : c.source === 'manual' ? 'Calificado por el profesor'
-              : c.source === 'actividades' ? `Calculado con ${c.actividades.length} actividad(es)${c.pendientes ? ` · ${c.pendientes} pendiente(s)` : ''}`
+              : c.source === 'actividades' ? `Calculado con ${c.actividades.length} actividad(es)${c.parte ? ` y «${c.parte.label}»` : ''}${c.pendientes ? ` · ${c.pendientes} pendiente(s)` : ''}`
               : hayActs ? 'Se calculará con las actividades indicadas' : 'Pendiente de calificar'}
           </p>
         </div>
@@ -39,6 +41,12 @@ function Apartado({ c, publicado }: { c: CategoriaV; publicado: boolean }) {
       </div>
       {abierto && (
         <ul className="mt-2 space-y-1 rounded-lg bg-gray-50 p-2 text-sm dark:bg-white/5">
+          {c.parte && (
+            <li className="flex flex-wrap items-center justify-between gap-2">
+              <span>{c.parte.label}<span className="text-xs text-gray-500"> · calificada por el profesor · vale {Number(c.parte.max)} pts</span></span>
+              <span className="text-xs">{!publicado ? '' : c.parte.score !== null ? <><strong>{Number(c.parte.score)}</strong> / {Number(c.parte.max)} pts</> : 'pendiente'}</span>
+            </li>
+          )}
           {c.actividades.map((a) => (
             <li key={a.activity_id} className="flex flex-wrap items-center justify-between gap-2">
               <span>
