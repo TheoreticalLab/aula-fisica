@@ -22,6 +22,7 @@ import { useAsync } from '@/lib/util';
 import { Card, ErrorBox, Spinner } from '@/components/ui';
 import { PanelEstudiante, type DatosPanel } from './PanelEstudiante';
 import { BotonAsistencia } from '@/components/BotonAsistencia';
+import { ListaPes } from '@/components/ListaPes';
 
 export default function Inicio() {
   const { profile, isTeacher } = useAuth();
@@ -59,7 +60,8 @@ export default function Inicio() {
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   // Un profesor no inscrito como estudiante vería un panel vacío: se le ofrece el de sus secciones.
   if (isTeacher && data!.cursos.length === 0) return <ElegirSeccionVistaPrevia />;
-  return <PanelEstudiante d={data!} asistencia={<BotonAsistencia />} />;
+  // la práctica extraordinaria pendiente, a la vista desde el inicio (además de en Evaluaciones)
+  return <PanelEstudiante d={data!} asistencia={<><BotonAsistencia /><ListaPes soloPendientes titulo="Práctica extraordinaria pendiente" /></>} />;
 }
 
 function ElegirSeccionVistaPrevia() {
