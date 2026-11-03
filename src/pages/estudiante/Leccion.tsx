@@ -3,7 +3,9 @@ import { elegirEncabezado } from '@/lib/clases';
 import { useAuth } from '@/auth/AuthContext';
 import { guardarUltimaLeccion } from '@/lib/ultimaLeccion';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { getExercise, getLesson, getLessonList, getUnits, restartLessonPractice, startLessonPractice, getAttempt } from '@/api/estudiante';
+import { getCourse, getExercise, getLesson, getLessonList, getUnits, restartLessonPractice, startLessonPractice, getAttempt } from '@/api/estudiante';
+import { programaMio } from '@/api/programa';
+import { ProgramaCapitulo } from '@/components/ProgramaEstudiante';
 import type { AttemptItem, AttemptView, Formula, Lesson, WorkedExample } from '@/api/tipos';
 import { useAsync } from '@/lib/util';
 import { Markdown, Tex } from '@/components/Markdown';
@@ -11,7 +13,7 @@ import { Badge, Card, Empty, ErrorBox, PageTitle, ProgressBar, Spinner, Tabs } f
 import { Ejercicio } from '@/components/Ejercicio';
 import { Simulador } from '@/sims/Simulador';
 import { AvisoTelemetria, TelemetriaProvider } from '@/components/Telemetria';
-import { Autoevaluacion, Conexiones, ErroresFrecuentes, Objetivos, PreguntasConceptuales, tieneComprension } from '@/components/Estudio';
+import { Aplicaciones, Autoevaluacion, Conexiones, ErroresFrecuentes, Objetivos, PreguntasConceptuales, Referencia, tieneComprension } from '@/components/Estudio';
 
 type Seccion = 'teoria' | 'formulas' | 'ejemplos' | 'simulacion' | 'comprension' | 'practica';
 
@@ -153,8 +155,12 @@ export default function Leccion() {
   const apartado = params.get('a');
   const teoriaRef = useRef<HTMLDivElement>(null);
   const { data, loading, error, reload } = useAsync(async () => {
-    const [lesson, lessons, units] = await Promise.all([getLesson(lessonId), getLessonList(courseId), getUnits(courseId)]);
-    return { lesson, lessons, units };
+    const [lesson, lessons, units, course] = await Promise.all([getLesson(lessonId), getLessonList(courseId), getUnits(courseId), getCourse(courseId)]);
+    // capítulo de una asignatura con programa (migración 71): subtemas, lo impartido, clases y material
+    const capitulo = course.programa
+      ? (await programaMio(courseId).catch(() => null))?.unidades.flatMap((u) => u.capitulos).find((c) => c.id === lessonId) ?? null
+      : null;
+    return { lesson, lessons, units, capitulo };
   }, [lessonId, courseId]);
   const { profile } = useAuth();
   // enlace desde una clase impartida a un apartado exacto de la teoría
@@ -179,7 +185,7 @@ export default function Leccion() {
   }, [data, sec, profile?.id, courseId, lessonId]);
   if (loading) return <Spinner />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
-  const { lesson, lessons, units } = data!;
+  const { lesson, lessons, units, capitulo } = data!;
   const study = lesson.study ?? {};
   const conComprension = tieneComprension(study);
   const unit = units.find((u) => u.id === lesson.unit_id);
@@ -210,12 +216,17 @@ export default function Leccion() {
         ]}
       />
       {sec === 'teoria' && (
-        <article className="tarjeta">
-          <Objetivos items={study.objetivos ?? []} />
-          <p className="mb-2 text-sm italic text-gray-600 dark:text-gray-400">{lesson.summary}</p>
-          <div ref={teoriaRef}><Markdown>{lesson.theory}</Markdown></div>
-          <Conexiones texto={study.conexiones ?? ''} />
-        </article>
+        <div className="space-y-4">
+          {capitulo && <ProgramaCapitulo c={capitulo} />}
+          <article className="tarjeta">
+            <Objetivos items={study.objetivos ?? []} />
+            <p className="mb-2 text-sm italic text-gray-600 dark:text-gray-400">{lesson.summary}</p>
+            <div ref={teoriaRef}><Markdown>{lesson.theory}</Markdown></div>
+            <Aplicaciones items={study.aplicaciones ?? []} />
+            <Conexiones texto={study.conexiones ?? ''} />
+            <Referencia texto={study.referencia ?? ''} />
+          </article>
+        </div>
       )}
       {sec === 'comprension' && (
         <div className="space-y-4">

@@ -15,6 +15,9 @@ import { FAMILIAS, TIPOS_PREGUNTA, type EjercicioBiblioteca, type MiniCapitulo }
 
 /** Secciones «## …» obligatorias en la teoría (B–E). Se comparan sin tildes ni mayúsculas. */
 export const SECCIONES_TEORIA = ['introduccion', 'explicacion conceptual', 'desarrollo matematico', 'interpretacion'];
+/** En una asignatura con programa (migración 71), cada capítulo es una ficha académica sin ejercicios. */
+export const SECCIONES_PROGRAMA = ['introduccion', 'ideas fundamentales'];
+const NIVELES = ['esencial', 'complementario', 'profundizacion'];
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /** Valor SI de una cantidad escrita como en una clave («29.7 m/s», «-4.9 m»…). */
@@ -205,6 +208,32 @@ export function validarCadenas(where: string, m: MiniCapitulo, p: string[]) {
   }
 }
 
+/** Ficha de un capítulo del programa: sin ejercicios; exige lo que pide la ficha académica. */
+export function validarCapitulo(where: string, m: MiniCapitulo, p: string[]) {
+  if (!/^[a-z0-9-]+$/.test(m.slug)) p.push(`${where}: slug inválido «${m.slug}»`);
+  if (!m.titulo.trim() || !m.resumen.trim()) p.push(`${where}: falta título o introducción breve`);
+  if (m.objetivos.length < 3) p.push(`${where}: menos de 3 objetivos`);
+  if (!m.conceptos.length) p.push(`${where}: sin subtemas`);
+  for (const c of m.conceptos) if (c.nivel && !NIVELES.includes(c.nivel)) p.push(`${where}: nivel desconocido «${c.nivel}» en ${c.slug}`);
+  if (!m.conceptos.some((c) => (c.nivel ?? 'esencial') === 'esencial')) p.push(`${where}: ningún subtema esencial`);
+  const titulos = m.teoria.split('\n').filter((l) => /^##\s/.test(l)).map((l) => norm(l.replace(/^##\s+/, '')));
+  for (const s of SECCIONES_PROGRAMA) if (!titulos.some((t) => t.includes(s))) p.push(`${where}: a la teoría le falta la sección «## ${s}»`);
+  if (!m.formulas.length) p.push(`${where}: sin ecuaciones`);
+  m.formulas.forEach((f, i) => { if (!f.variables.length) p.push(`${where}: la ecuación ${i + 1} no define sus variables`); });
+  if (m.ejemplos.length < 1) p.push(`${where}: sin ejemplo ilustrativo`);
+  if (!m.aplicaciones?.length) p.push(`${where}: sin aplicaciones`);
+  if (m.errores.length < 2) p.push(`${where}: menos de 2 errores frecuentes`);
+  if (!m.referencia?.trim()) p.push(`${where}: sin referencia bibliográfica`);
+  if (m.ejercicios.length) p.push(`${where}: el programa se carga sin ejercicios (los añade el profesor)`);
+  const comunes = { ...m, ejercicios: [], integradora: true };   // reutiliza la revisión de LaTeX y Markdown
+  const q: string[] = [];
+  validarMini(where, comunes, new Set(), q);
+  p.push(...q.filter((x) => !/integradora|objetivos insuficientes/.test(x)));
+  (m.aplicaciones ?? []).forEach((a, i) => checkMarkdown(`${where} aplicación ${i + 1}`, a, p));
+  checkMarkdown(`${where} referencia`, m.referencia, p);
+  m.conceptos.forEach((c) => checkMarkdown(`${where} subtema ${c.slug}`, c.descripcion, p));
+}
+
 export function validarMini(where: string, m: MiniCapitulo, conceptos: Set<string>, p: string[]) {
   if (!/^[a-z0-9-]+$/.test(m.slug)) p.push(`${where}: slug inválido «${m.slug}»`);
   if (!m.titulo.trim() || !m.resumen.trim()) p.push(`${where}: falta título o resumen`);
@@ -270,7 +299,7 @@ export function validarBiblioteca(b: BibliotecaCargada): string[] {
   for (const u of b.unidades) {
     if (!['borrador', 'preparado', 'publicado', 'archivado'].includes(u.meta.estadoInicial)) p.push(`${u.carpeta}: estado inicial inválido`);
     if (!u.minis.length) p.push(`${u.carpeta}: unidad sin minicapítulos`);
-    if (!u.minis.some((x) => x.mini.integradora)) p.push(`${u.carpeta}: falta la práctica integradora de la unidad`);
+    if (!b.curso.programa && !u.minis.some((x) => x.mini.integradora)) p.push(`${u.carpeta}: falta la práctica integradora de la unidad`);
     for (const { archivo, mini } of u.minis) {
       const w = `${u.carpeta}/${archivo}`;
       if (slugs.has(mini.slug)) p.push(`${w}: slug repetido «${mini.slug}»`);
@@ -279,6 +308,7 @@ export function validarBiblioteca(b: BibliotecaCargada): string[] {
         if (ids.has(e.id)) p.push(`${w}: id de ejercicio repetido «${e.id}»`);
         ids.add(e.id);
       }
+      if (b.curso.programa) { validarCapitulo(w, mini, p); continue; }
       validarMini(w, mini, conceptos, p);
       validarCadenas(w, mini, p);
       if (u.meta.banco) for (const e of mini.ejercicios) validarMeta(`${w} ${e.id}`, e, conceptos, p);

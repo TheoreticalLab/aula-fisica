@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { deleteConcept, isCourseStaff, listExercises, updateLesson, upsertConcept } from '@/api/docente';
-import { getConcepts, getLesson } from '@/api/estudiante';
+import { getConcepts, getCourse, getLesson } from '@/api/estudiante';
 import type { Difficulty, Formula, Lesson, LessonSimulation, WorkedExample } from '@/api/tipos';
 import { CATEGORIA, DIFICULTAD, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, ErrorBox, Field, Notice, PageTitle, Spinner, Tabs } from '@/components/ui';
@@ -10,8 +10,9 @@ import { Tex } from '@/components/Markdown';
 import { getSimulation, resolveParams, SIMULATIONS } from '@/sims/catalogo';
 import { Simulador } from '@/sims/Simulador';
 import { slugify } from './CursoEditor';
+import { EstudioEditor, RecursosCapitulo, SubtemasEditor } from './ProgramaCapituloEditor';
 
-type Sec = 'datos' | 'teoria' | 'formulas' | 'ejemplos' | 'simulacion' | 'practica';
+type Sec = 'datos' | 'estudio' | 'teoria' | 'formulas' | 'ejemplos' | 'simulacion' | 'recursos' | 'practica';
 
 function FormulaEditor({ f, onChange, onRemove, onMove }: { f: Formula; onChange: (f: Formula) => void; onRemove: () => void; onMove: (d: -1 | 1) => void }) {
   return (
@@ -81,8 +82,8 @@ export default function LeccionEditor() {
   const { lessonId = '' } = useParams();
   const st = useAsync(async () => {
     const lesson = await getLesson(lessonId);
-    const [concepts, exercises, canEdit] = await Promise.all([getConcepts(lesson.course_id), listExercises({ courseId: lesson.course_id, lessonId }), isCourseStaff(lesson.course_id)]);
-    return { lesson, concepts, exercises, canEdit };
+    const [concepts, exercises, canEdit, course] = await Promise.all([getConcepts(lesson.course_id), listExercises({ courseId: lesson.course_id, lessonId }), isCourseStaff(lesson.course_id), getCourse(lesson.course_id)]);
+    return { lesson, concepts, exercises, canEdit, programa: !!course.programa };
   }, [lessonId]);
   const [draft, setDraft] = useState<Lesson | null>(null);
   const [sec, setSec] = useState<Sec>('datos');
@@ -94,15 +95,15 @@ export default function LeccionEditor() {
   }, [st.data]);
   if (st.loading || !draft) return <Spinner />;
   if (st.error) return <ErrorBox error={st.error} />;
-  const { concepts, exercises, canEdit, lesson } = st.data!;
+  const { concepts, exercises, canEdit, lesson, programa } = st.data!;
   const dirty = JSON.stringify(draft) !== JSON.stringify(lesson);
   const set = (p: Partial<Lesson>) => {
     setSaved(false);
     setDraft({ ...draft, ...p });
   };
   async function guardar() {
-    const { title, summary, hidden, theory, formulas, examples, simulation, practice_config } = draft!;
-    const r = await action.run(() => updateLesson(lessonId, { title, summary, hidden, theory, formulas, examples, simulation, practice_config }));
+    const { title, summary, hidden, theory, formulas, examples, simulation, practice_config, study } = draft!;
+    const r = await action.run(() => updateLesson(lessonId, { title, summary, hidden, theory, formulas, examples, simulation, practice_config, ...(study ? { study } : {}) }));
     if (r) {
       setSaved(true);
       st.setData({ ...st.data!, lesson: r });
@@ -120,8 +121,10 @@ export default function LeccionEditor() {
         actions={<Link className="btn-secundario" to={`/curso/${lesson.course_id}/leccion/${lessonId}`}>Ver como estudiante</Link>} />
       {!canEdit && <Notice tone="warn">Solo lectura: no pertenece al equipo docente de este curso.</Notice>}
       <Tabs<Sec> value={sec} onChange={setSec} tabs={[
-        { id: 'datos', label: 'Datos' }, { id: 'teoria', label: 'Teoría' }, { id: 'formulas', label: `Fórmulas (${draft.formulas.length})` },
-        { id: 'ejemplos', label: `Ejemplos (${draft.examples.length})` }, { id: 'simulacion', label: 'Simulación' }, { id: 'practica', label: `Práctica y ejercicios (${exercises.length})` },
+        { id: 'datos', label: programa ? 'Datos y subtemas' : 'Datos' }, { id: 'estudio', label: 'Objetivos y estudio' }, { id: 'teoria', label: 'Teoría' }, { id: 'formulas', label: `${programa ? 'Ecuaciones' : 'Fórmulas'} (${draft.formulas.length})` },
+        { id: 'ejemplos', label: `Ejemplos (${draft.examples.length})` }, { id: 'simulacion', label: 'Simulación' },
+        ...(programa ? [{ id: 'recursos' as Sec, label: 'Material, vínculos y notas' }] : []),
+        { id: 'practica', label: `Práctica y ejercicios (${exercises.length})` },
       ]} />
 
       {sec === 'datos' && (
@@ -129,6 +132,9 @@ export default function LeccionEditor() {
           <Field label="Título">{(id) => <input id={id} className="campo" value={draft.title} onChange={(e) => set({ title: e.target.value })} maxLength={160} />}</Field>
           <Field label="Resumen (una o dos frases)">{(id) => <textarea id={id} className="campo" rows={2} value={draft.summary} onChange={(e) => set({ summary: e.target.value })} />}</Field>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.hidden} onChange={(e) => set({ hidden: e.target.checked })} /> Ocultar a los estudiantes</label>
+          {programa ? (
+            <SubtemasEditor courseId={lesson.course_id} lessonId={lessonId} lessonSlug={draft.slug} conceptos={lessonConcepts} canEdit={canEdit} onChange={() => void st.reload()} />
+          ) : (
           <div className="mt-4">
             <p className="etiqueta">Conceptos que trabaja esta lección (se usan para medir el dominio)</p>
             <ul className="mb-2 flex flex-wrap gap-2">
@@ -150,7 +156,14 @@ export default function LeccionEditor() {
               </div>
             )}
           </div>
+          )}
         </Card>
+      )}
+
+      {sec === 'estudio' && <EstudioEditor study={draft.study ?? {}} canEdit={canEdit} onChange={(s) => set({ study: s })} />}
+
+      {sec === 'recursos' && programa && (
+        <RecursosCapitulo lessonId={lessonId} conceptos={lessonConcepts} ejercicios={exercises.map((e) => ({ id: e.id, slug: e.slug }))} canEditGlobal={canEdit} />
       )}
 
       {sec === 'teoria' && (
@@ -254,7 +267,7 @@ export default function LeccionEditor() {
       )}
 
       <ErrorBox error={action.error} />
-      {canEdit && sec !== 'practica' && (
+      {canEdit && sec !== 'practica' && sec !== 'recursos' && (
         <div className="sticky bottom-20 z-30 mt-4 flex items-center justify-end gap-3 rounded-xl border border-gray-200 bg-white/95 p-3 shadow-lg dark:border-white/10 dark:bg-primario-950/95 md:bottom-4">
           {saved && !dirty && <span className="text-sm text-emerald-700">Guardado ✓</span>}
           {dirty && <span className="text-sm text-acento-700">Cambios sin guardar</span>}

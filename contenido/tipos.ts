@@ -104,6 +104,9 @@ export interface LessonSimulation {
 export interface ConceptDef {
   slug: string;
   name: string;
+  /** Asignaturas con programa (migración 71): nivel del subtema y una descripción breve. */
+  nivel?: 'esencial' | 'complementario' | 'profundizacion';
+  descripcion?: string;
 }
 
 export interface LessonDef {

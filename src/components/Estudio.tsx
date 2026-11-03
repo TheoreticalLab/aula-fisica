@@ -30,6 +30,27 @@ export function Conexiones({ texto }: { texto: string }) {
   );
 }
 
+/** Aplicaciones físicas o tecnológicas del capítulo (asignaturas con programa, migración 71). */
+export function Aplicaciones({ items }: { items: string[] }) {
+  if (!items.length) return null;
+  return (
+    <section className="mt-6">
+      <h2 className="mb-1 font-serif text-lg font-semibold">Aplicaciones</h2>
+      <ul className="list-disc space-y-1 pl-5 text-sm">{items.map((a, i) => <li key={i}><InlineMd>{a}</InlineMd></li>)}</ul>
+    </section>
+  );
+}
+
+/** Referencia bibliográfica del capítulo. */
+export function Referencia({ texto }: { texto: string }) {
+  if (!texto.trim()) return null;
+  return (
+    <section className="mt-4 border-t border-gray-200 pt-3 text-sm text-gray-600 dark:border-white/10 dark:text-gray-300">
+      <span className="font-semibold">Referencia bibliográfica. </span><InlineMd>{texto}</InlineMd>
+    </section>
+  );
+}
+
 export function ErroresFrecuentes({ items }: { items: NonNullable<LessonStudy['errores']> }) {
   if (!items.length) return null;
   return (

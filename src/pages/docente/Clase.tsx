@@ -37,8 +37,9 @@ import { porcentajeAsistencia, tonoAsistencia } from '@/lib/asistencia';
 import { TabEntregas } from './EntregasPdf';
 import { RegularizacionSeccion } from './Regularizacion';
 import { TabSeguimiento } from './SeguimientoTab';
+import { TabPrograma } from './ProgramaTab';
 
-type Tab = 'estudiantes' | 'asistencia' | 'clases' | 'avisos' | 'actividades' | 'seguimiento' | 'entregas' | 'regularizacion' | 'coincidencias' | 'calificaciones' | 'revision' | 'estadisticas';
+type Tab = 'estudiantes' | 'asistencia' | 'clases' | 'programa' | 'avisos' | 'actividades' | 'seguimiento' | 'entregas' | 'regularizacion' | 'coincidencias' | 'calificaciones' | 'revision' | 'estadisticas';
 
 export default function Clase() {
   const { classId = '' } = useParams();
@@ -75,6 +76,7 @@ export default function Clase() {
           { id: 'estudiantes', label: 'Estudiantes y grupos' },
           { id: 'asistencia', label: 'Asistencia' },
           { id: 'clases', label: 'Clases impartidas' },
+          ...(course.programa ? [{ id: 'programa' as Tab, label: 'Programa impartido' }] : []),
           { id: 'avisos', label: 'Avisos' },
           { id: 'actividades', label: 'Actividades' },
           { id: 'seguimiento', label: 'Seguimiento' },
@@ -89,6 +91,7 @@ export default function Clase() {
       {tab === 'estudiantes' && <TabEstudiantes c={c} onChange={(nc) => cls.setData({ c: nc, course, secciones })} />}
       {tab === 'asistencia' && <TabAsistencia classId={c.id} nombre={c.name} />}
       {tab === 'clases' && <TabClasesImpartidas classId={c.id} />}
+      {tab === 'programa' && course.programa && <TabPrograma classId={c.id} />}
       {tab === 'entregas' && <TabEntregas classId={c.id} />}
       {tab === 'regularizacion' && <RegularizacionSeccion classId={c.id} />}
       {tab === 'coincidencias' && <TabCoincidencias classId={c.id} />}

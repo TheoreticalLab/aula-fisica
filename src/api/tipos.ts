@@ -83,6 +83,8 @@ export interface Course {
   /** Presentación (Markdown) y objetivos generales (migración 11). */
   presentation?: string;
   objectives?: string[];
+  /** Programa académico con seguimiento de lo impartido (migración 71). */
+  programa?: boolean;
 }
 
 /** Estado de publicación de una unidad (migración 11). Los estudiantes solo ven «publicado». */
@@ -96,6 +98,9 @@ export interface LessonStudy {
   autoevaluacion?: { pregunta: string; opciones: string[]; correcta: number; explicacion: string }[];
   conexiones?: string;
   integradora?: boolean;
+  /** Asignaturas con programa (migración 71). */
+  aplicaciones?: string[];
+  referencia?: string;
 }
 
 export interface Unit {
@@ -162,7 +167,13 @@ export interface Concept {
   lesson_id: string | null;
   slug: string;
   name: string;
+  /** Subtema del programa (migración 71). */
+  position?: number;
+  nivel?: NivelSubtema;
+  hidden?: boolean;
+  descripcion?: string;
 }
+export type NivelSubtema = 'esencial' | 'complementario' | 'profundizacion';
 
 export interface Figure {
   kind: 'line' | 'scatter';

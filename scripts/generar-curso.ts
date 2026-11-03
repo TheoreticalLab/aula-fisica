@@ -48,6 +48,7 @@ on conflict (code) do update set
   presentation = case when courses.presentation = '' then excluded.presentation else courses.presentation end,
   objectives = case when courses.objectives = '[]'::jsonb then excluded.objectives else courses.objectives end;`);
     out.push(`insert into public.course_staff (course_id, user_id) select ${C}, p.id from public.profiles p where p.role = 'admin' on conflict do nothing;`);
+    if (b.curso.programa) out.push(`update public.courses set programa = true where code = ${q(inst.codigo)} and not programa;`);
     for (const s of inst.secciones ?? []) {
       // Una clase no puede cambiar de asignatura (trigger classes_lock_course, de seguridad): en lugar de
       // moverla se crea la sección en la asignatura nueva (mismo nombre, periodo y docentes) y se archiva la
@@ -88,15 +89,18 @@ on conflict (course_id, slug) do update set ${set('', ['position', 'title', 'sum
         const estudio: EstudioLeccion = {
           objetivos: m.objetivos, errores: m.errores, preguntas: m.preguntas, autoevaluacion: m.autoevaluacion, conexiones: m.conexiones,
           ...(m.integradora ? { integradora: true } : {}),
+          ...(m.aplicaciones?.length ? { aplicaciones: m.aplicaciones } : {}),
+          ...(m.referencia ? { referencia: m.referencia } : {}),
         };
         out.push(`insert into public.lessons (unit_id, course_id, slug, position, title, summary, theory, formulas, examples, simulation, study, practice_config)
 values (${unitId}, ${C}, ${q(m.slug)}, ${posicion}, ${q(m.titulo)}, ${q(m.resumen)}, ${q(m.teoria)}, ${j(m.formulas)}, ${j(m.ejemplos)}, ${j(m.simulacion)}, ${j(estudio)}, ${j(config)})
 on conflict (course_id, slug) do update set ${set('', ['unit_id', 'position', 'title', 'summary', 'theory', 'formulas', 'examples', 'simulation', 'study', 'practice_config'])} where lessons.customized = false;`);
         const lessonId = `(select id from public.lessons where course_id = ${C} and slug = ${q(m.slug)})`;
-        for (const c of m.conceptos) {
-          out.push(`insert into public.concepts (course_id, lesson_id, slug, name) values (${C}, ${lessonId}, ${q(c.slug)}, ${q(c.name)})
-on conflict (course_id, slug) do update set lesson_id = excluded.lesson_id, name = excluded.name;`);
-        }
+        m.conceptos.forEach((c, ci) => {
+          // orden, nivel y descripción del subtema (migración 71); no se pisa lo que el profesor personalizó
+          out.push(`insert into public.concepts (course_id, lesson_id, slug, name, position, nivel, descripcion) values (${C}, ${lessonId}, ${q(c.slug)}, ${q(c.name)}, ${ci + 1}, ${q(c.nivel ?? 'esencial')}, ${q(c.descripcion ?? '')})
+on conflict (course_id, slug) do update set lesson_id = excluded.lesson_id, name = excluded.name, position = excluded.position, nivel = excluded.nivel, descripcion = excluded.descripcion where concepts.customized = false;`);
+        });
         m.ejercicios.forEach((e, i) => {
           out.push(`insert into public.exercises (course_id, lesson_id, slug, position, category, difficulty, role, format, concepts, prompt, options, multiple, figure, simulation, unit_hint, points)
 values (${C}, ${lessonId}, ${q(e.id)}, ${i + 1}, ${q(e.category)}::public.exercise_category, ${q(e.difficulty)}::public.exercise_difficulty,

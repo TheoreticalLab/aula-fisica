@@ -71,6 +71,9 @@ export interface MiniCapitulo {
   conexiones: string;
   simulacion: LessonSimulation | null;
   ejercicios: EjercicioBiblioteca[];
+  /** Asignaturas con programa (curso.programa): aplicaciones físicas o tecnológicas y referencia bibliográfica. */
+  aplicaciones?: string[];
+  referencia?: string;
 }
 
 export interface UnidadBiblioteca {
@@ -108,6 +111,12 @@ export interface CursoBiblioteca {
    */
   archivar?: string[];
   instancias: InstanciaCurso[];
+  /**
+   * Asignatura con programa académico y seguimiento de lo impartido (migración 71). Cada minicapítulo es un CAPÍTULO
+   * del programa y cada concepto un SUBTEMA (con nivel). No exige ejercicios ni práctica integradora: el programa se
+   * carga sin evaluaciones y el profesor las añade cuando quiera.
+   */
+  programa?: boolean;
 }
 
 /** Lo que se guarda en lessons.study (y lee la página de la lección). */
@@ -118,4 +127,6 @@ export interface EstudioLeccion {
   autoevaluacion: Autoevaluacion[];
   conexiones: string;
   integradora?: boolean;
+  aplicaciones?: string[];
+  referencia?: string;
 }

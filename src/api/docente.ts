@@ -60,6 +60,9 @@ export const deleteLesson = (id: string) => q(supabase.from('lessons').delete().
 export const upsertConcept = (c: Omit<Concept, 'id'>) =>
   q<Concept>(supabase.from('concepts').upsert(c, { onConflict: 'course_id,slug' }).select().single());
 export const deleteConcept = (id: string) => q(supabase.from('concepts').delete().eq('id', id));
+/** Subtema del programa (migración 71): nombre, orden, nivel, oculto o descripción. */
+export const updateConcept = (id: string, patch: Partial<Omit<Concept, 'id' | 'course_id' | 'slug'>>) =>
+  q<Concept>(supabase.from('concepts').update(patch).eq('id', id).select().single());
 
 // --- ejercicios y claves -------------------------------------------------------------
 export interface ExerciseFilter {

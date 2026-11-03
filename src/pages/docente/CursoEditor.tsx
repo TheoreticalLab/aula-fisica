@@ -69,6 +69,11 @@ export default function CursoEditor() {
     <div className="space-y-5">
       <PageTitle title={course.title} subtitle={course.archived ? 'Asignatura archivada · organización del contenido' : 'Organización del contenido'} back={{ to: '/docente/cursos', label: 'Contenido' }}
         actions={<Link className="btn-secundario" to={`/docente/ejercicios?curso=${courseId}`}>Banco de ejercicios</Link>} />
+      {course.programa && (
+        <Notice>Asignatura con <strong>programa académico</strong>: cada lección es un capítulo y sus conceptos son los subtemas del programa. Una unidad
+          «preparada» muestra a los estudiantes el programa (capítulos y subtemas previstos) sin el material; «publicada», también el material. Lo impartido se
+          marca en cada sección → «Programa impartido».</Notice>
+      )}
       {!canEdit && <Notice tone="warn">Puede ver este curso y usarlo en sus clases, pero no editarlo: no forma parte de su equipo docente.</Notice>}
       <ErrorBox error={action.error} />
 
@@ -131,8 +136,8 @@ export default function CursoEditor() {
                         if (!aviso || window.confirm(aviso)) void run(() => updateUnit(u.id, { status: s }));
                       }}>
                       <option value="borrador">Borrador</option>
-                      <option value="preparado">Preparado</option>
-                      <option value="publicado">Publicado</option>
+                      <option value="preparado">{course.programa ? 'Preparado: programa visible, material no' : 'Preparado'}</option>
+                      <option value="publicado">{course.programa ? 'Publicado: programa y material' : 'Publicado'}</option>
                       <option value="archivado">Archivado</option>
                     </select>
                   </label>

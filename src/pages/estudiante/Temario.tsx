@@ -13,6 +13,8 @@ import { fecha, puntaje, relativo, useAsync } from '@/lib/util';
 import { Badge, ErrorBox, PageTitle, ProgressBar, Spinner } from '@/components/ui';
 import { InlineMd, Markdown } from '@/components/Markdown';
 import { getSimulation } from '@/sims/catalogo';
+import { programaMio } from '@/api/programa';
+import { AvancePrograma, ProgramaTemario } from '@/components/ProgramaEstudiante';
 
 const ESTADO: Record<UnitStatus, { texto: string; tono: 'gray' | 'amber' | 'green' | 'red' }> = {
   borrador: { texto: 'Borrador', tono: 'gray' },
@@ -30,8 +32,10 @@ export default function Temario() {
       myClasses().catch(() => []), myActivities().catch(() => []), myGrades().catch(() => []), myAnnouncements().catch(() => []),
     ]);
     const misClases = new Set(clases.filter((c) => c.course_id === courseId).map((c) => c.class_id));
+    // asignatura con programa (migración 71): programa con lo previsto, lo impartido y lo disponible
+    const programa = course.programa ? await programaMio(courseId).catch(() => null) : null;
     return {
-      course, units, lessons, progress,
+      course, units, lessons, progress, programa,
       secciones: clases.filter((c) => misClases.has(c.class_id)).map((c) => c.name),
       actividades: actividades.filter((a) => a.course_id === courseId),
       notas: notas.filter((g) => misClases.has(g.class_id) && g.attempts > 0),
@@ -41,7 +45,7 @@ export default function Temario() {
   const [verPresentacion, setVerPresentacion] = useState(false);
   if (loading) return <Spinner />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
-  const { course, units, lessons, progress, secciones, actividades, notas, avisos } = data!;
+  const { course, units, lessons, progress, programa, secciones, actividades, notas, avisos } = data!;
   const prog = new Map(progress.map((p) => [p.lesson_id, p]));
   const visibles = units.filter((u) => !u.hidden || isTeacher);
   const ultima = leerUltimaLeccion(profile?.id);
@@ -83,8 +87,9 @@ export default function Temario() {
       <div className="grid gap-5 lg:grid-cols-[1fr_20rem]">
         <div className="order-2 space-y-5 lg:order-1">
           <h2 className="font-serif text-2xl font-semibold">Programa de contenidos</h2>
-          {visibles.length === 0 && <p className="tarjeta text-sm text-gray-600">Su profesor todavía no ha publicado unidades de este curso.</p>}
-          {visibles.map((u, ui) => {
+          {programa && <ProgramaTemario courseId={courseId} programa={programa} isTeacher={isTeacher} />}
+          {!programa && visibles.length === 0 && <p className="tarjeta text-sm text-gray-600">Su profesor todavía no ha publicado unidades de este curso.</p>}
+          {!programa && visibles.map((u, ui) => {
             const ls = lessons.filter((l) => l.unit_id === u.id && (!l.hidden || isTeacher));
             const st = u.status ?? 'publicado';
             return (
@@ -143,6 +148,7 @@ export default function Temario() {
               <p className="text-xs text-gray-600 dark:text-gray-300">{NOMBRE_SECCION[continuar.seccion] ?? 'Lección'} · {fecha(continuar.fecha)}</p>
             </Link>
           )}
+          {programa && <AvancePrograma programa={programa} />}
           {total > 0 && (
             <div className="tarjeta">
               <p className="mb-2 text-sm font-semibold">Mi progreso en el curso</p>
