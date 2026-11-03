@@ -24,6 +24,9 @@ export interface FormApartado {
   aceptadas: string;        // texto: una por línea
   rubrica: string;          // abierta (obligatoria) u observaciones
   explicacion: string;
+  /** clave de una propuesta generada: se conserva (errores típicos, retroalimentación) si la respuesta no cambia */
+  claveOriginal?: Record<string, unknown> | null;
+  opcionesOriginales?: string;
 }
 
 export const formVacio = (etapa: EtapaPes = 'otra'): FormApartado => ({
@@ -55,7 +58,10 @@ export function construirApartado(f: FormApartado, letra: string): { ok: true; a
       const k: NumericKey = { format: 'numeric', value: f.valor.trim(), relTol: tol / 100 };
       const v = validateNumericKey(k);
       if (v.length) { v.forEach((x) => p(x)); break; }
-      clave = k;
+      // propuesta generada sin cambios en el valor ni la tolerancia: su clave completa (con errores típicos)
+      const o = f.claveOriginal;
+      const tolOrig = o && typeof o.relTol === 'number' && o.relTol > 0 ? String(Math.round(o.relTol * 1000) / 10) : '2';
+      clave = o && o.format === 'numeric' && o.value === k.value && f.tolerancia.trim() === tolOrig && !o.variante ? (o as unknown as NumericKey) : k;
       if (grade(k, { text: k.value }).status !== 'correct') p('el motor no reconoce el valor de la clave como correcto');
       break;
     }
@@ -65,7 +71,9 @@ export function construirApartado(f: FormApartado, letra: string): { ok: true; a
       const c = [...new Set(f.correctas)].filter((i) => i >= 0 && i < opciones!.length).sort((a, b) => a - b);
       if (!c.length) { p('marque la opción correcta'); break; }
       if (c.length > 1 && !f.multiple) { p('hay varias correctas: marque «varias respuestas»'); break; }
-      clave = { format: 'choice', correct: c };
+      const o = f.claveOriginal;
+      const igual = !!o && o.format === 'choice' && f.opcionesOriginales === f.opciones && JSON.stringify(o.correct) === JSON.stringify(c);
+      clave = igual ? { format: 'choice', correct: c, optionFeedback: (o as { optionFeedback?: Record<number, string> }).optionFeedback } : { format: 'choice', correct: c };
       if (grade(clave, { selected: c }, opciones.length).status !== 'correct') p('el motor no acepta la clave de selección');
       break;
     }

@@ -46,6 +46,15 @@ las compara con casos aleatorios.
    todo el contenido requiere preparación docente.
 2. *Composición docente*: 3 a 5 preguntas del banco con una **situación común** escrita por el profesor (≥ 20 caracteres).
 3. *Redactar apartados*: enunciado, formato, clave (comprobada con el propio motor de calificación), rúbrica, T_ref y peso.
+4. *✨ Generar con IA* (migración 76): paquetes de 1 a 50 problemas de 3 a 5 apartados por etapas, repartidos entre las
+   lecciones, dificultades y tipos elegidos (cálculo por etapas, conceptual, datos experimentales o gráfica, corrección de
+   errores, variación de condiciones). Antes de empezar se muestra el coste estimado (presupuesto y límite diario de Orbe
+   IA, propósito «generar»; con las llamadas reales apagadas, simulación sin coste). Un problema por llamada; el servidor
+   lo verifica (numéricas: datos escritos en lo que verá el estudiante, fórmula recalculada con análisis dimensional y
+   clave construida por el servidor; selección y V/F completas; a lo sumo una abierta, con rúbrica; si un apartado usa un
+   resultado anterior, ese valor debe estar escrito en su enunciado) y lo guarda como **propuesta**. Nada entra en la
+   práctica sin que el profesor lo añada tal cual, lo edite (se conservan las claves que no cambie) o lo descarte. La IA
+   recibe solo el temario y el comienzo de enunciados existentes; nunca datos de estudiantes.
 
 **Tiempos.** T_ref por defecto según formato y dificultad (minutos de la Práctica de Control). En *Carga temporal* →
 *Calibración*, registre el tiempo que necesitó una persona para resolver cada apartado en papel; en borrador puede usar la

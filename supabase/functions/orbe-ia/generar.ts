@@ -126,8 +126,8 @@ export function lineasClase(c: ClaseCtx | null | undefined): string[] {
 }
 
 const fmt3 = (x: number) => String(Number(x.toPrecision(3)));
-const norma = (t: string) => t.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '').slice(0, 90);
-const textoOk = (t: unknown, min: number, max: number): t is string => typeof t === 'string' && t.trim().length >= min && t.length <= max && !/<\s*\/?\s*(script|iframe|style)|javascript:/i.test(t);
+export const norma = (t: string) => t.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '').slice(0, 90);
+export const textoOk = (t: unknown, min: number, max: number): t is string => typeof t === 'string' && t.trim().length >= min && t.length <= max && !/<\s*\/?\s*(script|iframe|style)|javascript:/i.test(t);
 
 /** ¿Aparece el valor del dato escrito en el enunciado? (acepta coma o punto decimal y notación científica simple) */
 export function datoEnEnunciado(valor: number, enunciado: string): boolean {
@@ -150,7 +150,8 @@ export function datoEnEnunciado(valor: number, enunciado: string): boolean {
 
 type Resultado = { ok: true; item: ItemGuardable } | { ok: false; motivo: string };
 
-function validarNumerica(n: Record<string, unknown>, enunciado: string): { ok: true; key: NumericKey; unit_hint: string } | { ok: false; motivo: string } {
+/** También la usa la generación de problemas de la PES (pes.ts): `enunciado` es todo el texto que verá el estudiante. */
+export function validarNumerica(n: Record<string, unknown>, enunciado: string): { ok: true; key: NumericKey; unit_hint: string } | { ok: false; motivo: string } {
   const datos = Array.isArray(n.datos) ? (n.datos as Record<string, unknown>[]) : [];
   if (!datos.length || datos.length > 12) return { ok: false, motivo: 'faltan los datos' };
   const vars: Record<string, Cantidad> = {};

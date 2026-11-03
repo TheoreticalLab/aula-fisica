@@ -6,6 +6,7 @@
 
 import { construirInterpretacion, resumirExamen, simularInterpretacion, validarInterpretacion } from './lieia.ts';
 import { generarPreguntas } from './generar.ts';
+import { generarProblemaPes } from './pes.ts';
 import { revisarBorrador, turnoAsistente } from './asistente.ts';
 import { disponibilidad, generarClase, type DepsClase } from './clase.ts';
 
@@ -245,6 +246,11 @@ export async function atender(body: Cuerpo, userId: string, deps: Deps): Promise
     // banco de preguntas: un lote verificado en el servidor y guardado como borrador (generar.ts)
     if (rol !== 'teacher' && rol !== 'admin') throw new HttpError(403, 'Solo el profesorado');
     return generarPreguntas(body as Record<string, unknown>, userId, deps);
+  }
+  if (accion === 'pes_generar') {
+    // práctica extraordinaria: un problema por apartados, verificado y guardado como PROPUESTA (pes.ts)
+    if (rol !== 'teacher' && rol !== 'admin') throw new HttpError(403, 'Solo el profesorado');
+    return generarProblemaPes(body as Record<string, unknown>, userId, deps);
   }
   if (accion === 'lieia') {
     // interpretación con IA del laboratorio LIEIA: solo cifras agregadas por pregunta (lista blanca en lieia.ts)

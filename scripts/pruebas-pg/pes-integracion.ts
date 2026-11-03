@@ -18,6 +18,11 @@ import { conRed, type Red } from '@/lib/pesRed';
 import { factorControl, puntajePes, type ApartadoPuntuado } from '@/lib/pes';
 import { ejecutarSondas, type ClienteSondas } from '@/lib/pesSondas';
 import { indicadores, type DatosMonitor } from '@/lib/pesMonitor';
+import { atender } from '../../supabase/functions/orbe-ia/handler.ts';
+import type { Deps as DepsIA } from '../../supabase/functions/orbe-ia/handler.ts';
+import { aFormulario, planificarPes } from '@/lib/pesGeneracion';
+import { construirEjercicio } from '@/lib/pesRedaccion';
+import type { PropuestaPes } from '@/api/pesTipos';
 
 const URL = process.env.PES_PG_URL ?? 'postgresql://postgres@127.0.0.1:55432/aula_prueba_local';
 const pool = new pg.Pool({ connectionString: URL, max: 30 });
@@ -423,6 +428,62 @@ async function tablaComo(uid: string, t: string) {
   } catch (e) { await c.query('rollback').catch(() => undefined); return { error: (e as Error).message }; } finally { c.release(); }
 }
 
+/** Problemas por apartados generados con IA (simulador de Orbe IA, sin coste): paquete → propuestas → práctica → estudiante. */
+async function generacionIA() {
+  seccion('Problemas generados con IA (simulador de Orbe IA)');
+  const [cfg] = await sql<{ enabled: boolean; api_real: boolean }>('select enabled, api_real from public.orbe_ia_config where id = 1');
+  await sql('update public.orbe_ia_config set enabled = true, api_real = false where id = 1');
+  try {
+    const prof = como(P);
+    const practica = await prof<string>('pes_crear', { p_class: CLASE, p: { titulo: 'PES con IA', cierra_at: new Date(Date.now() + 5 * 86400000).toISOString() } });
+    const plan = planificarPes(4, [U(162)], ['basico', 'intermedio'], ['calculo', 'datos'], 4);
+    const gen = await prof<string>('pes_generar_iniciar', { p_practica: practica, p_spec: { plan: 'prueba' }, p_solicitados: plan.length });
+    const deps: DepsIA = {
+      hayClave: false,
+      llamarModelo: async () => { throw new Error('no debe llamarse: simulador'); },
+      rpc: async (fn, args) => { try { return { data: await llamar('service_role', null, fn, args), error: null }; } catch (e) { return { data: null, error: { message: (e as Error).message } }; } },
+    };
+    const res = [];
+    for (const e of plan) res.push(await atender({ action: 'pes_generar', generacion_id: gen, especificacion: e } as never, P, deps));
+    ok(res.every((r) => r.ok === true && r.simulado === true && typeof r.propuesta_id === 'string'), `paquete de ${plan.length}: ${res.filter((r) => r.propuesta_id).length} propuestas verificadas (simulación, sin coste)`);
+    const estudiante = await atender({ action: 'pes_generar', generacion_id: gen, especificacion: plan[0] } as never, E1, deps).then((r) => r, (e: Error) => ({ ok: false, motivo: e.message }));
+    ok(!(estudiante as { propuesta_id?: string }).propuesta_id, 'un estudiante no puede generar');
+    const props = await prof<PropuestaPes[]>('pes_propuestas', { p_practica: practica, p_estado: 'pendiente' });
+    ok(props.length === 4 && props.some((p) => p.tipo === 'datos' && /\|/.test(p.problema.contexto)) && props.every((p) => p.problema.apartados.length === 4),
+      'las propuestas respetan tipo (tabla en «datos») y número de apartados');
+    await prof('pes_propuesta_aceptar', { p_propuesta: props[0].id, p_problema: null });
+    await prof('pes_propuesta_aceptar', { p_propuesta: props[1].id, p_problema: null });
+    const f = aFormulario(props[2].problema);
+    const ed = construirEjercicio(f.aps.map((a, i) => (i === 0 ? { ...a, enunciado: a.enunciado + ' (revisado)' } : a)));
+    if (!ed.ok) throw new Error(ed.errores.join('; '));
+    await prof('pes_propuesta_aceptar', { p_propuesta: props[2].id, p_problema: { titulo: f.titulo + ' (editado)', contexto: f.contexto, apartados: ed.apartados } });
+    await prof('pes_propuesta_descartar', { p_propuesta: props[3].id });
+    const det = await prof<{ ejercicios: { titulo: string; origen_ref: string | null; apartados: { id: string; formato: string; clave: Record<string, unknown> | null }[] }[] }>('pes_detalle_docente', { p_practica: practica });
+    ok(det.ejercicios.length === 3 && det.ejercicios[2].titulo.endsWith('(editado)') && det.ejercicios.every((e) => (e.origen_ref ?? '').startsWith('Generado con IA')),
+      'añadidas 2 tal cual y 1 editada; la descartada no entra');
+    await prof('pes_publicar', { p_practica: practica, p_estudiantes: [E3] });
+    // el estudiante resuelve el primer problema generado: selección y numérica correctas
+    const s = sesion(E3, practica);
+    await s.cargar(); await s.iniciar();
+    const aps = det.ejercicios[0].apartados;
+    let correctas = 0;
+    for (const a of aps) {
+      if (s.e.vista?.apartado?.id !== a.id) break;
+      const k = a.clave ?? {};
+      const resp = a.formato === 'choice' ? { selected: k.correct as number[] } : a.formato === 'numeric' ? { text: String(k.value) }
+        : a.formato === 'truefalse' ? { value: k.value as boolean, justification: 'Porque así lo indica la situación descrita.' } : { text: 'Explicación del estudiante con unidades.' };
+      s.editar(resp);
+      await s.confirmar({ anticipado: true });
+      if (a.formato === 'choice' || a.formato === 'numeric') correctas++;
+    }
+    const r = await respuestas(E3, practica);
+    const auto = r.filter((x) => x.revision === 'auto');
+    ok(r.length === aps.length && auto.length === correctas && auto.every((x) => Number(x.q) === 1), `un estudiante resuelve el problema generado: ${auto.length} apartados calificados correctos, ${r.length - auto.length} para revisión`);
+  } finally {
+    await sql('update public.orbe_ia_config set enabled = $1, api_real = $2 where id = 1', [cfg.enabled, cfg.api_real]);
+  }
+}
+
 /** Criterio de aceptación 2: 100 ejercicios con apartados A–D, 30 estudiantes con respuestas; tiempos de las consultas. */
 async function carga100() {
   seccion('Carga: 100 ejercicios × 4 apartados, 30 estudiantes');
@@ -533,6 +594,7 @@ try {
   await paridad();
   await simulador();
   await carga100();
+  await generacionIA();
   // las prácticas ordinarias no se tocaron
   const [{ n }] = await sql<{ n: string }>(`select count(*)::text n from public.attempts where user_id::text like 'de760000-%'`);
   ok(n === '0', 'ningún intento ordinario creado por la PES');

@@ -8,7 +8,9 @@ import type { ClienteSondas } from '@/lib/pesSondas';
 import type {
   ApartadoRedactado, ApiPes, ControlListaItem, ControlPreparado, DatosPractica, DetallePes, HistorialPes, InformeBanco, InformeTiemposServidor, PesListaItem,
   PilotoDetalle, PoliticaControlPes, PuntajeServidor, RespuestaDocente, ResultadoConfirmar, ResultadoOmitir, ResumenPes, VistaPes,
+  GeneracionPes, PropuestaPes, ResultadoGeneracionPes,
 } from './pesTipos';
+import type { EspecificacionPes } from '@/lib/pesGeneracion';
 
 export type * from './pesTipos';
 
@@ -77,3 +79,14 @@ export const CLIENTE_SONDAS: ClienteSondas = {
   rpc: async (fn, args) => { const { data, error } = await supabase.rpc(fn, args); return { error: error?.message ?? null, data }; },
   calificar: async (body) => { try { return { error: null, data: await invocar('calificar', body) }; } catch (e) { return { error: e instanceof Error ? e.message : String(e) }; } },
 };
+
+// Problemas por apartados generados con IA (migración 76 y acción «pes_generar» de orbe-ia)
+export const pesGenerarIniciar = (practica: string, spec: object, n: number) => rpc<string>('pes_generar_iniciar', { p_practica: practica, p_spec: spec, p_solicitados: n });
+export const pesGenerarProblema = (generacion: string, especificacion: EspecificacionPes) =>
+  invocar<ResultadoGeneracionPes>('orbe-ia', { action: 'pes_generar', generacion_id: generacion, especificacion });
+export const pesGeneraciones = (practica: string) => rpc<GeneracionPes[]>('pes_generaciones_lista', { p_practica: practica });
+export const pesPropuestas = (practica: string, estado: 'pendiente' | 'aceptada' | 'descartada' | null = 'pendiente') =>
+  rpc<PropuestaPes[]>('pes_propuestas', { p_practica: practica, p_estado: estado });
+export const pesPropuestaAceptar = (propuesta: string, problema?: { titulo: string; contexto: string; apartados: ApartadoRedactado[] } | null) =>
+  rpc<string>('pes_propuesta_aceptar', { p_propuesta: propuesta, p_problema: problema ?? null });
+export const pesPropuestaDescartar = (propuesta: string) => rpc<void>('pes_propuesta_descartar', { p_propuesta: propuesta });

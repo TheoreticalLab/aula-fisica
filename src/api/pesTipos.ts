@@ -141,3 +141,13 @@ export interface ControlPreparado {
   };
 }
 export interface ControlListaItem { id: string; user_id: string; nombre: string; ejercicio: number; estado: ControlResumen['estado']; resultado: number | null; nota: string | null; semilla: string; preparado_at: string; cerrado_at: string | null }
+
+// Problemas generados con IA (migración 76)
+export interface PropuestaPes {
+  id: string; generacion_id: string; estado: 'pendiente' | 'aceptada' | 'descartada'; leccion_id: string | null; leccion: string | null;
+  dificultad: 'basico' | 'intermedio' | 'desafiante'; tipo: 'calculo' | 'conceptual' | 'datos' | 'errores' | 'transferencia';
+  problema: { titulo: string; contexto: string; apartados: ApartadoRedactado[] }; verificacion: ('calculo_comprobado' | 'revisar')[];
+  ejercicio_id: string | null; editada: boolean; created_at: string;
+}
+export interface ResultadoGeneracionPes { ok: boolean; motivo?: string; simulado?: boolean; propuesta_id?: string | null; rechazado?: string; verificados?: number; costo_usd?: number }
+export interface GeneracionPes { id: string; solicitados: number; creados: number; rechazados: number; motivos: string[]; costo_usd: number; spec: Record<string, unknown>; created_at: string }

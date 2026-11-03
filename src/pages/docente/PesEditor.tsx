@@ -10,7 +10,7 @@ import type { AnswerKey } from '@calif/tipos.ts';
 import {
   pesAdaptacion, pesBancoProblemas, pesBorrar, pesBorrarEjercicio, pesCambiarEstado, pesDesdeBanco, pesDesdeProblema, pesDetalle, pesEditar,
   pesPublicar, pesPublicarResultados, pesRedactado, pesRespuestasDocente, pesRevisar, pesValidar,
-  type AsignacionPes, type DetallePes, type EtapaPes, type FormatoPes, type ProblemaBanco, type RespuestaDocente,
+  type ApartadoRedactado, type AsignacionPes, type DetallePes, type EtapaPes, type FormatoPes, type ProblemaBanco, type RespuestaDocente,
 } from '@/api/pes';
 import { listExercises, roster } from '@/api/docente';
 import { getLessonList } from '@/api/estudiante';
@@ -21,6 +21,7 @@ import { Badge, Card, Empty, ErrorBox, Field, Modal, Notice, PageTitle, Spinner,
 import { InlineMd } from '@/components/Markdown';
 import { ESTADO_PES, TABLA } from './PesTab';
 import { MonitorPes, PanelTiempos, PoliticaControl } from './PesSeguimiento';
+import { GenerarConIA } from './PesGenerarIA';
 
 type Tab = 'datos' | 'contenido' | 'carga' | 'monitor' | 'estudiantes' | 'revision';
 const ETAPAS: { id: EtapaPes; t: string }[] = [
@@ -180,7 +181,7 @@ function resumenClave(a: DetallePes['ejercicios'][number]['apartados'][number]):
 function TabContenido({ d, recargar }: { d: DetallePes; recargar: () => Promise<void> }) {
   const p = d.practica;
   const borrador = p.estado === 'borrador';
-  const [agregar, setAgregar] = useState<'problema' | 'composicion' | 'redactar'>('problema');
+  const [agregar, setAgregar] = useState<'problema' | 'composicion' | 'redactar' | 'ia'>('problema');
   const act = useAction();
   return (
     <div className="space-y-4">
@@ -204,11 +205,13 @@ function TabContenido({ d, recargar }: { d: DetallePes; recargar: () => Promise<
         <Card title="Añadir un ejercicio">
           <Tabs value={agregar} onChange={setAgregar} tabs={[
             { id: 'problema', label: 'Problema por etapas del banco' }, { id: 'composicion', label: 'Composición docente' }, { id: 'redactar', label: 'Redactar apartados' },
+            { id: 'ia', label: '✨ Generar con IA' },
           ]} />
           <div className="mt-3">
             {agregar === 'problema' && <AgregarProblema d={d} recargar={recargar} />}
             {agregar === 'composicion' && <AgregarComposicion d={d} recargar={recargar} />}
             {agregar === 'redactar' && <AgregarRedactado d={d} recargar={recargar} />}
+            {agregar === 'ia' && <GenerarConIA d={d} recargar={recargar} />}
           </div>
         </Card>
       )}
@@ -327,10 +330,16 @@ function AgregarComposicion({ d, recargar }: { d: DetallePes; recargar: () => Pr
   );
 }
 
-function AgregarRedactado({ d, recargar }: { d: DetallePes; recargar: () => Promise<void> }) {
-  const [titulo, setTitulo] = useState('');
-  const [contexto, setContexto] = useState('');
-  const [aps, setAps] = useState<FormApartado[]>([formVacio('prediccion'), formVacio('resolucion'), formVacio('interpretacion')]);
+/** Redactar apartados. Con `inicial` y `guardar` sirve para editar una propuesta generada con IA antes de añadirla. */
+export function AgregarRedactado({ d, recargar, inicial, guardar, textoBoton = 'Comprobar claves y añadir' }: {
+  d: DetallePes; recargar: () => Promise<void>;
+  inicial?: { titulo: string; contexto: string; aps: FormApartado[] };
+  guardar?: (datos: { titulo: string; contexto: string; apartados: ApartadoRedactado[] }) => Promise<unknown>;
+  textoBoton?: string;
+}) {
+  const [titulo, setTitulo] = useState(inicial?.titulo ?? '');
+  const [contexto, setContexto] = useState(inicial?.contexto ?? '');
+  const [aps, setAps] = useState<FormApartado[]>(inicial?.aps ?? [formVacio('prediccion'), formVacio('resolucion'), formVacio('interpretacion')]);
   const [errores, setErrores] = useState<string[]>([]);
   const act = useAction();
   const cambiar = (i: number, x: Partial<FormApartado>) => setAps(aps.map((a, j) => (j === i ? { ...a, ...x } : a)));
@@ -338,7 +347,8 @@ function AgregarRedactado({ d, recargar }: { d: DetallePes; recargar: () => Prom
     const r = construirEjercicio(aps);
     if (!r.ok) { setErrores(r.errores); return; }
     setErrores([]);
-    if ((await act.run(() => pesRedactado(d.practica.id, { titulo, contexto, apartados: r.apartados }))) !== undefined) {
+    const datos = { titulo, contexto, apartados: r.apartados };
+    if ((await act.run(() => (guardar ? guardar(datos) : pesRedactado(d.practica.id, datos)))) !== undefined) {
       setTitulo(''); setContexto(''); setAps([formVacio('prediccion'), formVacio('resolucion'), formVacio('interpretacion')]); await recargar();
     }
   };
@@ -395,7 +405,7 @@ function AgregarRedactado({ d, recargar }: { d: DetallePes; recargar: () => Prom
       ))}
       {aps.length < 5 && <button type="button" className="btn-secundario" onClick={() => setAps([...aps, formVacio('transferencia')])}>Añadir apartado</button>}
       {errores.length > 0 && <Notice tone="warn"><ul className="list-disc pl-4">{errores.map((x) => <li key={x}>{x}</li>)}</ul></Notice>}
-      <div><button type="button" className="btn-primario" disabled={act.busy} onClick={enviar}>Comprobar claves y añadir</button></div>
+      <div><button type="button" className="btn-primario" disabled={act.busy} onClick={enviar}>{textoBoton}</button></div>
       <ErrorBox error={act.error} />
     </div>
   );
