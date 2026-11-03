@@ -1,8 +1,10 @@
 /** Programa académico con seguimiento de lo impartido (migración 71). */
 import { rpc } from '@/lib/supabase';
-import type { ProgramaMio, ProgramaSeccion, TipoEnlace } from '@/lib/programa';
+import type { CapituloMio, ProgramaMio, ProgramaSeccion, TipoEnlace } from '@/lib/programa';
 
 export const programaMio = (courseId: string) => rpc<ProgramaMio | null>('programa_mio', { p_course: courseId });
+/** Un solo capítulo (migración 72): para la página de la lección. */
+export const programaMioCapitulo = (lessonId: string) => rpc<CapituloMio | null>('programa_mio_capitulo', { p_lesson: lessonId });
 export const programaSeccion = (classId: string) => rpc<ProgramaSeccion>('programa_seccion', { p_class: classId });
 export const programaMarcar = (classId: string, concepts: string[], fecha: string, sessionId: string | null, nota: string | null) =>
   rpc<number>('programa_marcar', { p_class: classId, p_concepts: concepts, p_fecha: fecha, p_session: sessionId, p_nota: nota });

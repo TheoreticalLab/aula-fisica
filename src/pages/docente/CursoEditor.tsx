@@ -106,6 +106,15 @@ export default function CursoEditor() {
                   title: course.title, description: course.description,
                   ...(course.presentation !== undefined ? { presentation: course.presentation, objetivos: (course.objectives ?? []).join('\n') } : {}),
                 })}>Editar</button>
+                <label className="flex items-center gap-1 text-xs" title="Los conceptos de cada lección pasan a ser subtemas del programa que se marcan como impartidos por sección">
+                  <input type="checkbox" checked={!!course.programa} onChange={(e) => {
+                    const on = e.target.checked;
+                    const msg = on
+                      ? '¿Activar el seguimiento del programa? Cada lección será un capítulo y sus conceptos, los subtemas que marcará como impartidos en cada sección. Los estudiantes verán qué está previsto, qué se impartió y qué está disponible. No cambia ningún contenido ni nota.'
+                      : '¿Desactivar el seguimiento del programa? Lo ya marcado como impartido se conserva, pero deja de mostrarse.';
+                    if (window.confirm(msg)) void run(() => updateCourse(courseId, { programa: on }));
+                  }} /> Seguimiento del programa
+                </label>
                 <button className="btn-texto text-sm" onClick={() => {
                   const msg = course.archived
                     ? '¿Reactivar la asignatura?'

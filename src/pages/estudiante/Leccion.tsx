@@ -4,7 +4,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { guardarUltimaLeccion } from '@/lib/ultimaLeccion';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { getCourse, getExercise, getLesson, getLessonList, getUnits, restartLessonPractice, startLessonPractice, getAttempt } from '@/api/estudiante';
-import { programaMio } from '@/api/programa';
+import { programaMioCapitulo } from '@/api/programa';
 import { ProgramaCapitulo } from '@/components/ProgramaEstudiante';
 import type { AttemptItem, AttemptView, Formula, Lesson, WorkedExample } from '@/api/tipos';
 import { useAsync } from '@/lib/util';
@@ -157,9 +157,7 @@ export default function Leccion() {
   const { data, loading, error, reload } = useAsync(async () => {
     const [lesson, lessons, units, course] = await Promise.all([getLesson(lessonId), getLessonList(courseId), getUnits(courseId), getCourse(courseId)]);
     // capítulo de una asignatura con programa (migración 71): subtemas, lo impartido, clases y material
-    const capitulo = course.programa
-      ? (await programaMio(courseId).catch(() => null))?.unidades.flatMap((u) => u.capitulos).find((c) => c.id === lessonId) ?? null
-      : null;
+    const capitulo = course.programa ? await programaMioCapitulo(lessonId).catch(() => null) : null;
     return { lesson, lessons, units, capitulo };
   }, [lessonId, courseId]);
   const { profile } = useAuth();

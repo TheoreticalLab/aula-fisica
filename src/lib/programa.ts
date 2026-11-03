@@ -24,7 +24,7 @@ export interface EnlaceMio {
   activity_id: string | null; exercise_id: string | null; session_id: string | null; concept_id: string | null;
 }
 export interface CapituloMio {
-  id: string; titulo: string; resumen: string; position: number; disponible: boolean; objetivos: string[];
+  id: string; titulo: string; resumen: string; position: number; disponible: boolean;
   subtemas: SubtemaMio[]; clases: { id: string; fecha: string; titulo: string }[]; enlaces: EnlaceMio[];
   practicas: { id: string; titulo: string; modo: 'practice' | 'exam' }[]; minutos: number;
 }

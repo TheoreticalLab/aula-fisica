@@ -87,7 +87,7 @@ export default function Temario() {
       <div className="grid gap-5 lg:grid-cols-[1fr_20rem]">
         <div className="order-2 space-y-5 lg:order-1">
           <h2 className="font-serif text-2xl font-semibold">Programa de contenidos</h2>
-          {programa && <ProgramaTemario courseId={courseId} programa={programa} isTeacher={isTeacher} />}
+          {programa && <ProgramaTemario courseId={courseId} programa={programa} isTeacher={isTeacher} extras={{ lessons, units, progress: prog }} />}
           {!programa && visibles.length === 0 && <p className="tarjeta text-sm text-gray-600">Su profesor todavía no ha publicado unidades de este curso.</p>}
           {!programa && visibles.map((u, ui) => {
             const ls = lessons.filter((l) => l.unit_id === u.id && (!l.hidden || isTeacher));
