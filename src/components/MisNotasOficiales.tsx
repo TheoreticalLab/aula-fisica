@@ -101,7 +101,7 @@ export function MisNotasOficiales() {
             {s.published && perdidosDe.has(s.class_id) && (
               <p className={`mt-1 text-sm ${(perdidosDe.get(s.class_id) ?? 0) > 21 ? 'font-semibold text-red-700 dark:text-red-300' : 'text-gray-600 dark:text-gray-300'}`}>
                 Puntos perdidos hasta ahora: {perdidosDe.get(s.class_id)} de 100 · nota máxima posible: {Math.round((100 - (perdidosDe.get(s.class_id) ?? 0)) * 100) / 100}
-                <span className="block text-xs font-normal text-gray-500">Cuenta solo lo que ya no se puede recuperar (notas puestas y actividades cerradas); lo pendiente aún puede ganarlo.</span>
+                <span className="block text-xs font-normal text-gray-500">En cada apartado con nota: lo que vale menos lo que ha sacado, descontando sus puntos extras. Los apartados sin nota todavía no cuentan.</span>
               </p>
             )}
             {s.published && t.bruto > 100 && <p className="text-xs text-gray-500">Total bruto: {t.bruto} (la nota oficial tiene un máximo de 100).</p>}

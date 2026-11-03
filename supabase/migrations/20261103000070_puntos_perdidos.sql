@@ -2,11 +2,10 @@
 -- Migración 70 · Puntos perdidos (respecto a 100) y alerta urgente automática con confirmación de lectura.
 -- Solo añade: tablas nuevas, una columna nueva (nullable) en live_messages y funciones.
 --
---  1) Puntos perdidos: lo que el estudiante YA NO puede recuperar en el registro oficial:
---       · apartado con nota escrita a mano → máximo − nota;
---       · actividades vinculadas YA CERRADAS → valor × (1 − mejor intento, con el factor del control);
---       · parte escrita a mano (migración 69) con nota → valor − nota.
---     Lo pendiente (sin nota, actividad abierta) no cuenta. Los puntos extras no se descuentan.
+--  1) Puntos perdidos (regla del profesor): en cada apartado (3 parciales de 15, Práctica 30, Final 25),
+--       perdido = lo que vale − lo que sacó (la nota oficial del registro: a mano, o calculada con las actividades y la
+--       parte a mano). Un apartado todavía sin nota no cuenta. Total = suma de los apartados − puntos extras aprobados
+--       (nunca menos de 0).
 --  2) Alerta por sección (desactivada por defecto; solo con el registro PUBLICADO): si los puntos perdidos pasan del
 --     umbral (21), el estudiante recibe un aviso URGENTE del profesor, hasta N veces (10), cada uno cuando han pasado
 --     H horas (24) desde que CONFIRMÓ haber leído el anterior. Se genera al entrar o seguir en el aula (no hace falta
@@ -22,38 +21,20 @@ create or replace function public.official_lost(p_class uuid)
 returns table (user_id uuid, category text, perdidos numeric)
 language sql stable security definer set search_path = ''
 as $$
-  with cats(category) as (values ('parcial1'), ('parcial2'), ('parcial3'), ('practica'), ('final')),
-  alumnos as (select e.user_id from public.enrollments e join public.profiles p on p.id = e.user_id and p.role = 'student'
-              where e.class_id = p_class),
-  partes as (select gp.category, gp.max from public.grade_parts gp where gp.class_id = p_class),
-  l as (select k.*, a.closes_at from public.activity_grade_links k join public.activities a on a.id = k.activity_id
-        where k.class_id = p_class),
-  f as (select l.category, coalesce(sum(l.points), 0) fijos, count(*) filter (where l.points is null) n from l group by l.category),
-  w as (select l.activity_id, l.category, l.closes_at,
-          coalesce(l.points, greatest(0, public.grade_category_max(l.category) - coalesce(pt.max, 0) - f.fijos) / nullif(f.n, 0)) peso
-        from l join f on f.category = l.category left join partes pt on pt.category = l.category),
-  mejor as (select t.user_id, t.activity_id, max(t.score / nullif(t.max_score, 0)) * public.control_factor(t.activity_id, t.user_id) pct
-            from public.attempts t join w on w.activity_id = t.activity_id
-            where t.status = 'submitted' group by t.user_id, t.activity_id),
-  perd_act as (
-    select a.user_id, w.category, sum(w.peso * (1 - least(1, greatest(0, coalesce(m.pct, 0))))) p
-    from alumnos a cross join w left join mejor m on m.user_id = a.user_id and m.activity_id = w.activity_id
-    where w.closes_at is not null and w.closes_at < now()
-    group by a.user_id, w.category
-  ),
-  perd_parte as (
-    select s.user_id, s.category, pt.max - least(s.score, pt.max) p
-    from public.grade_part_scores s join partes pt on pt.category = s.category
-    where s.class_id = p_class and s.score is not null
-  )
-  select a.user_id, c.category,
-    round(least(public.grade_category_max(c.category),
-      case when g.score is not null then public.grade_category_max(c.category) - g.score
-           else coalesce(pa.p, 0) + coalesce(pp.p, 0) end), 2)
-  from alumnos a cross join cats c
-  left join public.grade_entries g on g.class_id = p_class and g.user_id = a.user_id and g.category = c.category
-  left join perd_act pa on pa.user_id = a.user_id and pa.category = c.category
-  left join perd_parte pp on pp.user_id = a.user_id and pp.category = c.category
+  select o.user_id, o.category,
+    case when o.score is null then 0 else round(greatest(0, public.grade_category_max(o.category) - o.score), 2) end
+  from public.official_scores(p_class) o
+$$;
+
+-- Total por estudiante: suma de los apartados − puntos extras aprobados (mínimo 0), con el detalle
+create or replace function public.official_lost_total(p_class uuid)
+returns table (user_id uuid, perdidos numeric, por_apartados numeric, extras numeric, detalle jsonb)
+language sql stable security definer set search_path = ''
+as $$
+  with l as (select o.user_id, sum(o.perdidos) bruto, jsonb_object_agg(o.category, o.perdidos) detalle from public.official_lost(p_class) o group by o.user_id),
+  x as (select e.user_id, sum(e.points) extras from public.extra_points e where e.class_id = p_class and e.status = 'aprobado' group by e.user_id)
+  select l.user_id, round(greatest(0, l.bruto - coalesce(x.extras, 0)), 2), round(l.bruto, 2), round(coalesce(x.extras, 0), 2), l.detalle
+  from l left join x on x.user_id = l.user_id
 $$;
 
 -- -----------------------------------------------------------------------------
@@ -168,7 +149,7 @@ language plpgsql security definer set search_path = ''
 as $$
 declare
   v_uid uuid := auth.uid();
-  c record; v_n integer; v_ultima record; v_perdidos numeric; v_detalle text; v_prof uuid; v_msg uuid; v_enviadas integer := 0;
+  c record; v_n integer; v_ultima record; v_perdidos numeric; v_extras numeric; v_detalle text; v_prof uuid; v_msg uuid; v_enviadas integer := 0;
 begin
   if v_uid is null or not exists (select 1 from public.profiles where id = v_uid and role = 'student' and active) then
     return jsonb_build_object('enviadas', 0);
@@ -196,11 +177,13 @@ begin
       -- H horas desde que lo confirmó (si el mensaje se borró, desde que se generó)
       continue when coalesce(v_ultima.read_at, v_ultima.dismissed_at, v_ultima.created_at) + make_interval(hours => c.intervalo_horas) > now();
     end if;
-    select coalesce(sum(o.perdidos), 0),
-           string_agg(case o.category when 'parcial1' then 'Primer parcial' when 'parcial2' then 'Segundo parcial' when 'parcial3' then 'Tercer parcial'
+    select t.perdidos, t.extras into v_perdidos, v_extras from public.official_lost_total(c.class_id) t where t.user_id = v_uid;
+    v_perdidos := coalesce(v_perdidos, 0);
+    select string_agg(case o.category when 'parcial1' then 'Primer parcial' when 'parcial2' then 'Segundo parcial' when 'parcial3' then 'Tercer parcial'
                         when 'practica' then 'Práctica' else 'Examen final' end || ' ' || public.puntos_texto(o.perdidos), ' · '
                       order by array_position(array['parcial1', 'parcial2', 'parcial3', 'practica', 'final'], o.category)) filter (where o.perdidos > 0)
-      into v_perdidos, v_detalle
+             || case when coalesce(v_extras, 0) > 0 then ' (ya descontados ' || public.puntos_texto(v_extras) || ' puntos extras)' else '' end
+      into v_detalle
       from public.official_lost(c.class_id) o where o.user_id = v_uid;
     continue when v_perdidos <= c.umbral;
     select coalesce((select ct.user_id from public.class_teachers ct join public.profiles p on p.id = ct.user_id and p.active
@@ -256,18 +239,18 @@ end;
 $$;
 
 create or replace function public.gradebook_lost(p_class uuid)
-returns table (user_id uuid, perdidos numeric, detalle jsonb, avisos integer, ultimo_aviso timestamptz, ultimo_leido timestamptz)
+returns table (user_id uuid, perdidos numeric, detalle jsonb, extras numeric, avisos integer, ultimo_aviso timestamptz, ultimo_leido timestamptz)
 language plpgsql stable security definer set search_path = ''
 as $$
 begin
   perform public.grades_assert_teacher(p_class);
   return query
-  select o.user_id, round(sum(o.perdidos), 2), jsonb_object_agg(o.category, o.perdidos),
+  select o.user_id, o.perdidos, o.detalle, o.extras,
     (select count(*)::integer from public.lost_alerts la where la.class_id = p_class and la.user_id = o.user_id),
     (select max(la.created_at) from public.lost_alerts la where la.class_id = p_class and la.user_id = o.user_id),
     (select max(r.read_at) from public.lost_alerts la join public.live_message_recipients r on r.message_id = la.message_id and r.user_id = la.user_id
       where la.class_id = p_class and la.user_id = o.user_id)
-  from public.official_lost(p_class) o group by o.user_id;
+  from public.official_lost_total(p_class) o;
 end;
 $$;
 
@@ -276,7 +259,7 @@ create or replace function public.mis_puntos_perdidos()
 returns jsonb language sql stable security definer set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('class_id', cl.id, 'perdidos',
-      (select round(coalesce(sum(o.perdidos), 0), 2) from public.official_lost(cl.id) o where o.user_id = auth.uid()))), '[]'::jsonb)
+      (select coalesce(t.perdidos, 0) from public.official_lost_total(cl.id) t where t.user_id = auth.uid()))), '[]'::jsonb)
   from public.enrollments e join public.classes cl on cl.id = e.class_id and not cl.archived
   join public.grade_settings gs on gs.class_id = cl.id and gs.published
   where e.user_id = auth.uid() and public.my_account_ok()
@@ -286,6 +269,7 @@ $$;
 -- Permisos
 -- -----------------------------------------------------------------------------
 revoke all on function public.official_lost(uuid) from public, anon, authenticated;
+revoke all on function public.official_lost_total(uuid) from public, anon, authenticated;
 revoke all on function public.lost_alert_texto(text, text, text, numeric, text, text) from public, anon, authenticated;
 revoke all on function public.puntos_texto(numeric) from public, anon, authenticated;
 do $$ declare f text; begin

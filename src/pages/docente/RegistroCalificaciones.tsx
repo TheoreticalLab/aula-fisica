@@ -19,7 +19,7 @@ interface Origen { user_id: string; category: Categoria; score: number | null; s
 /** Parte manual dentro de un apartado (migración 69). */
 interface Partes { partes: { category: Categoria; label: string; max: number }[]; notas: { user_id: string; category: Categoria; score: number | null }[] }
 /** Puntos perdidos y alerta (migración 70). */
-interface Perdido { user_id: string; perdidos: number; detalle: Record<string, number>; avisos: number; ultimo_aviso: string | null; ultimo_leido: string | null }
+interface Perdido { user_id: string; perdidos: number; detalle: Record<string, number>; extras: number; avisos: number; ultimo_aviso: string | null; ultimo_leido: string | null }
 interface ConfigAlerta { activo: boolean; umbral: number; repeticiones: number; intervalo_horas: number; espera_segundos: number; firma: string; publicado: boolean }
 interface Hist { cuando: string; tipo: string; categoria: string | null; antes: number | null; despues: number | null; puntos: number | null; motivo: string | null; estado: string | null; autor: string }
 
@@ -189,7 +189,7 @@ export default function RegistroCalificaciones() {
                 ];
               })}
               <th className="px-1 py-1 text-right">Extras</th><th className="px-1 py-1 text-right">Bruto</th><th className="px-1 py-1 text-right">Final</th>
-              {perdidos.data && <th className="px-1 py-1 text-right" title="Puntos que ya no se pueden recuperar: notas puestas y actividades cerradas">Perdidos<br /><span className="text-gray-500">/100</span></th>}
+              {perdidos.data && <th className="px-1 py-1 text-right" title="En cada apartado con nota: lo que vale − lo que sacó; menos los puntos extras aprobados">Perdidos<br /><span className="text-gray-500">/100</span></th>}
               <th className="px-1 py-1" />
             </tr></thead>
             <tbody>
@@ -221,7 +221,7 @@ export default function RegistroCalificaciones() {
                     const alto = !!p && !!cfg && p.perdidos > Number(cfg.umbral);
                     return (
                       <td className={`px-1 py-1 text-right tabular-nums ${alto ? 'font-semibold text-red-700 dark:text-red-300' : ''}`}
-                        title={p ? Object.entries(p.detalle).filter(([, v]) => Number(v) > 0).map(([k, v]) => `${ETIQUETA[k] ?? k}: ${Number(v)}`).join(' · ') || 'Nada perdido' : ''}>
+                        title={p ? [Object.entries(p.detalle).filter(([, v]) => Number(v) > 0).map(([k, v]) => `${ETIQUETA[k] ?? k}: ${Number(v)}`).join(' · ') || 'Nada perdido', Number(p.extras) > 0 ? `− ${Number(p.extras)} extras` : ''].filter(Boolean).join(' ') : ''}>
                         {p ? p.perdidos : '—'}
                         {p && p.avisos > 0 && <span className="block text-[10px] font-normal text-gray-500" title={p.ultimo_leido ? `Último leído: ${fecha(p.ultimo_leido)}` : 'El último aviso aún no se ha leído'}>{p.avisos}{cfg ? `/${cfg.repeticiones}` : ''} aviso(s)</span>}
                       </td>
@@ -242,7 +242,8 @@ export default function RegistroCalificaciones() {
       {cfg && (
         <Card title="Alerta de puntos perdidos">
           <p className="mb-2 text-xs text-gray-500">
-            Si un estudiante pierde más de {Number(cfg.umbral)} puntos (de 100; solo lo que ya no puede recuperar), recibe un aviso urgente con la cantidad
+            Puntos perdidos: en cada apartado con nota, lo que vale menos lo que sacó (un apartado sin nota no cuenta), menos los puntos extras aprobados.
+            Si un estudiante pierde más de {Number(cfg.umbral)} de 100, recibe un aviso urgente con la cantidad
             perdida y una invitación a dar su mayor esfuerzo, hasta {cfg.repeticiones} veces, cada uno {cfg.intervalo_horas} h después de que confirmó haber
             leído el anterior. El aviso ocupa la pantalla, no se puede cerrar y solo se confirma tras {cfg.espera_segundos} s, marcando una casilla y pulsando
             «Entendido». Se genera cuando el estudiante entra en el aula. Solo con el registro publicado.

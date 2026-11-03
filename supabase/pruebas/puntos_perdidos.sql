@@ -1,6 +1,7 @@
 -- Pruebas: puntos perdidos y alerta urgente con confirmación obligatoria (migración 70). Se deshace al final.
--- A: parcial 1 = 0 (pierde 15) y 20 % en una práctica CERRADA de 30 (pierde 24) → 39; una práctica abierta no cuenta.
--- B: parcial 1 = 14 (pierde 1) y 100 % → 1.
+-- Regla: en cada apartado, perdido = lo que vale − lo que sacó; un apartado sin nota no cuenta; se restan los extras aprobados.
+-- A: parcial 1 = 0 (pierde 15), Práctica 6 de 30 (20 %, pierde 24), Segundo parcial sin nota (no cuenta), 4 extras → 35.
+-- B: parcial 1 = 14 (pierde 1) y Práctica 30 de 30 → 1.
 begin;
 
 insert into auth.users (id, email, aud, role, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
@@ -25,20 +26,29 @@ insert into public.activity_grade_links (activity_id, class_id, category, points
   ('de700000-0000-4000-8000-0000000000a2', 'de700000-0000-4000-8000-000000000031', 'parcial2', 15);
 insert into public.attempts (id, user_id, course_id, activity_id, mode, status, score, max_score) values
   ('de700000-0000-4000-8000-0000000000f1', 'de700000-0000-4000-8000-000000000011', 'de700000-0000-4000-8000-000000000021', 'de700000-0000-4000-8000-0000000000a1', 'practice', 'submitted', 2, 10),
-  ('de700000-0000-4000-8000-0000000000f2', 'de700000-0000-4000-8000-000000000012', 'de700000-0000-4000-8000-000000000021', 'de700000-0000-4000-8000-0000000000a1', 'practice', 'submitted', 10, 10),
-  ('de700000-0000-4000-8000-0000000000f3', 'de700000-0000-4000-8000-000000000011', 'de700000-0000-4000-8000-000000000021', 'de700000-0000-4000-8000-0000000000a2', 'practice', 'submitted', 0, 10);
+  ('de700000-0000-4000-8000-0000000000f2', 'de700000-0000-4000-8000-000000000012', 'de700000-0000-4000-8000-000000000021', 'de700000-0000-4000-8000-0000000000a1', 'practice', 'submitted', 10, 10);
 insert into public.grade_entries (class_id, user_id, category, score) values
   ('de700000-0000-4000-8000-000000000031', 'de700000-0000-4000-8000-000000000011', 'parcial1', 0),
   ('de700000-0000-4000-8000-000000000031', 'de700000-0000-4000-8000-000000000012', 'parcial1', 14);
 insert into public.grade_settings (class_id, published) values ('de700000-0000-4000-8000-000000000031', true);
+insert into public.extra_points (request_id, class_id, user_id, assigner_role, points, reason, status) values
+  (gen_random_uuid(), 'de700000-0000-4000-8000-000000000031', 'de700000-0000-4000-8000-000000000011', 'profesor', 4, 'Participación', 'aprobado'),
+  (gen_random_uuid(), 'de700000-0000-4000-8000-000000000031', 'de700000-0000-4000-8000-000000000011', 'profesor', 3, 'Pendiente de aprobar', 'pendiente');
 
-do $$ begin
-  if (select sum(perdidos) from public.official_lost('de700000-0000-4000-8000-000000000031') where user_id = 'de700000-0000-4000-8000-000000000011') <> 39
-     or (select sum(perdidos) from public.official_lost('de700000-0000-4000-8000-000000000031') where user_id = 'de700000-0000-4000-8000-000000000012') <> 1 then
-    raise exception 'FALLO: puntos perdidos %', (select jsonb_agg(o) from public.official_lost('de700000-0000-4000-8000-000000000031') o where o.perdidos > 0); end if;
-  -- la actividad abierta (parcial 2, A sacó 0) todavía no cuenta como perdida
+do $$ declare t record; begin
+  select * into t from public.official_lost_total('de700000-0000-4000-8000-000000000031') where user_id = 'de700000-0000-4000-8000-000000000011';
+  if t.perdidos <> 35 or t.por_apartados <> 39 or t.extras <> 4 or (t.detalle ->> 'practica')::numeric <> 24 or (t.detalle ->> 'parcial1')::numeric <> 15 then
+    raise exception 'FALLO: puntos perdidos de A %', t; end if;
+  if (select perdidos from public.official_lost_total('de700000-0000-4000-8000-000000000031') where user_id = 'de700000-0000-4000-8000-000000000012') <> 1 then
+    raise exception 'FALLO: puntos perdidos de B'; end if;
+  -- un apartado sin nota (Segundo parcial: su actividad está abierta y sin entrega) no cuenta
   if (select perdidos from public.official_lost('de700000-0000-4000-8000-000000000031') where user_id = 'de700000-0000-4000-8000-000000000011' and category = 'parcial2') <> 0 then
-    raise exception 'FALLO: una actividad abierta cuenta como perdida'; end if;
+    raise exception 'FALLO: un apartado sin nota cuenta como perdido'; end if;
+  -- el mismo apartado, con nota: lo que vale − lo que sacó
+  insert into public.grade_entries (class_id, user_id, category, score) values ('de700000-0000-4000-8000-000000000031', 'de700000-0000-4000-8000-000000000012', 'final', 20);
+  if (select perdidos from public.official_lost('de700000-0000-4000-8000-000000000031') where user_id = 'de700000-0000-4000-8000-000000000012' and category = 'final') <> 5 then
+    raise exception 'FALLO: final'; end if;
+  delete from public.grade_entries where user_id = 'de700000-0000-4000-8000-000000000012' and category = 'final';
 end $$;
 
 set local role authenticated;
@@ -53,7 +63,7 @@ do $$ begin
   exception when insufficient_privilege then null; end;
   begin perform public.gradebook_lost('de700000-0000-4000-8000-000000000031'); raise exception 'FALLO: el estudiante ve el registro';
   exception when insufficient_privilege then null; end;
-  if (public.mis_puntos_perdidos() -> 0 ->> 'perdidos')::numeric <> 39 then raise exception 'FALLO: mis puntos perdidos'; end if;
+  if (public.mis_puntos_perdidos() -> 0 ->> 'perdidos')::numeric <> 35 then raise exception 'FALLO: mis puntos perdidos'; end if;
 end $$;
 
 -- el profesor la activa (3 avisos para la prueba)
@@ -74,9 +84,9 @@ select set_config('request.jwt.claim.sub', 'de700000-0000-4000-8000-000000000011
 do $$ declare m record; begin
   if (public.mi_alerta_puntos() ->> 'enviadas')::int <> 1 then raise exception 'FALLO: primer aviso'; end if;
   select * into m from public.my_pending_messages_v3();
-  if m.kind <> 'urgente' or m.body not like '%Ana, has perdido 39 puntos de los 100%' or m.body not like '%nota máxima posible ahora es 61%'
-     or m.body not like '%Primer parcial 15 · Práctica 24%' or m.body not like '%mayor esfuerzo%' or m.body not like '%' || E'\n\n' || 'Prof. Francisco Prueba' or m.sender_name <> 'Francisco Prueba'
-     or (m.confirmacion ->> 'espera')::int <> 20 or m.confirmacion ->> 'caja' not like 'He leído que he perdido 39 puntos%' then
+  if m.kind <> 'urgente' or m.body not like '%Ana, has perdido 35 puntos de los 100%' or m.body not like '%nota máxima posible ahora es 65%'
+     or m.body not like '%Primer parcial 15 · Práctica 24 (ya descontados 4 puntos extras)%' or m.body not like '%mayor esfuerzo%' or m.body not like '%' || E'\n\n' || 'Prof. Francisco Prueba' or m.sender_name <> 'Francisco Prueba'
+     or (m.confirmacion ->> 'espera')::int <> 20 or m.confirmacion ->> 'caja' not like 'He leído que he perdido 35 puntos%' then
     raise exception 'FALLO: contenido del aviso % / %', m.body, m.confirmacion; end if;
   perform set_config('prueba.m1', m.id::text, true);
   -- sin confirmar: no se acumula otro
@@ -139,7 +149,7 @@ select set_config('request.jwt.claims', '{"sub":"de700000-0000-4000-8000-0000000
 select set_config('request.jwt.claim.sub', 'de700000-0000-4000-8000-000000000001', true);
 do $$ declare r record; begin
   select * into r from public.gradebook_lost('de700000-0000-4000-8000-000000000031') where user_id = 'de700000-0000-4000-8000-000000000011';
-  if r.perdidos <> 39 or r.avisos <> 2 or (r.detalle ->> 'practica')::numeric <> 24 or r.ultimo_leido is null then raise exception 'FALLO: vista del profesor %', r; end if;
+  if r.perdidos <> 35 or r.extras <> 4 or r.avisos <> 2 or (r.detalle ->> 'practica')::numeric <> 24 or r.ultimo_leido is null then raise exception 'FALLO: vista del profesor %', r; end if;
 end $$;
 reset role;
 
@@ -153,7 +163,7 @@ do $$ declare v uuid; begin
 end $$;
 
 do $$ begin
-  if has_function_privilege('authenticated', 'public.official_lost(uuid)', 'execute') or has_function_privilege('anon', 'public.mi_alerta_puntos()', 'execute') then
+  if has_function_privilege('authenticated', 'public.official_lost(uuid)', 'execute') or has_function_privilege('authenticated', 'public.official_lost_total(uuid)', 'execute') or has_function_privilege('anon', 'public.mi_alerta_puntos()', 'execute') then
     raise exception 'FALLO: permisos'; end if;
 end $$;
 
