@@ -38,6 +38,7 @@ import { TabEntregas } from './EntregasPdf';
 import { RegularizacionSeccion } from './Regularizacion';
 import { TabSeguimiento } from './SeguimientoTab';
 import { TabPrograma } from './ProgramaTab';
+import { CopiarActividad } from './CopiarActividad';
 
 type Tab = 'estudiantes' | 'asistencia' | 'clases' | 'programa' | 'avisos' | 'actividades' | 'seguimiento' | 'entregas' | 'regularizacion' | 'coincidencias' | 'calificaciones' | 'revision' | 'estadisticas';
 
@@ -343,6 +344,7 @@ function TabAvisos({ c }: { c: ClassRow }) {
 function TabActividades({ c }: { c: ClassRow }) {
   const nav = useNavigate();
   const list = useAsync(() => listActivities(c.id), [c.id]);
+  const [copiar, setCopiar] = useState<{ id: string; title: string } | null>(null);
   const [title, setTitle] = useState('');
   const [mode, setMode] = useState<Mode>('practice');
   const action = useAction();
@@ -398,6 +400,7 @@ function TabActividades({ c }: { c: ClassRow }) {
                   <td className="py-2 pr-2">
                     <Link className="enlace" to={`/docente/actividades/${a.id}`}>{a.title}</Link>
                     <Link className="ml-2 text-xs text-gray-500 hover:underline" to={`/docente/actividades/${a.id}/vista-previa`} title="Ver como estudiante">👁 Vista previa</Link>
+                    <button className="ml-2 text-xs text-gray-500 hover:underline" title="Copiar a otra sección (también de Física General I a IA y viceversa)" onClick={() => setCopiar({ id: a.id, title: a.title })}>⧉ Copiar…</button>
                   </td>
                   <td className="py-2 pr-2"><Badge tone={a.mode === 'exam' ? 'purple' : 'blue'}>{a.mode === 'exam' ? 'Evaluación' : 'Práctica'}</Badge></td>
                   <td className="py-2 pr-2">{fecha(a.opens_at)}</td>
@@ -414,6 +417,7 @@ function TabActividades({ c }: { c: ClassRow }) {
       ) : (
         <Empty>Sin actividades.</Empty>
       )}
+      {copiar && <CopiarActividad actividad={copiar} classId={c.id} onClose={() => { setCopiar(null); void list.reload(); }} />}
     </div>
   );
 }
