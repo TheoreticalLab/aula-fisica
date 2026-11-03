@@ -5,6 +5,7 @@ import { estadoActividad, ordenar } from '@/lib/actividades';
 import { useAsync } from '@/lib/util';
 import { ErrorBox, PageTitle, Spinner } from '@/components/ui';
 import { ListaActividades } from '@/components/ListaActividades';
+import { ListaPes } from '@/components/ListaPes';
 
 export function PaginaActividades({ modo }: { modo: 'exam' | 'practice' }) {
   const st = useAsync(() => myActivities(), []);
@@ -23,6 +24,7 @@ export function PaginaActividades({ modo }: { modo: 'exam' | 'practice' }) {
         <h2 className="mb-2 font-semibold">{exam ? 'Pendientes' : 'Prácticas asignadas'}</h2>
         <ListaActividades actividades={pendientes} vacio={exam ? 'No tiene evaluaciones pendientes.' : 'No tiene prácticas pendientes.'} />
       </section>
+      {exam && <ListaPes />}
       {!exam && (
         <section className="tarjeta flex flex-wrap items-center gap-3">
           <span className="text-2xl" aria-hidden>📖</span>

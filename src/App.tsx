@@ -21,6 +21,7 @@ const Calificaciones = lazy(() => import('@/pages/estudiante/Calificaciones'));
 const Ayuda = lazy(() => import('@/pages/Ayuda'));
 const Cuenta = lazy(() => import('@/pages/estudiante/Cuenta'));
 const Evaluaciones = lazy(() => import('@/pages/estudiante/Evaluaciones'));
+const PracticaExtraordinaria = lazy(() => import('@/pages/estudiante/PracticaExtraordinaria'));
 const Practicar = lazy(() => import('@/pages/estudiante/Evaluaciones').then((m) => ({ default: m.Practicar })));
 const Progreso = lazy(() => import('@/pages/estudiante/Progreso'));
 const Laboratorio = lazy(() => import('@/pages/estudiante/Laboratorio'));
@@ -35,6 +36,8 @@ const ClaseAdmin = lazy(() => import('@/pages/docente/ClaseAdmin'));
 // Docente
 const InicioDocente = lazy(() => import('@/pages/docente/InicioDocente'));
 const Clase = lazy(() => import('@/pages/docente/Clase'));
+const PesEditor = lazy(() => import('@/pages/docente/PesEditor'));
+const PesSimulador = lazy(() => import('@/pages/docente/PesSimulador'));
 const Cursos = lazy(() => import('@/pages/docente/Cursos'));
 const CursoEditor = lazy(() => import('@/pages/docente/CursoEditor'));
 const LeccionEditor = lazy(() => import('@/pages/docente/LeccionEditor'));
@@ -108,6 +111,7 @@ export default function App() {
               <Route path="intento/:attemptId" element={auth(<Intento />)} />
               <Route path="calificaciones" element={auth(<Calificaciones />)} />
               <Route path="evaluaciones" element={auth(<Evaluaciones />)} />
+              <Route path="pes/:practicaId" element={auth(<PracticaExtraordinaria />)} />
               <Route path="practicar" element={auth(<Practicar />)} />
               <Route path="laboratorio" element={auth(<Laboratorio />)} />
               <Route path="laboratorio/:simKey" element={auth(<Laboratorio />)} />
@@ -124,6 +128,8 @@ export default function App() {
 
               <Route path="docente" element={teacher(<InicioDocente />)} />
               <Route path="docente/clases/:classId" element={teacher(<Clase />)} />
+              <Route path="docente/pes/:practicaId" element={teacher(<PesEditor />)} />
+              <Route path="docente/pes/:practicaId/simulador" element={teacher(<PesSimulador />)} />
               <Route path="docente/cursos" element={teacher(<Cursos />)} />
               <Route path="docente/cursos/:courseId" element={teacher(<CursoEditor />)} />
               <Route path="docente/lecciones/:lessonId" element={teacher(<LeccionEditor />)} />

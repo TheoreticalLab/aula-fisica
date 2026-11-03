@@ -170,5 +170,5 @@ describe.skipIf(!existsSync(join(ROOT, 'dist')))('compilación publicada (dist/)
       .map((s) => s.slice(0, 40));
     const bundle = walk(join(ROOT, 'dist'), ['.js', '.html', '.css', '.json']).map((f) => readFileSync(f, 'utf8')).join('\n');
     for (const s of secrets) expect(bundle.includes(s), s).toBe(false);
-  });
+  }, 30000);   // lee todo dist/ y el contenido: ~1,5 s solo, pero más de 5 s con la batería completa en paralelo
 });

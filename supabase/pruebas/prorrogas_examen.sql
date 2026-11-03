@@ -39,7 +39,7 @@ update public.attempts set started_at = now() - interval '11 minutes' where id =
 set local role authenticated;
 do $$ begin
   begin perform public.exam_save(current_setting('prueba.t1')::uuid, 'de370000-0000-4000-8000-0000000000e1', '{"selected":[0]}', 1); raise exception 'FALLO: guardó con el tiempo vencido';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   -- un estudiante no se da prórrogas
   begin perform public.exam_extend(current_setting('prueba.t1')::uuid, 30); raise exception 'FALLO: el estudiante se dio una prórroga';
   exception when insufficient_privilege then null; end;
@@ -58,7 +58,7 @@ do $$ declare r jsonb; begin
   begin perform public.exam_extend(current_setting('prueba.t1')::uuid, 0); raise exception 'FALLO: aceptó 0 minutos';
   exception when invalid_parameter_value then null; end;
   begin perform public.exam_extend(current_setting('prueba.t2')::uuid, 5); raise exception 'FALLO: prórroga en un examen sin límite';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   r := public.exam_extend(current_setting('prueba.t1')::uuid, 5, 'Se cayó su conexión');
   if (r ->> 'extra_s')::int <> 300 then raise exception 'FALLO: prórroga %', r; end if;
   if (r ->> 'limite_ms')::bigint <> (extract(epoch from now() - interval '11 minutes') * 1000)::bigint + 900000 then raise exception 'FALLO: nuevo límite %', r; end if;

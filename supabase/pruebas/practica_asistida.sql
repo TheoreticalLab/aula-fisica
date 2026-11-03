@@ -75,9 +75,9 @@ select set_config('prueba.t2', public.start_activity_attempt('de380000-0000-4000
 do $$ begin
   if (public.asistida_estado(current_setting('prueba.t2')::uuid) ->> 'asistida')::boolean then raise exception 'FALLO: la tradicional no es asistida'; end if;
   begin perform public.get_hint(current_setting('prueba.t1')::uuid, 'de380000-0000-4000-8000-0000000000e1'); raise exception 'FALLO: pistas en la asistida';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   begin perform public.reveal_solution(current_setting('prueba.t1')::uuid, 'de380000-0000-4000-8000-0000000000e1'); raise exception 'FALLO: solución en la asistida';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
 end $$;
 select set_config('request.jwt.claims', '{"sub":"de380000-0000-4000-8000-000000000012","role":"authenticated"}', true);
 select set_config('request.jwt.claim.sub', 'de380000-0000-4000-8000-000000000012', true);
@@ -88,11 +88,11 @@ do $$ declare r jsonb; begin
   r := public.svc_check_context('de380000-0000-4000-8000-000000000011', current_setting('prueba.t2')::uuid, 'de380000-0000-4000-8000-0000000000e1');
   if r -> 'key' ->> 'value' <> '0.098 m' then raise exception 'FALLO: práctica tradicional %', r; end if;
   begin perform public.svc_check_context('de380000-0000-4000-8000-000000000011', current_setting('prueba.t1')::uuid, 'de380000-0000-4000-8000-0000000000e1');
-    raise exception 'FALLO: comprobación clásica (oráculo) en la asistida'; exception when raise_exception then null; end;
+    raise exception 'FALLO: comprobación clásica (oráculo) en la asistida'; exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
 
   -- orden: no hay corrección sin primer intento
   begin perform public.svc_asistida_contexto('de380000-0000-4000-8000-000000000011', current_setting('prueba.t1')::uuid, 'de380000-0000-4000-8000-0000000000e1', 'corregida');
-    raise exception 'FALLO: corrección antes del primer intento'; exception when raise_exception then null; end;
+    raise exception 'FALLO: corrección antes del primer intento'; exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   -- 2) estudiante 1: primer intento incorrecto declarado autónomo (0.049 m)
   r := public.svc_asistida_contexto('de380000-0000-4000-8000-000000000011', current_setting('prueba.t1')::uuid, 'de380000-0000-4000-8000-0000000000e1', 'inicial', 'c0000000-0000-4000-8000-000000000001');
   if r -> 'key' ->> 'value' <> '0.098 m' then raise exception 'FALLO: contexto %', r; end if;
@@ -106,10 +106,10 @@ do $$ declare r jsonb; begin
   if not (r ->> 'repetido')::boolean then raise exception 'FALLO: reintento no reconocido %', r; end if;
   -- 13) otra pestaña con otro envío del primer intento: rechazado (ya existe)
   begin perform public.svc_asistida_contexto('de380000-0000-4000-8000-000000000011', current_setting('prueba.t1')::uuid, 'de380000-0000-4000-8000-0000000000e1', 'inicial', 'c0000000-0000-4000-8000-000000000099');
-    raise exception 'FALLO: segundo primer intento desde otra pestaña'; exception when raise_exception then null; end;
+    raise exception 'FALLO: segundo primer intento desde otra pestaña'; exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   begin perform public.svc_asistida_registrar('de380000-0000-4000-8000-000000000011', current_setting('prueba.t1')::uuid, 'de380000-0000-4000-8000-0000000000e1', 'inicial',
     '{"answer":{"text":"0.098 m"},"declaracion":"autonomo"}', '{"status":"correct","credit":1}', 'c0000000-0000-4000-8000-000000000098');
-    raise exception 'FALLO: sobrescribió el primer intento'; exception when raise_exception then null; end;
+    raise exception 'FALLO: sobrescribió el primer intento'; exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   -- corrección: dos comprobaciones como máximo (max_tries_per_item = 2)
   perform public.svc_asistida_registrar('de380000-0000-4000-8000-000000000011', current_setting('prueba.t1')::uuid, 'de380000-0000-4000-8000-0000000000e1', 'corregida',
     '{"answer":{"text":"0.098 cm"}}', '{"status":"incorrect","credit":0}', 'c0000000-0000-4000-8000-000000000002');
@@ -117,10 +117,10 @@ do $$ declare r jsonb; begin
     '{"answer":{"text":"0.098 m"},"procedimiento":"Energía: mgx = kx²/2"}', '{"status":"correct","credit":1}', 'c0000000-0000-4000-8000-000000000003');
   if r ->> 'siguiente' <> 'reflexion' or (r -> 'pasos' -> 0 ->> 'status') <> 'incorrect' then raise exception 'FALLO: tras corregir debe pasar a explicar y mostrar el resultado inicial %', r; end if;
   begin perform public.svc_asistida_contexto('de380000-0000-4000-8000-000000000011', current_setting('prueba.t1')::uuid, 'de380000-0000-4000-8000-0000000000e1', 'corregida');
-    raise exception 'FALLO: superó las comprobaciones'; exception when raise_exception then null; end;
+    raise exception 'FALLO: superó las comprobaciones'; exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   -- transferencia antes de explicar: no
   begin perform public.svc_asistida_contexto('de380000-0000-4000-8000-000000000011', current_setting('prueba.t1')::uuid, 'de380000-0000-4000-8000-0000000000e1', 'transferencia');
-    raise exception 'FALLO: transferencia antes de explicar'; exception when raise_exception then null; end;
+    raise exception 'FALLO: transferencia antes de explicar'; exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
 
   -- 3 y 18) estudiante 2: mismas respuestas, declara haber consultado ayuda → misma nota
   perform public.svc_asistida_registrar('de380000-0000-4000-8000-000000000012', current_setting('prueba.t3')::uuid, 'de380000-0000-4000-8000-0000000000e1', 'inicial',
@@ -136,7 +136,7 @@ reset role;
 -- 12) ni siquiera directamente en la base de datos se puede modificar el primer intento
 do $$ begin
   begin update public.assisted_steps set answer = '{"text":"0.098 m"}' where attempt_id = current_setting('prueba.t1')::uuid and fase = 'inicial';
-    raise exception 'FALLO: se pudo modificar el primer intento'; exception when raise_exception then null; end;
+    raise exception 'FALLO: se pudo modificar el primer intento'; exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   if (select answer ->> 'text' from public.assisted_steps where attempt_id = current_setting('prueba.t1')::uuid and fase = 'inicial') <> '0.049 m' then raise exception 'FALLO: el primer intento cambió'; end if;
   if (select count(*) from public.assisted_steps where attempt_id = current_setting('prueba.t1')::uuid and fase = 'corregida') <> 2 then raise exception 'FALLO: versiones de la corrección'; end if;
 end $$;
@@ -218,7 +218,7 @@ select set_config('request.jwt.claims', '{"sub":"de380000-0000-4000-8000-0000000
 select set_config('request.jwt.claim.sub', 'de380000-0000-4000-8000-000000000001', true);
 do $$ begin
   begin perform public.assisted_settings_disable('de380000-0000-4000-8000-0000000000a1'); raise exception 'FALLO: desactivó con pasos registrados';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   if public.assisted_settings_disable('de380000-0000-4000-8000-0000000000a4') -> 'config' <> 'null'::jsonb then raise exception 'FALLO: no se desactivó'; end if;
 end $$;
 select set_config('request.jwt.claims', '{"sub":"de380000-0000-4000-8000-000000000002","role":"authenticated"}', true);

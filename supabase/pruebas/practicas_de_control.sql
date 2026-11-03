@@ -69,9 +69,9 @@ do $$ declare r jsonb; begin
   if (r ->> 'version')::int <> 1 or (r ->> 'entregas_previas')::int <> 1 then raise exception 'FALLO: política %', r; end if;
   -- catálogo: una abierta sin rúbrica no se aprueba; con rúbrica sí; más de 10 minutos, imposible
   begin perform public.control_item_guardar('{"exercise_id":"de620000-0000-4000-8000-0000000000b3","origen_exercise_id":"de620000-0000-4000-8000-0000000000e1","tipo":"conceptual","competencia":"energia","minutos":4,"justificacion":"Misma ley, otra situación física.","estado":"aprobado"}');
-    raise exception 'FALLO: abierta sin rúbrica aprobada'; exception when raise_exception then null; end;
+    raise exception 'FALLO: abierta sin rúbrica aprobada'; exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   begin perform public.control_item_guardar('{"exercise_id":"de620000-0000-4000-8000-0000000000b5","origen_exercise_id":"de620000-0000-4000-8000-0000000000e1","tipo":"contextual","competencia":"energia","minutos":4,"justificacion":"Misma ley, otra situación física.","estado":"aprobado"}');
-    raise exception 'FALLO: ejercicio no publicado aprobado'; exception when raise_exception then null; end;
+    raise exception 'FALLO: ejercicio no publicado aprobado'; exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   begin perform public.control_item_guardar('{"exercise_id":"de620000-0000-4000-8000-0000000000b1","origen_exercise_id":"de620000-0000-4000-8000-0000000000e1","tipo":"contextual","competencia":"energia","minutos":12,"justificacion":"Misma ley, otra situación física.","estado":"aprobado"}');
     raise exception 'FALLO: 12 minutos aceptados'; exception when check_violation then null; end;
   perform public.control_item_guardar('{"exercise_id":"de620000-0000-4000-8000-0000000000b3","origen_exercise_id":"de620000-0000-4000-8000-0000000000e1","tipo":"conceptual","competencia":"energia","minutos":4,"justificacion":"Misma ley, otra situación física.","hipotesis":"Sin rozamiento","rubrica":[{"criterio":"Principio","peso":40},{"criterio":"Justificación","peso":60}],"estado":"aprobado"}');
@@ -105,7 +105,7 @@ do $$ declare r jsonb; r2 jsonb; s uuid; begin
   r2 := public.control_preparar('de620000-0000-4000-8000-0000000000a1', 'de620000-0000-4000-8000-0000000000c1', 7, 'c6200000-0000-4000-8000-000000000001');
   if (r2 -> 'session' ->> 'id')::uuid <> s then raise exception 'FALLO: preparar no es idempotente'; end if;
   begin perform public.control_preparar('de620000-0000-4000-8000-0000000000a1', 'de620000-0000-4000-8000-0000000000c1', 7, 'c6200000-0000-4000-8000-000000000002');
-    raise exception 'FALLO: activación duplicada'; exception when raise_exception then null; end;
+    raise exception 'FALLO: activación duplicada'; exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   -- elegibilidad y selección (vista previa del profesor): S3 sin entrega; nadie recibe el ejercicio original,
   -- uno no publicado, uno de otra competencia ni uno de 9 minutos
   if not exists (select 1 from jsonb_array_elements(r -> 'estudiantes') x where x ->> 'user_id' = 'de620000-0000-4000-8000-000000000013' and x ->> 'estado' = 'sin_entrega') then raise exception 'FALLO: S3'; end if;
@@ -120,7 +120,7 @@ do $$ declare r jsonb; r2 jsonb; s uuid; begin
   -- a S5 se le asigna la abierta (sustitución docente) y tiempo adicional justificado
   perform public.control_sustituir(s, 'de620000-0000-4000-8000-000000000015', 'de620000-0000-4000-8000-0000000000b3');
   begin perform public.control_sustituir(s, 'de620000-0000-4000-8000-000000000015', 'de620000-0000-4000-8000-0000000000e1'); raise exception 'FALLO: sustituir por el original';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   begin perform public.control_tiempo_extra(s, 'de620000-0000-4000-8000-000000000015', 3, ''); raise exception 'FALLO: tiempo extra sin motivo';
   exception when invalid_parameter_value then null; end;
   perform public.control_tiempo_extra(s, 'de620000-0000-4000-8000-000000000015', 3, 'Adaptación acreditada');
@@ -215,7 +215,7 @@ select set_config('request.jwt.claim.sub', 'de620000-0000-4000-8000-000000000001
 do $$ declare s uuid := current_setting('prueba.s')::uuid; r jsonb; begin
   -- antes de confirmar no hay ajuste (nunca se reduce con la corrección pendiente)
   if public.control_ajustes('de620000-0000-4000-8000-0000000000a1') @> '[{"factor": 0.9}]' then raise exception 'FALLO: ajuste antes de confirmar'; end if;
-  begin perform public.control_confirmar(s); raise exception 'FALLO: confirmar sin cerrar'; exception when raise_exception then null; end;
+  begin perform public.control_confirmar(s); raise exception 'FALLO: confirmar sin cerrar'; exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   r := public.control_cerrar(s);
   r := public.control_confirmar(s);
   if (r ->> 'confirmados')::int <> 2 then raise exception 'FALLO: confirmados % (S1 y S6; S5 pendiente)', r ->> 'confirmados'; end if;

@@ -39,8 +39,9 @@ import { RegularizacionSeccion } from './Regularizacion';
 import { TabSeguimiento } from './SeguimientoTab';
 import { TabPrograma } from './ProgramaTab';
 import { CopiarActividad } from './CopiarActividad';
+import { TabPes } from './PesTab';
 
-type Tab = 'estudiantes' | 'asistencia' | 'clases' | 'programa' | 'avisos' | 'actividades' | 'seguimiento' | 'entregas' | 'regularizacion' | 'coincidencias' | 'calificaciones' | 'revision' | 'estadisticas';
+type Tab = 'estudiantes' | 'asistencia' | 'clases' | 'programa' | 'avisos' | 'actividades' | 'pes' | 'seguimiento' | 'entregas' | 'regularizacion' | 'coincidencias' | 'calificaciones' | 'revision' | 'estadisticas';
 
 export default function Clase() {
   const { classId = '' } = useParams();
@@ -80,6 +81,7 @@ export default function Clase() {
           ...(course.programa ? [{ id: 'programa' as Tab, label: 'Programa impartido' }] : []),
           { id: 'avisos', label: 'Avisos' },
           { id: 'actividades', label: 'Actividades' },
+          { id: 'pes', label: 'Prácticas extraordinarias' },
           { id: 'seguimiento', label: 'Seguimiento' },
           { id: 'entregas', label: 'Entregas en PDF' },
           { id: 'regularizacion', label: 'Prácticas anteriores' },
@@ -98,6 +100,7 @@ export default function Clase() {
       {tab === 'coincidencias' && <TabCoincidencias classId={c.id} />}
       {tab === 'avisos' && <TabAvisos c={c} />}
       {tab === 'actividades' && <TabActividades c={c} />}
+      {tab === 'pes' && <TabPes classId={c.id} />}
       {tab === 'seguimiento' && <TabSeguimiento classId={c.id} />}
       {tab === 'calificaciones' && <TabCalificaciones c={c} />}
       {tab === 'revision' && <TabRevision c={c} />}

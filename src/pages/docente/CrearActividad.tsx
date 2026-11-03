@@ -7,6 +7,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getClass, listExercises } from '@/api/docente';
 import { getLessonList } from '@/api/estudiante';
 import { crearDesdeBorrador } from '@/api/crearActividad';
+import { pesCrear } from '@/api/pes';
 import type { Exercise } from '@/api/tipos';
 import { borradorDesde, PLANTILLAS, plantilla, resumen, revisar, type Borrador, type IdPlantilla } from '@/lib/plantillas';
 import { CATEGORIA, DIFICULTAD, useAction, useAsync } from '@/lib/util';
@@ -24,6 +25,7 @@ export default function CrearActividad() {
   const clase = useAsync(() => getClass(classId), [classId]);
   const [paso, setPaso] = useState(0);
   const [b, setB] = useState<Borrador | null>(null);
+  const [extra, setExtra] = useState<{ titulo: string; cierre: string } | null>(null);     // práctica extraordinaria
   const action = useAction();
   useModoConcentracion();
   if (clase.loading) return <Spinner />;
@@ -42,6 +44,13 @@ export default function CrearActividad() {
     if (a) nav(`/docente/actividades/${a.id}?creada=1`);
   }
 
+  // Práctica extraordinaria secuencial: se crea el borrador y el contenido se prepara en su propio editor
+  async function crearExtraordinaria() {
+    if (!extra?.titulo.trim()) return;
+    const id = await action.run(() => pesCrear(c.id, { titulo: extra.titulo.trim(), cierra_at: deLocal(extra.cierre) }));
+    if (id) nav(`/docente/pes/${id}?t=contenido`);
+  }
+
   return (
     <div className="mx-auto max-w-3xl pb-24">
       <PageTitle title="Crear actividad" subtitle={c.name} back={{ to: `/docente/clases/${c.id}?t=actividades`, label: c.name }} />
@@ -57,7 +66,23 @@ export default function CrearActividad() {
         ))}
       </ol>
 
-      {paso === 0 && <PasoTipo elegida={b?.plantilla ?? null} onElegir={(id) => { setB((x) => ({ ...borradorDesde(id, new Date()), titulo: x?.titulo ?? '' })); setPaso(1); }} />}
+      {paso === 0 && !extra && <PasoTipo elegida={b?.plantilla ?? null} onElegir={(id) => { setB((x) => ({ ...borradorDesde(id, new Date()), titulo: x?.titulo ?? '' })); setPaso(1); }}
+        onExtraordinaria={() => { setB(null); setExtra({ titulo: '', cierre: '' }); }} />}
+      {paso === 0 && extra && (
+        <form className="tarjeta space-y-3" onSubmit={(e) => { e.preventDefault(); void crearExtraordinaria(); }}>
+          <h2 className="text-lg font-semibold">🧩 Práctica extraordinaria secuencial</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Problemas de 3 a 5 apartados que el estudiante ve de uno en uno, sin poder volver atrás, con un tiempo mínimo por
+            apartado (avanzar antes reduce la puntuación del apartado al 50 %; omitir vale 0). Se crea como borrador: después elige los ejercicios, las fechas y la publica.</p>
+          <label className="block"><span className="etiqueta">Título</span>
+            <input className="campo" value={extra.titulo} onChange={(e) => setExtra({ ...extra, titulo: e.target.value })} maxLength={160} required autoFocus /></label>
+          <label className="block"><span className="etiqueta">Fecha límite (puede ponerla después)</span>
+            <input type="datetime-local" className="campo" value={extra.cierre} onChange={(e) => setExtra({ ...extra, cierre: e.target.value })} /></label>
+          <div className="flex gap-2">
+            <button type="button" className="btn-secundario min-h-[44px]" onClick={() => setExtra(null)} disabled={action.busy}>← Atrás</button>
+            <button className="btn-primario min-h-[44px]" disabled={action.busy || !extra.titulo.trim()}>{action.busy ? 'Creando…' : 'Crear y elegir los ejercicios →'}</button>
+          </div>
+        </form>
+      )}
       {paso === 1 && b && <PasoPreguntas courseId={c.course_id} b={b} set={set} />}
       {paso === 2 && b && <PasoReglas b={b} set={set} />}
       {paso === 3 && b && (
@@ -94,7 +119,7 @@ export default function CrearActividad() {
   );
 }
 
-function PasoTipo({ elegida, onElegir }: { elegida: IdPlantilla | null; onElegir: (id: IdPlantilla) => void }) {
+function PasoTipo({ elegida, onElegir, onExtraordinaria }: { elegida: IdPlantilla | null; onElegir: (id: IdPlantilla) => void; onExtraordinaria: () => void }) {
   const grupos: { titulo: string; ids: IdPlantilla[] }[] = [
     { titulo: 'Para practicar', ids: ['practica_libre', 'practica_asistida', 'tarea'] },
     { titulo: 'Para evaluar', ids: ['quiz', 'parcial', 'estricto'] },
@@ -117,6 +142,17 @@ function PasoTipo({ elegida, onElegir }: { elegida: IdPlantilla | null; onElegir
           </div>
         </section>
       ))}
+      <section>
+        <h3 className="mb-2 text-sm font-medium text-gray-500">Práctica extraordinaria</h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={onExtraordinaria}
+            className="tarjeta flex min-h-[88px] items-start gap-3 text-left transition hover:border-primario-400 hover:shadow">
+            <span className="text-2xl" aria-hidden>🧩</span>
+            <span><span className="block font-semibold">Práctica extraordinaria secuencial</span>
+              <span className="block text-sm text-gray-600 dark:text-gray-400">Problemas por apartados, uno a uno y sin volver atrás, con tiempo mínimo por apartado. Puntuación no lineal (máx. 8).</span></span>
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

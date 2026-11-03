@@ -7,6 +7,8 @@
  *  - finalize  { activity_id }                      → (profesor) entrega y califica los intentos que quedaron abiertos
  *  - variante  { attempt_id, exercise_id }          → parámetros de la versión de ese intento (nunca la respuesta)
  *  - adaptativo { attempt_id, tras }                → examen adaptativo: siguiente pregunta tras «tras» (sin revelar aciertos)
+ *  - pes       { op: 'confirmar', practica_id, apartado_id, answer, anticipado, idem } → cierra el apartado abierto de una
+ *              Práctica Extraordinaria Secuencial (sin revelar aciertos); { op: 'variante', practica_id, apartado_id } → sus números
  *
  * La autorización la deciden las funciones SQL svc_* (reciben el id del usuario verificado por el JWT);
  * este módulo solo interpreta y compara respuestas.
@@ -230,6 +232,33 @@ export async function handle(body: unknown, userId: string, db: Db): Promise<unk
       const def = await call<{ plantilla: string } | null>(db, 'svc_variante_info', { p_user: userId, p_attempt: attempt, p_exercise: exercise });
       if (!def?.plantilla) return { parametros: null };
       return { parametros: parametrosVariante(def.plantilla, attempt, exercise).parametros };
+    }
+    case 'pes': {
+      // Práctica Extraordinaria Secuencial: solo el apartado ABIERTO del propio estudiante (lo comprueban las svc_pes_*).
+      const practica = uuid(b.practica_id, 'practica_id');
+      const apartado = uuid(b.apartado_id, 'apartado_id');
+      if (b.op === 'variante') {
+        const def = await call<{ plantilla: string | null; semilla: string }>(db, 'svc_pes_variante', { p_user: userId, p_practica: practica, p_apartado: apartado });
+        return { parametros: def?.plantilla ? parametrosVariante(def.plantilla, def.semilla, apartado).parametros : null };
+      }
+      if (b.op !== 'confirmar') throw new HttpError(400, 'Operación desconocida');
+      const idem = uuid(b.idem, 'idem');
+      const answer = validateAnswerShape(b.answer);
+      if (!answer) throw new HttpError(400, 'Respuesta con formato inválido');
+      const ctx = await call<{ clave: AnswerKey | null; opciones: number; previo: string | null; semilla: string }>(db, 'svc_pes_preparar', {
+        p_user: userId, p_practica: practica, p_apartado: apartado,
+      });
+      // la variante usa la semilla de la asignación del estudiante (sus números) y el apartado
+      const result = safeGrade(ctx.clave, answer, ctx.opciones || null, ctx.previo, { attempt: ctx.semilla, exercise: apartado });
+      // Respuesta que no se pudo interpretar: NO cierra el apartado (es irreversible); se pide corregir el formato.
+      if (result.status === 'invalid') return { confirmado: false, mensajes: result.messages };
+      const estado = await call<Record<string, unknown>>(db, 'svc_pes_confirmar', {
+        p_user: userId, p_practica: practica, p_apartado: apartado, p_respuesta: answer,
+        p_resultado: { status: result.status, credit: result.credit, code: result.code ?? null },
+        p_anticipado: b.anticipado === true, p_idem: idem,
+      });
+      // al estudiante no se le dice si acertó (los resultados se publican después)
+      return { confirmado: true, estado };
     }
     default:
       throw new HttpError(400, 'Acción desconocida');

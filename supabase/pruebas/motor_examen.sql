@@ -132,13 +132,13 @@ do $$ declare r jsonb; begin
   r := public.exam_pause(current_setting('prueba.t2')::uuid);
   if r ->> 'estado' <> 'en_pausa' then raise exception 'FALLO: pausa %', r; end if;
   begin perform public.exam_save(current_setting('prueba.t2')::uuid, 'de350000-0000-4000-8000-0000000000e1', '{"selected":[0]}', 400); raise exception 'FALLO: guardó en pausa';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   begin perform public.exam_goto(current_setting('prueba.t2')::uuid, 'de350000-0000-4000-8000-0000000000e2'); raise exception 'FALLO: navegó en pausa';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   r := public.exam_resume(current_setting('prueba.t2')::uuid);
   if r ->> 'estado' <> 'en_curso' then raise exception 'FALLO: reanudar %', r; end if;
   begin perform public.exam_pause(current_setting('prueba.t2')::uuid); raise exception 'FALLO: superó el número de pausas';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
 end $$;
 
 -- 6) diario de tramos: validación, idempotencia y rechazos registrados
@@ -187,19 +187,19 @@ do $$ begin
   -- gracia de 10 s para el último guardado de la pregunta que se acaba de dejar
   perform public.exam_save(current_setting('prueba.t3')::uuid, 'de350000-0000-4000-8000-0000000000e1', '{"selected":[1]}', 20);
   begin perform public.exam_goto(current_setting('prueba.t3')::uuid, 'de350000-0000-4000-8000-0000000000e1'); raise exception 'FALLO: volvió atrás en «solo adelante»';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   begin perform public.exam_pause(current_setting('prueba.t3')::uuid); raise exception 'FALLO: pausó sin pausas permitidas';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
 end $$;
 reset role;
 update public.exam_events set t = t - interval '1 minute' where attempt_id = current_setting('prueba.t3')::uuid;   -- pasó el tiempo de gracia
 set local role authenticated;
 do $$ begin
   begin perform public.exam_save(current_setting('prueba.t3')::uuid, 'de350000-0000-4000-8000-0000000000e1', '{"selected":[2]}', 30); raise exception 'FALLO: modificó una pregunta anterior';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   -- tampoco por la vía antigua
   begin perform public.save_response(current_setting('prueba.t3')::uuid, 'de350000-0000-4000-8000-0000000000e1', '{"selected":[2]}'); raise exception 'FALLO: save_response saltó la navegación';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
 end $$;
 reset role;
 update public.attempts set started_at = now() - interval '5 minutes' where id = current_setting('prueba.t3')::uuid;   -- 60 s vencidos
@@ -208,9 +208,9 @@ do $$ declare r jsonb; begin
   r := public.exam_open(current_setting('prueba.t3')::uuid);
   if r ->> 'estado' <> 'vencido' then raise exception 'FALLO: debería estar vencido %', r; end if;
   begin perform public.exam_save(current_setting('prueba.t3')::uuid, 'de350000-0000-4000-8000-0000000000e2', '{"selected":[0]}', 40); raise exception 'FALLO: guardó con el tiempo vencido';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   begin perform public.save_response(current_setting('prueba.t3')::uuid, 'de350000-0000-4000-8000-0000000000e2', '{"selected":[0]}'); raise exception 'FALLO: save_response saltó el límite';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
 end $$;
 
 -- 8b) seguimiento en vivo: el profesor ve los intentos en curso; un estudiante no
@@ -242,7 +242,7 @@ do $$ declare r jsonb; v0 bigint := (extract(epoch from now() - interval '10 min
     jsonb_build_object('seq', 8, 'tipo', 'trabajo', 'exercise_id', 'de350000-0000-4000-8000-0000000000e2', 'inicio_ms', v0 + 90000, 'fin_ms', (extract(epoch from now()) * 1000)::bigint)));
   if (r ->> 'aceptados')::int <> 1 then raise exception 'FALLO: último tramo tras entregar %', r; end if;
   begin perform public.exam_goto(current_setting('prueba.t2')::uuid, 'de350000-0000-4000-8000-0000000000e2'); raise exception 'FALLO: navegó tras entregar';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
   -- el propio estudiante ve su cronología (sin su identificador)
   r := public.exam_timeline(current_setting('prueba.t2')::uuid);
   if jsonb_array_length(r -> 'tramos') <> 4 or (r -> 'sesion') ? 'user_id' then raise exception 'FALLO: cronología propia %', r; end if;

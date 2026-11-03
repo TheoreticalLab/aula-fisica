@@ -53,7 +53,7 @@ do $$ declare r jsonb; begin
   perform public.clase_permisos_config('de660000-0000-4000-8000-000000000031', true, false);
   perform public.clase_delegado_otorgar('de660000-0000-4000-8000-000000000031', 'de660000-0000-4000-8000-000000000012', null);
   begin perform public.clase_delegado_otorgar('de660000-0000-4000-8000-000000000031', 'de660000-0000-4000-8000-000000000014', null);
-    raise exception 'FALLO: delegado de otra sección'; exception when raise_exception then null; end;
+    raise exception 'FALLO: delegado de otra sección'; exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
 end $$;
 
 -- 2) el monitor (ya habilitado) y el delegado registran; el delegado solo en su sección autorizada; no publican
@@ -242,7 +242,7 @@ do $$ declare r jsonb; begin
   r := public.svc_clase_ia_iniciar('de660000-0000-4000-8000-000000000001', current_setting('prueba.c2')::uuid, 'a6600000-0000-4000-8000-000000000005', 'claude-opus-5-5', 'exhaustivo', '', 0.9);
   if r ->> 'motivo' <> 'presupuesto' then raise exception 'FALLO: presupuesto %', r; end if;
   begin perform public.svc_clase_eliminar('de660000-0000-4000-8000-000000000001', current_setting('prueba.c2')::uuid); raise exception 'FALLO: borró una clase publicada';
-  exception when raise_exception then null; end;
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
 end $$;
 reset role;
 
