@@ -150,7 +150,7 @@ export function GenerarConIA({ d, recargar }: { d: DetallePes; recargar: () => P
         </Card>
       )}
 
-      <Propuestas d={d} props={props.data ?? null} cargando={props.loading} recargarPropuestas={props.reload} recargar={recargar} />
+      <Propuestas d={d} props={props.data ?? null} cargando={props.loading} error={props.error} recargarPropuestas={props.reload} recargar={recargar} />
     </div>
   );
 }
@@ -162,18 +162,21 @@ function resumenClave(a: ApartadoRedactado): string {
   try { return describeKey(a.clave as unknown as AnswerKey, a.opciones); } catch { return 'clave no legible'; }
 }
 
-function Propuestas({ d, props, cargando, recargarPropuestas, recargar }: {
-  d: DetallePes; props: PropuestaPes[] | null; cargando: boolean; recargarPropuestas: () => Promise<void>; recargar: () => Promise<void>;
+function Propuestas({ d, props, cargando, error, recargarPropuestas, recargar }: {
+  d: DetallePes; props: PropuestaPes[] | null; cargando: boolean; error: string | null; recargarPropuestas: () => Promise<void>; recargar: () => Promise<void>;
 }) {
   const [editando, setEditando] = useState<string | null>(null);
   const act = useAction();
   const hecho = async () => { await recargarPropuestas(); await recargar(); };
   if (cargando && !props) return <Spinner />;
+  // un fallo al leer las propuestas se muestra (antes se veía como «no hay propuestas»)
+  if (error && !props) return <ErrorBox error={`No se pudieron cargar las propuestas: ${error}`} onRetry={recargarPropuestas} />;
   const xs = props ?? [];
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="font-semibold">Propuestas por revisar ({xs.length})</h3>
+        <button type="button" className="enlace text-sm" disabled={cargando} onClick={() => void recargarPropuestas()}>{cargando ? 'Actualizando…' : 'Actualizar'}</button>
         {xs.length > 1 && (
           <button type="button" className="btn-secundario ml-auto" disabled={act.busy} onClick={async () => {
             if (!confirm(`¿Añadir las ${xs.length} propuestas a la práctica? Revise antes la física de cada una.`)) return;
@@ -183,6 +186,7 @@ function Propuestas({ d, props, cargando, recargarPropuestas, recargar }: {
         )}
       </div>
       <ErrorBox error={act.error} />
+      {error && props && <ErrorBox error={`No se pudo actualizar la lista: ${error}`} onRetry={recargarPropuestas} />}
       {xs.length === 0 && <Empty>No hay propuestas pendientes. Las que genere aparecerán aquí para revisarlas.</Empty>}
       {xs.map((p) => (
         <Card key={p.id} title={<>{p.problema.titulo} <Badge>{TIPOS_PES.find((t) => t.id === p.tipo)?.t ?? p.tipo}</Badge> <Badge tone="blue">{NIVELES_PES.find((x) => x.id === p.dificultad)?.t}</Badge></>}>

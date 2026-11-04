@@ -13,7 +13,7 @@
 import { grade } from '../_shared/calificacion/calificar.ts';
 import type { AnswerKey } from '../_shared/calificacion/tipos.ts';
 import { codigoError, HttpError, limpiarDato, type Deps, type Peticion, type RespuestaModelo } from './handler.ts';
-import { norma, textoOk, validarNumerica } from './generar.ts';
+import { norma, normaOpcion, textoOk, validarNumerica } from './generar.ts';
 
 export type Nivel = 'basico' | 'intermedio' | 'desafiante';
 export type TipoProblema = 'calculo' | 'conceptual' | 'datos' | 'errores' | 'transferencia';
@@ -74,6 +74,7 @@ const SISTEMA = [
   'Numéricas: en «numerica.datos» anota CADA dato con el MISMO número y la MISMA unidad con que está escrito en la situación común o en el enunciado de ese apartado: si el texto dice «50 g», valor 50 y unidad "g". NO conviertas unidades: el servidor las convierte. Símbolos: m, cm, mm, km, s, min, h, kg, g, N, kN, J, kJ, W, Pa, m/s, km/h, m/s^2, °, etc.; "" si es adimensional.',
   '  En el texto escribe los números de forma simple, por ejemplo 0,05 kg o 1,2 × 10^3 N (sin la coma de LaTeX {,}), y pon la unidad justo después del número.',
   '  «numerica.expresion» usa solo los nombres de los datos, números, + - * / ^, paréntesis, pi y sqrt, abs, sin, cos, tan, asin, acos, atan, exp, ln, log10 (ángulos en grados: el servidor los convierte). Incluye g como dato si la usas.',
+  '  En la expresión NO pongas factores de conversión de unidades (1000, 100, 3,6, 60…): cada dato ya lleva su unidad y el servidor convierte todo. Escribe la fórmula física tal cual (p = m*v, no p = m/1000*v).',
   '  «numerica.unidad» es la unidad en que se pide el resultado (si el enunciado lo pide en gramos o en mJ, "g" o "mJ") y «numerica.resultado» es el valor de la expresión con los datos anotados, EXPRESADO EN ESA UNIDAD. Antes de responder, recalcúlalo con la expresión y los datos tal como los anotaste.',
   '  «numerica.errores»: hasta 3 errores típicos con su expresión y un mensaje que explique el error.',
   'Electromagnetismo: el corrector todavía no entiende los símbolos Ω, F, T, Wb ni H. En el texto puedes escribirlos (10 Ω, 4,7 μF, 2 mT), pero en «numerica.datos» anota esos datos en su equivalente: Ω → "V/A", F → "C/V" (μF → "μC/V"), T → "N/(A·m)" (mT → "mN/(A·m)"), Wb → "V·s", H → "V·s/A". Y NO pidas resultados numéricos en Ω, F, T, Wb ni H: pide otra magnitud (corriente, tensión, carga, energía, potencia, tiempo, fuerza…) o haz ese apartado de selección.',
@@ -179,7 +180,7 @@ export function validarProblema(p: Record<string, unknown>, spec: Especificacion
     } else if (a.formato === 'choice') {
       const ops = (Array.isArray(a.opciones) ? a.opciones : []).map((o) => limpio(o));
       if (ops.length < 3 || ops.length > 5 || ops.some((o) => !textoOk(o, 1, 400))) return { ok: false, motivo: `apartado ${letra}: opciones insuficientes o inválidas` };
-      if (new Set(ops.map(norma)).size !== ops.length) return { ok: false, motivo: `apartado ${letra}: opciones repetidas` };
+      if (new Set(ops.map(normaOpcion)).size !== ops.length) return { ok: false, motivo: `apartado ${letra}: opciones repetidas` };
       const c = Number(a.correcta);
       if (!Number.isInteger(c) || c < 0 || c >= ops.length) return { ok: false, motivo: `apartado ${letra}: opción correcta fuera de rango` };
       const retro = Array.isArray(a.retro) ? a.retro : [];
@@ -207,7 +208,7 @@ export function validarProblema(p: Record<string, unknown>, spec: Especificacion
     } else return { ok: false, motivo: `apartado ${letra}: formato no válido` };
   }
   if (abiertas > 1) return { ok: false, motivo: 'más de un apartado abierto (cada uno exige revisión manual)' };
-  if (new Set(salida.map((a) => norma(a.enunciado))).size !== salida.length) return { ok: false, motivo: 'dos apartados con el mismo enunciado' };
+  if (new Set(salida.map((a) => normaOpcion(a.enunciado))).size !== salida.length) return { ok: false, motivo: 'dos apartados con el mismo enunciado' };
   if (spec.tipo !== 'conceptual' && numericas === 0) return { ok: false, motivo: 'un problema de este tipo necesita al menos un apartado numérico' };
   if (spec.tipo === 'conceptual' && numericas > 1) return { ok: false, motivo: 'un problema conceptual admite como mucho un apartado numérico' };
   return { ok: true, propuesta: { leccion_id: spec.leccion_id, dificultad: spec.dificultad, tipo: spec.tipo, problema: { titulo, contexto, apartados: salida }, verificacion: verif } };

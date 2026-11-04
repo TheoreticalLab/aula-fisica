@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { grade } from '../supabase/functions/_shared/calificacion/calificar.ts';
 import { datoEnEnunciado, numerosEscritos, validarNumerica } from '../supabase/functions/orbe-ia/generar.ts';
-import { validarProblema, type ContextoPes } from '../supabase/functions/orbe-ia/pes.ts';
+import { construirPeticionPes, validarProblema, type ContextoPes } from '../supabase/functions/orbe-ia/pes.ts';
 
 const num = (datos: [string, number, string][], expresion: string, resultado: number, unidad: string) =>
   ({ datos: datos.map(([nombre, valor, u]) => ({ nombre, valor, unidad: u })), expresion, resultado, unidad, errores: [] });
@@ -108,5 +108,33 @@ describe('problema completo de electromagnetismo (Física General III)', () => {
     };
     const r = validarProblema(p, { leccion_id: CTX.leccion.id, dificultad: 'basico', tipo: 'calculo', apartados: 4 }, CTX);
     expect(r.ok, r.ok ? '' : r.motivo).toBe(true);
+  });
+});
+
+describe('opciones de selección: repetidas de verdad, no por un signo', () => {
+  const CTX2: ContextoPes = { asignatura: 'Física General I', leccion: { id: '11111111-1111-4111-8111-111111111111', titulo: 'Leyes de Newton', unidad: 'Dinámica', resumen: '', conceptos: [] }, existentes: [] };
+  const vacio = { datos: [], expresion: '', resultado: 0, unidad: '', errores: [] };
+  const base = { numerica: vacio, correcta: 0, vf: false, justificacion: '', rubrica: '', minutos: 3, explicacion: 'Explicación breve y completa del apartado.' };
+  const retro = ['', 'Retroalimentación de la segunda opción.', 'Retroalimentación de la tercera opción.'];
+  const problema = (ops: string[]) => ({
+    titulo: 'Dos bloques', contexto: 'Dos bloques de 2 kg y 4 kg se empujan con una fuerza de 12 N sobre una mesa sin rozamiento.',
+    apartados: [
+      { ...base, etapa: 'prediccion', formato: 'choice', enunciado: 'Compare las fuerzas netas sobre cada bloque.', opciones: ops, retro },
+      { ...base, etapa: 'resolucion', formato: 'numeric', enunciado: 'Calcule la aceleración del conjunto.', opciones: [], retro: [],
+        numerica: { datos: [{ nombre: 'F', valor: 12, unidad: 'N' }, { nombre: 'm1', valor: 2, unidad: 'kg' }, { nombre: 'm2', valor: 4, unidad: 'kg' }], expresion: 'F/(m1+m2)', resultado: 2, unidad: 'm/s^2', errores: [] } },
+      { ...base, etapa: 'interpretacion', formato: 'open', enunciado: 'Explique por qué el bloque más pesado acelera igual.', opciones: [], retro: [], rubrica: 'Usa que ambos forman un sistema con la misma aceleración.' },
+    ],
+  });
+  const spec3 = { leccion_id: CTX2.leccion.id, dificultad: 'basico' as const, tipo: 'calculo' as const, apartados: 3 as const };
+  it('se aceptan opciones que solo difieren en >, <, = o en el signo', () => {
+    expect(validarProblema(problema(['$F_1 < F_2$', '$F_1 > F_2$', '$F_1 = F_2$']), spec3, CTX2).ok).toBe(true);
+    expect(validarProblema(problema(['+2 m/s', '−2 m/s', '0 m/s']), spec3, CTX2).ok).toBe(true);
+  });
+  it('se rechazan las de verdad repetidas (solo cambian mayúsculas, espacios o los $ de LaTeX)', () => {
+    expect(validarProblema(problema(['$F_1 < F_2$', 'f_1<f_2', '$F_1 = F_2$']), spec3, CTX2)).toMatchObject({ ok: false, motivo: expect.stringMatching(/opciones repetidas/) });
+    expect(validarProblema(problema(['Aumenta', ' aumenta ', 'Disminuye']), spec3, CTX2)).toMatchObject({ ok: false, motivo: expect.stringMatching(/opciones repetidas/) });
+  });
+  it('el encargo pide no meter factores de conversión en la fórmula (causa de factores 1000 irresolubles)', () => {
+    expect(construirPeticionPes(spec3, CTX2, 'm', 4000).system).toMatch(/NO pongas factores de conversión/);
   });
 });

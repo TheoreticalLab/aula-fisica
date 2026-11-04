@@ -127,6 +127,11 @@ export function lineasClase(c: ClaseCtx | null | undefined): string[] {
 
 const fmt3 = (x: number) => String(Number(x.toPrecision(3)));
 export const norma = (t: string) => t.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '').slice(0, 90);
+/**
+ * Para comparar OPCIONES (y apartados) entre sí: conserva signos y símbolos (>, <, =, +, −…) y el texto completo, y
+ * solo ignora mayúsculas, espacios y los delimitadores de LaTeX. («F₁ > F₂» y «F₁ < F₂» son opciones distintas.)
+ */
+export const normaOpcion = (t: string) => t.normalize('NFKC').toLowerCase().replace(/[−–]/g, '-').replace(/\\(?:left|right)|\$/g, '').replace(/\s+/g, '');
 export const textoOk = (t: unknown, min: number, max: number): t is string => typeof t === 'string' && t.trim().length >= min && t.length <= max && !/<\s*\/?\s*(script|iframe|style)|javascript:/i.test(t);
 
 /**
@@ -261,7 +266,7 @@ export function validarPregunta(p: Record<string, unknown>, spec: Especificacion
   } else if (spec.formato === 'choice') {
     const ops = (Array.isArray(p.opciones) ? p.opciones : []).map((o) => (typeof o === 'string' ? o.trim() : ''));
     if (ops.length < 3 || ops.length > 5 || ops.some((o) => !textoOk(o, 1, 400))) return { ok: false, motivo: 'opciones insuficientes o inválidas' };
-    if (new Set(ops.map(norma)).size !== ops.length) return { ok: false, motivo: 'opciones repetidas' };
+    if (new Set(ops.map(normaOpcion)).size !== ops.length) return { ok: false, motivo: 'opciones repetidas' };
     const c = Number(p.correcta);
     if (!Number.isInteger(c) || c < 0 || c >= ops.length) return { ok: false, motivo: 'índice de la opción correcta fuera de rango' };
     const retro = Array.isArray(p.retro) ? p.retro : [];
