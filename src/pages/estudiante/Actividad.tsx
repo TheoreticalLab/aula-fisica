@@ -1,6 +1,7 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { LecturaCronometrada } from '@/components/LecturaCronometrada';
+import { configTiempo } from '@/api/tiempoMinimo';
 import { formatoTiempo } from '@/lib/lectura';
 import { myActivities, startActivityAttempt } from '@/api/estudiante';
 import { supabase } from '@/lib/supabase';
@@ -69,6 +70,8 @@ export default function Actividad() {
     return { act: act as Activity, mine: list.find((a) => a.id === activityId), reglas };
   }, [activityId]);
   const action = useAction();
+  // tiempo mínimo de realización (migración 78); si la función no existe aún, simplemente no se muestra
+  const tmin = useAsync(() => configTiempo(activityId).catch(() => null), [activityId]);
   const [lecturaHecha, setLecturaHecha] = useState(false);
   const alCompletarLectura = useCallback(() => setLecturaHecha(true), []);
   if (loading) return <Spinner />;
@@ -94,6 +97,16 @@ export default function Actividad() {
             <p className="font-semibold">Antes de empezar · {reglas.titulo}</p>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">{reglas.lineas.map((l) => <li key={l}>{l}</li>)}</ul>
             <Link className="enlace mt-2 inline-block text-sm" to="/ayuda">¿Dudas? Vea la ayuda →</Link>
+          </div>
+        )}
+        {tmin.data?.activo && tmin.data.minutos && !mine?.in_progress && !closed && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-500/30 dark:bg-amber-900/20">
+            <p className="font-semibold">⏱ Tiempo mínimo de trabajo: {tmin.data.minutos} min</p>
+            <p className="mt-1">Solo cuenta el tiempo con la práctica en pantalla y trabajando en ella; no podrá entregar antes de completarlo.
+              Si la deja sin entregar, al cierre se entregará lo guardado y la nota se multiplicará por la parte del tiempo cumplida.</p>
+            {act.closes_at && new Date(act.closes_at).getTime() - now < tmin.data.minutos * 60_000 && (
+              <p className="mt-1 font-medium text-amber-800 dark:text-amber-200">Atención: queda menos tiempo hasta el cierre que el mínimo exigido.</p>
+            )}
           </div>
         )}
         <ErrorBox error={action.error} />

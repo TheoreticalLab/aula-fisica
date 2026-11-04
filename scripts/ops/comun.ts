@@ -218,6 +218,9 @@ export const TABLAS_PROTEGIDAS = [
   'exam_adaptive_pool',
   'exam_adaptive_state',
   'exam_adaptive_log',
+  'acceso_eventos',
+  'activity_min_time',
+  'attempt_active_time',
 ];
 
 export async function contarFilas(db: pg.Client, tablas: string[]): Promise<Record<string, number>> {

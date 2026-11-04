@@ -110,6 +110,19 @@ async function gradeAndRecordSubmission(db: Db, userId: string, attemptId: strin
   return call<{ status: string }>(db, 'svc_record_submission', { p_user: userId, p_attempt: attemptId, p_results: results });
 }
 
+/**
+ * Tiempo mínimo de realización (migración 78): el ESTUDIANTE no puede entregar antes de cumplir el tiempo activo
+ * mientras la práctica siga abierta. La entrega del profesor («finalize») no pasa por aquí: allí la nota se reduce.
+ * Si la función aún no existe (migración pendiente) no se bloquea; cualquier otro fallo impide la entrega.
+ */
+async function verificarTiempoMinimo(db: Db, userId: string, attemptId: string): Promise<void> {
+  const { error } = await db.rpc('svc_tiempo_minimo_verificar', { p_user: userId, p_attempt: attemptId });
+  if (!error) return;
+  if (error.code === 'P0001') throw new HttpError(409, error.message);
+  if (error.code === '42883' || error.code === 'PGRST202') return;
+  throw new HttpError(500, 'Error interno al comprobar el tiempo mínimo');
+}
+
 /** ¿Es el intento de una Práctica de Control? Si la función aún no existe (migración pendiente), se trata como examen normal. */
 async function esControl(db: Db, attemptId: string): Promise<boolean> {
   const { data, error } = await db.rpc('svc_es_control', { p_attempt: attemptId });
@@ -190,6 +203,7 @@ export async function handle(body: unknown, userId: string, db: Db): Promise<unk
     }
     case 'submit': {
       const attempt = uuid(b.attempt_id, 'attempt_id');
+      await verificarTiempoMinimo(db, userId, attempt);
       const state = await gradeAndRecordSubmission(db, userId, attempt);
       return { state };
     }

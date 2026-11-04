@@ -124,7 +124,7 @@ describe('acción submit', () => {
       svc_record_submission: { status: 'submitted' },
     });
     await handle({ action: 'submit', attempt_id: A }, U, db);
-    expect(calls[1].args.p_results).toEqual([]);
+    expect(calls.find((c) => c.fn === 'svc_record_submission')!.args.p_results).toEqual([]);
   });
 });
 

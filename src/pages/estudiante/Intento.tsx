@@ -12,11 +12,17 @@ import { examOpen, funcionAusente, type AperturaExamen } from '@/api/examen';
 import { asistidaEstado } from '@/api/asistida';
 import { PracticaAsistida } from './PracticaAsistida';
 import { estaRespondida, ExamenUnaALaVez } from './ExamenUnaALaVez';
+import { BarraTiempoActivo, useTiempoActivo } from '@/components/TiempoActivo';
+import { duracion, puedeEntregar } from '@/lib/tiempoMinimo';
 
 /** Botón de entrega con los eventos de envío (solicitado → recibido por el servidor, o error). */
-function BotonEntregar({ entregar, ocupado }: { entregar: (tel: ReturnType<typeof useTelemetria>) => void; ocupado: boolean }) {
+function BotonEntregar({ entregar, ocupado, bloqueo }: { entregar: (tel: ReturnType<typeof useTelemetria>) => void; ocupado: boolean; bloqueo?: string | null }) {
   const tel = useTelemetria();
-  return <button className="btn-acento" onClick={() => entregar(tel)} disabled={ocupado}>{ocupado ? 'Entregando…' : 'Entregar'}</button>;
+  return (
+    <button className="btn-acento" onClick={() => entregar(tel)} disabled={ocupado || !!bloqueo} title={bloqueo ?? undefined}>
+      {ocupado ? 'Entregando…' : bloqueo ? `Entregar (faltan ${bloqueo})` : 'Entregar'}
+    </button>
+  );
 }
 
 /** Progreso y acceso directo a cada ejercicio (verde = respondido; en práctica: ✓ correcto, ✗ cerrado sin acertar). */
@@ -57,6 +63,9 @@ export default function Intento() {
   // práctica con aprendizaje asistido (si el servidor aún no la tiene, práctica clásica)
   const posibleAsistida = !!st.data && st.data.flags.is_owner && st.data.attempt.mode === 'practice' && !!st.data.attempt.activity_id && st.data.attempt.status === 'in_progress';
   const asistida = useAsync(() => (posibleAsistida ? asistidaEstado(attemptId).then((r) => r.asistida).catch((e) => { if (funcionAusente(e)) return false; throw e; }) : Promise.resolve(false)), [attemptId, posibleAsistida]);
+  // tiempo mínimo de realización (migración 78): latidos solo en prácticas en curso del propio estudiante
+  const tiempoPosible = !!st.data && st.data.flags.is_owner && st.data.attempt.mode === 'practice' && !!st.data.attempt.activity_id && st.data.attempt.status === 'in_progress';
+  const tiempo = useTiempoActivo(attemptId, tiempoPosible);
   if ((st.loading && !st.data) || (usaMotor && apertura.loading && !apertura.data) || (posibleAsistida && asistida.loading && asistida.data === undefined)) return <Spinner />;
   if (st.error) return <ErrorBox error={st.error} onRetry={st.reload} />;
   const view = st.data!;
@@ -69,6 +78,7 @@ export default function Intento() {
         <PageTitle title={activity?.title ?? 'Práctica'} subtitle={<Badge tone="blue">Práctica con aprendizaje asistido</Badge>}
           back={activity ? { to: `/actividad/${activity.id}`, label: 'Actividad' } : undefined} />
         {activity?.instructions && <div className="tarjeta mb-4"><Markdown>{activity.instructions}</Markdown></div>}
+        <BarraTiempoActivo estado={tiempo} />
         <PracticaAsistida view={view} onEntregado={() => { setJustSubmitted(true); void st.reload(); }} />
       </div>
     );
@@ -149,6 +159,7 @@ export default function Intento() {
       {attempt.status === 'in_progress' && vencido && flags.is_owner && (
         <Notice tone="warn">El plazo terminó. Ya no puede cambiar respuestas, pero puede entregar lo que guardó a tiempo para que se califique.</Notice>
       )}
+      {attempt.status === 'in_progress' && flags.is_owner && <BarraTiempoActivo estado={tiempo} />}
       <div className="space-y-4">
         {view.items.length > 1 && attempt.status === 'in_progress' && flags.is_owner && <MapaEjercicios items={view.items} />}
         {view.items.map((it, i) => (
@@ -161,7 +172,8 @@ export default function Intento() {
       {attempt.status === 'in_progress' && flags.is_owner && activity && (
         <div className="sticky bottom-20 z-30 mt-6 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-white/10 dark:bg-primario-950/95 md:bottom-4">
           <span className="text-sm">{sinResponder ? `${sinResponder} sin responder` : 'Todo respondido'}</span>
-          <BotonEntregar entregar={(tel) => void entregar(tel)} ocupado={action.busy} />
+          <BotonEntregar entregar={(tel) => void entregar(tel)} ocupado={action.busy}
+            bloqueo={puedeEntregar(tiempo) ? null : duracion(Math.max(0, (tiempo?.minimo_s ?? 0) - (tiempo?.segundos ?? 0)))} />
         </div>
       )}
       {flags.is_owner && attempt.status === 'in_progress' && <div className="mt-3"><AvisoTelemetria /></div>}
