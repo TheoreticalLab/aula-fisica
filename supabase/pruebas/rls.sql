@@ -72,8 +72,13 @@ do $$ begin
   if exists (select 1 from public.exercises where id = 'e0000000-0000-4000-8000-000000000003') then
     raise exception 'FALLO: el estudiante ve una pregunta de un examen que aún no abre';
   end if;
-  if not exists (select 1 from public.exercises where id = 'e0000000-0000-4000-8000-000000000002') then
-    raise exception 'FALLO: el estudiante no ve la pregunta del examen abierto';
+  -- desde la migración 80 (AUD-SEC-001): los enunciados de una actividad solo llegan por get_attempt con un intento
+  -- propio; por REST, ni siquiera los de una evaluación ya abierta
+  if exists (select 1 from public.exercises where id = 'e0000000-0000-4000-8000-000000000002') then
+    raise exception 'FALLO: el estudiante lee por REST la pregunta del examen abierto sin haberlo empezado';
+  end if;
+  if exists (select 1 from public.activity_items) then
+    raise exception 'FALLO: el estudiante lee la composición de las actividades';
   end if;
   if exists (select 1 from public.activity_items where activity_id = 'aa000000-0000-4000-8000-000000000001') then
     raise exception 'FALLO: el estudiante ve los ítems de un examen que aún no abre';

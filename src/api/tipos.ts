@@ -375,7 +375,10 @@ export interface AttemptItem {
   exercise: Pick<
     Exercise,
     'id' | 'slug' | 'lesson_id' | 'category' | 'difficulty' | 'role' | 'format' | 'concepts' | 'prompt' | 'options' | 'multiple' | 'figure' | 'simulation' | 'unit_hint'
-  >;
+  > & {
+    /** Migración 80: pregunta aún no autorizada por el servidor («una a la vez»); solo llega el identificador. */
+    oculto?: boolean;
+  };
   points: number;
   response: AttemptItemResponse | null;
   hints: string[] | null;
@@ -412,6 +415,8 @@ export interface AttemptView {
     max_tries: number;
     hints_enabled: boolean;
     reveal_allowed: boolean;
+    /** Migración 80: las preguntas no abiertas llegan como marcador hasta que el servidor las autorice. */
+    reservadas?: boolean;
   };
   items: AttemptItem[];
 }

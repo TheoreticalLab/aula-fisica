@@ -164,7 +164,9 @@ export default function Intento() {
         {view.items.length > 1 && attempt.status === 'in_progress' && flags.is_owner && <MapaEjercicios items={view.items} />}
         {view.items.map((it, i) => (
           <div key={it.exercise.id} id={`ejercicio-${i + 1}`} className="scroll-mt-20">
-            <Ejercicio index={i} item={it} view={view} onChange={update(i)} onReload={st.reload} />
+            {it.exercise.oculto
+              ? <div className="tarjeta text-sm text-gray-500">Pregunta {i + 1}: no se abrió durante el intento. Se mostrará cuando cierre la evaluación.</div>
+              : <Ejercicio index={i} item={it} view={view} onChange={update(i)} onReload={st.reload} />}
           </div>
         ))}
       </div>

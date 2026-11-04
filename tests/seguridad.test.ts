@@ -160,6 +160,31 @@ describe('repositorio', () => {
   });
 });
 
+// AUD-SEC-001 (migración 80): los enunciados de una actividad solo llegan por get_attempt con un intento propio
+describe('reserva de enunciados', () => {
+  const ultima = (re: RegExp) => { const m = [...sql.matchAll(re)]; return m.length ? m[m.length - 1][0] : ''; };
+  it('la política vigente de exercises no da acceso por pertenecer a una actividad abierta', () => {
+    const p = ultima(/create policy exercises_select on public\.exercises[\s\S]*?;/g);
+    expect(p).not.toBe('');
+    expect(p).not.toMatch(/exercise_in_open_activity|activity_open_to_me|activity_visible_to_me/);
+  });
+  it('la composición de las actividades (activity_items) solo la lee su profesorado', () => {
+    const p = ultima(/create policy activity_items_select on public\.activity_items[\s\S]*?;/g);
+    expect(p).toMatch(/is_class_teacher/);
+    expect(p).not.toMatch(/activity_open_to_me|activity_visible_to_me|is_enrolled/);
+  });
+  it('el código del estudiante no lee activity_items ni exercise_keys por REST', () => {
+    const archivos = [...walk(join(ROOT, 'src', 'pages', 'estudiante'), ['.ts', '.tsx']), join(ROOT, 'src', 'api', 'estudiante.ts'), join(ROOT, 'src', 'api', 'examen.ts')];
+    for (const f of archivos) expect(readFileSync(f, 'utf8'), relative(ROOT, f)).not.toMatch(/from\(\s*['"](activity_items|exercise_keys)['"]\s*\)/);
+  });
+  it('get_attempt vigente reserva las preguntas no autorizadas y las vistas del estudiante lo respetan', () => {
+    const g = ultima(/create or replace function public\.get_attempt\(p_attempt uuid\)[\s\S]*?\n\$\$;/g);
+    expect(g).toMatch(/'oculto', true/);
+    expect(g).toMatch(/exam_events/);
+    for (const f of ['ExamenUnaALaVez.tsx', 'Intento.tsx']) expect(readFileSync(join(ROOT, 'src', 'pages', 'estudiante', f), 'utf8'), f).toMatch(/exercise\.oculto/);
+  });
+});
+
 describe.skipIf(!existsSync(join(ROOT, 'dist')))('compilación publicada (dist/)', () => {
   it('no contiene explicaciones ni pistas de las claves', async () => {
     const units = await loadContent();

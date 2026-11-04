@@ -149,6 +149,12 @@ end $$;
 -- 4) estudiantes: S1 recibe SU problema (uno solo); S3 y S4 no pueden; nadie ve claves ni se cambia la nota
 select set_config('request.jwt.claims', '{"sub":"de620000-0000-4000-8000-000000000011","role":"authenticated"}', true);
 select set_config('request.jwt.claim.sub', 'de620000-0000-4000-8000-000000000011', true);
+-- migración 80 (AUD-SEC-001): con el control ya activado y antes de empezar, nada por REST: ni la composición del
+-- control (que incluye los problemas de los demás) ni los enunciados del catálogo
+do $$ begin
+  if exists (select 1 from public.activity_items) then raise exception 'FALLO: el estudiante lee la composición del control por REST'; end if;
+  if exists (select 1 from public.exercises where course_id = 'de620000-0000-4000-8000-000000000021') then raise exception 'FALLO: el estudiante lee enunciados del control por REST'; end if;
+end $$;
 do $$ declare p jsonb; t uuid; begin
   p := public.my_control_pendiente();
   if p is null or (p ->> 'activity_id')::uuid <> current_setting('prueba.ctrl')::uuid then raise exception 'FALLO: aviso al estudiante %', p; end if;
@@ -168,6 +174,14 @@ do $$ declare p jsonb; t uuid; begin
   exception when insufficient_privilege then null; end;
   begin perform public.control_confirmar(current_setting('prueba.s')::uuid); raise exception 'FALLO: el estudiante confirma';
   exception when insufficient_privilege then null; end;
+end $$;
+-- migración 80: ya empezado, recibe por get_attempt SU problema y solo ese (no el abierto asignado a S5)
+do $$ declare v jsonb; begin
+  v := public.get_attempt(current_setting('prueba.t1')::uuid);
+  if jsonb_array_length(v -> 'items') <> 1 or (v -> 'items' -> 0 -> 'exercise' ->> 'prompt') not in ('Energía en otro contexto', '¿Se conserva la energía mecánica sin rozamiento?') then
+    raise exception 'FALLO: el control no entrega exactamente su problema: %', v -> 'items'; end if;
+  if v::text like '%Justifique la conservación%' or exists (select 1 from public.exercises where course_id = 'de620000-0000-4000-8000-000000000021') then
+    raise exception 'FALLO: el estudiante ve el problema de otro'; end if;
 end $$;
 select set_config('request.jwt.claims', '{"sub":"de620000-0000-4000-8000-000000000013","role":"authenticated"}', true);
 select set_config('request.jwt.claim.sub', 'de620000-0000-4000-8000-000000000013', true);

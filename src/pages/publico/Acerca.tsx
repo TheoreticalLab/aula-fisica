@@ -53,6 +53,7 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
       'Seguimiento de estudiantes que pueden necesitar apoyo y recordatorios a quien no ha entregado.',
     ],
     pendiente: [
+      'Reserva de enunciados (corrección de seguridad programada y probada; pendiente de aplicar): un estudiante ya no podrá leer por consultas directas los enunciados de una práctica, evaluación o control antes de empezar, ni qué ejercicios la componen; en las evaluaciones de una pregunta a la vez solo recibirá las preguntas que el servidor le haya abierto. Los ejercicios publicados en las lecciones siguen siendo material de estudio: si una evaluación los usa, su contenido no es secreto.',
       'Probar el modo de una pregunta a la vez en teléfonos reales.',
       'Orden aleatorio de opciones por actividad (instalado; pendiente de probar en una actividad real): solo cambia la presentación, cada opción conserva su letra.',
       'Centro de IA (programado; pendiente de instalar y de probar con la API real): pida en lenguaje corriente una práctica o un examen («10 problemas de choques, mitad intermedios, que abra el lunes a las 8») y la IA pregunta lo que falte; usted revisa el borrador, el aula elige las preguntas del banco y crea la actividad cuando usted confirma. También desde Orbe Control.',

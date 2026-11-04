@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { adaptativoEstado, adaptativoSiguiente, examGoto, examJournal, examPause, examPing, examResume, examSave, type EstadoAdaptativo, type EstadoExamenServidor } from '@/api/examen';
-import { submitAttempt } from '@/api/estudiante';
+import { getAttempt, submitAttempt } from '@/api/estudiante';
 import type { AccionesEjercicio, AttemptItem, AttemptView, StudentAnswer } from '@/api/tipos';
 import {
   abrir, ampliarOrden, anterior as motorAnterior, crearMotor, entregar as motorEntregar, inactividad, irA, irRevision, latido, marcar, pausar, puedeIrA, puedePausar,
@@ -180,6 +180,30 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems, recargar
   // ---- acciones
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+
+  // ---- preguntas autorizadas (migración 80): una pregunta no abierta llega sin contenido («oculto») y el servidor
+  // la entrega solo después de registrar la apertura o el cambio de pregunta (exam_open / exam_goto)
+  const viewRef = useRef(view); viewRef.current = view;
+  const onItemsRef = useRef(onItems); onItemsRef.current = onItems;
+  const oculta = (id: string | null) => { if (!id) return false; const it = viewRef.current.items.find((x) => x.exercise.id === id); return !it || !!it.exercise.oculto; };
+  const cargarAutorizadas = useCallback(async () => {
+    const v = await getAttempt(attemptId);
+    // el orden y los ítems los da el servidor; lo que ya tenía contenido conserva el estado de la vista (respuestas aún sin enviar)
+    const local = new Map(viewRef.current.items.map((it) => [it.exercise.id, it]));
+    const items = v.items.map((x) => { const l = local.get(x.exercise.id); return l && !l.exercise.oculto ? l : x; });
+    viewRef.current = { ...viewRef.current, items };
+    onItemsRef.current(items);
+  }, [attemptId]);
+  const [cargandoPregunta, setCargandoPregunta] = useState(false);
+  const pedirPregunta = useCallback(async (id: string, registrar: boolean) => {
+    setCargandoPregunta(true);
+    try { if (registrar) await examGoto(attemptId, id); await cargarAutorizadas(); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setCargandoPregunta(false); }
+  }, [attemptId, cargarAutorizadas]);
+  // al abrir o recargar: la pregunta activa ya está autorizada por exam_open; si llegó como marcador, se pide
+  useEffect(() => { if (oculta(motorRef.current.activa)) void pedirPregunta(motorRef.current.activa!, false); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [confirmar, setConfirmar] = useState(false);
   const aplicar = (r: Resultado) => { if (!r.ok) { setError(r.motivo); return false; } setError(null); setMotor(r.estado); return true; };
   const ir = async (fn: () => Resultado) => {
@@ -189,7 +213,8 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems, recargar
     if (r.estado.fase === 'revision') return;
     void cola.vaciar();
     try { await examGoto(attemptId, r.estado.activa); }
-    catch (e) { const msg = e instanceof Error ? e.message : String(e); if (DEFINITIVO.test(msg) || /volver/.test(msg)) { setMotor(antes); setError(msg); } }
+    catch (e) { const msg = e instanceof Error ? e.message : String(e); if (DEFINITIVO.test(msg) || /volver/.test(msg)) { setMotor(antes); setError(msg); } return; }
+    if (oculta(r.estado.activa)) await pedirPregunta(r.estado.activa, false);
   };
   const doPausa = async () => {
     const no = puedePausar(motorRef.current, cfg);
@@ -220,6 +245,7 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems, recargar
       setAdapt((a) => ({ ...a, administradas: r.administradas, max_items: r.max_items, fin: r.fin }));
       if (r.fin || !r.siguiente) { aplicar(irRevision(motorRef.current, ahora(), cfg)); return; }
       const v = recargar ? await recargar() : null;
+      if (v) viewRef.current = v;
       if (v) setMotor(ampliarOrden(motorRef.current, v.items.map((it) => it.exercise.id)));
       else setMotor(ampliarOrden(motorRef.current, [...motorRef.current.orden, r.siguiente]));
       await ir(() => irA(motorRef.current, ahora(), r.siguiente!, cfg));
@@ -349,7 +375,16 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems, recargar
           {adapt.activo && idx + 1 >= items.length && !adapt.fin && (
             <p className="mb-2 text-xs text-gray-500">La siguiente pregunta se elige según sus respuestas. Al pasar no podrá volver a esta; si la deja sin responder, contará como incorrecta.</p>
           )}
-          <Ejercicio key={actual.exercise.id} index={idx} item={actual} view={view} onChange={updateItem} acciones={acciones} />
+          {actual.exercise.oculto ? (
+            <div className="tarjeta py-8 text-center text-sm">
+              {cargandoPregunta ? <p>Cargando la pregunta…</p> : (
+                <>
+                  <p>La pregunta se mostrará cuando el servidor confirme el cambio (hace falta conexión).</p>
+                  <button className="btn-secundario mt-3" onClick={() => void pedirPregunta(actual.exercise.id, true)}>Cargar la pregunta</button>
+                </>
+              )}
+            </div>
+          ) : <Ejercicio key={actual.exercise.id} index={idx} item={actual} view={view} onChange={updateItem} acciones={acciones} />}
         </div>
       ) : null}
 
