@@ -11,6 +11,11 @@ verify_jwt = false
 # Igual que «calificar»: verifica la sesión con auth.getUser() (supabase/functions/entregas/index.ts).
 verify_jwt = false
 
+[functions.recuperar]
+# Recuperación supervisada: la usan estudiantes SIN sesión (como «acceder»). Toda autorización la decide la base
+# (svc_acceso_*: solo service_role) y el canje exige el secreto del dispositivo (supabase/functions/recuperar/handler.ts).
+verify_jwt = false
+
 [functions.orbe-ia]
 # Igual que «calificar»: verifica la sesión con auth.getUser() (supabase/functions/orbe-ia/index.ts).
 verify_jwt = false

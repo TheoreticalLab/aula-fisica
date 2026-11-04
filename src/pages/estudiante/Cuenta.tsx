@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
 import { myClasses } from '@/api/estudiante';
+import { panelAcceso } from '@/api/acceso';
 import { useAsync } from '@/lib/util';
 import { PageTitle } from '@/components/ui';
 
@@ -18,6 +19,7 @@ function Acceso({ to, icono, titulo, texto }: { to: string; icono: string; titul
 export default function Cuenta() {
   const { profile, signOut } = useAuth();
   const clases = useAsync(() => myClasses(), []);
+  const passkeys = useAsync(() => panelAcceso().then((p) => p.passkeys).catch(() => false), []);
   const activas = (clases.data ?? []).filter((c) => !c.archived);
   const cursos = [...new Map(activas.map((c) => [c.course_id, c])).values()];
   return (
@@ -50,6 +52,7 @@ export default function Cuenta() {
         <div className="grid gap-3 sm:grid-cols-2">
           <Acceso to="/perfil" icono="👤" titulo="Mi perfil" texto="Datos, sesiones abiertas y dispositivos." />
           <Acceso to="/cambiar-clave" icono="🔑" titulo="Cambiar contraseña" texto="Use una contraseña que no use en otro sitio." />
+          {passkeys.data && <Acceso to="/acceso-sin-contrasena" icono="🛡️" titulo="Acceso sin contraseña" texto="Passkeys: entrar con la huella, el rostro o el PIN (huella, rostro o PIN)." />}
           <Acceso to="/ayuda" icono="❓" titulo="Ayuda" texto="Cómo navegar, responder, pausar y entregar." />
         </div>
         <p className="mt-2 text-xs text-gray-500">El modo claro u oscuro se cambia con el botón del sol o la luna de la barra superior.</p>

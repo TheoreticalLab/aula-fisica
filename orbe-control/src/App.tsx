@@ -17,6 +17,7 @@ import { AsistenteIA } from './AsistenteIA';
 import { Semana } from './Semana';
 import { ProgramaClase } from './ProgramaClase';
 import { PesOrbe } from './PesOrbe';
+import { AccesoOrbe } from './AccesoOrbe';
 
 type Tipo = 'informativo' | 'importante' | 'urgente' | 'bloqueo';
 interface Bloqueo { id: string; full_name: string; student_code: string | null; body: string; created_at: string; failed_attempts: number }
@@ -226,7 +227,7 @@ function Panel({ nombre }: { nombre: string }) {
   const [destino, setDestino] = useState<Destino | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [historial, setHistorial] = useState<Historial[]>([]);
-  const [vista, setVista] = useState<'conectados' | 'todos' | 'asistencia' | 'control' | 'pes' | 'clases' | 'programa' | 'semana' | 'pulso' | 'pregunta' | 'datos' | 'ia'>('conectados');
+  const [vista, setVista] = useState<'conectados' | 'todos' | 'asistencia' | 'control' | 'pes' | 'clases' | 'programa' | 'semana' | 'pulso' | 'pregunta' | 'datos' | 'ia' | 'acceso'>('conectados');
   // alertas de seguridad graves (solo administrador: para cualquier otro, el servidor rechaza y no se muestra nada)
   const [alertas, setAlertas] = useState<{ regla: string; sujeto: string; severidad: string }[]>([]);
   useEffect(() => {
@@ -386,8 +387,9 @@ function Panel({ nombre }: { nombre: string }) {
         <button role="tab" aria-selected={vista === 'pregunta'} className={vista === 'pregunta' ? 'activa' : ''} onClick={() => setVista('pregunta')}>❓ Pregunta</button>
         <button role="tab" aria-selected={vista === 'datos'} className={vista === 'datos' ? 'activa' : ''} onClick={() => setVista('datos')}>🗄️ Datos</button>
         <button role="tab" aria-selected={vista === 'ia'} className={vista === 'ia' ? 'activa' : ''} onClick={() => setVista('ia')}>✨ IA</button>
+        <button role="tab" aria-selected={vista === 'acceso'} className={vista === 'acceso' ? 'activa' : ''} onClick={() => setVista('acceso')}>🔐 Acceso</button>
       </div>
-      {vista === 'ia' ? <AsistenteIA /> : vista === 'datos' ? <Datos secciones={secciones} /> : vista === 'pulso' ? <Pulso secciones={secciones} /> : vista === 'pregunta' ? <Pregunta secciones={secciones} conectados={total} onCambio={() => void cargarHistorial()} /> : vista === 'asistencia' ? <Asistencia /> : vista === 'control' ? <ControlTab secciones={secciones} /> : vista === 'pes' ? <PesOrbe secciones={secciones} /> : vista === 'clases' ? <ClasesImpartidas secciones={secciones} /> : vista === 'semana' ? <Semana irAControl={() => setVista('control')} /> : vista === 'programa' ? <ProgramaClase secciones={secciones} /> : <>
+      {vista === 'acceso' ? <AccesoOrbe /> : vista === 'ia' ? <AsistenteIA /> : vista === 'datos' ? <Datos secciones={secciones} /> : vista === 'pulso' ? <Pulso secciones={secciones} /> : vista === 'pregunta' ? <Pregunta secciones={secciones} conectados={total} onCambio={() => void cargarHistorial()} /> : vista === 'asistencia' ? <Asistencia /> : vista === 'control' ? <ControlTab secciones={secciones} /> : vista === 'pes' ? <PesOrbe secciones={secciones} /> : vista === 'clases' ? <ClasesImpartidas secciones={secciones} /> : vista === 'semana' ? <Semana irAControl={() => setVista('control')} /> : vista === 'programa' ? <ProgramaClase secciones={secciones} /> : <>
       <div className="filtros">
         <select aria-label="Filtrar por sección" value={seccion} onChange={(e) => setSeccion(e.target.value)}>
           <option value="">Todas las secciones</option>

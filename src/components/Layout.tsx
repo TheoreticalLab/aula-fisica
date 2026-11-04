@@ -72,6 +72,15 @@ export function Layout() {
     if (!session || profile?.role !== 'student') return setEsMonitor(false);
     void supabase.rpc('my_monitor_classes').then(({ data }) => setEsMonitor(Array.isArray(data) && data.length > 0));
   }, [session, profile?.role]);
+  // acceso sin contraseña: ¿passkeys activadas? ¿gestiona solicitudes de alguna sección? (solo el menú; el servidor decide)
+  const [acceso, setAcceso] = useState<{ passkeys: boolean; gestion: boolean }>({ passkeys: false, gestion: false });
+  useEffect(() => {
+    if (!session || !profile?.active || profile.must_change_password) return setAcceso({ passkeys: false, gestion: false });
+    void supabase.rpc('acceso_estado_panel').then(({ data, error }) => {
+      const d = data as { passkeys?: boolean; secciones?: unknown[] } | null;
+      setAcceso(error || !d ? { passkeys: false, gestion: false } : { passkeys: !!d.passkeys, gestion: Array.isArray(d.secciones) && d.secciones.length > 0 });
+    });
+  }, [session, profile?.active, profile?.must_change_password]);
   const [menu, setMenu] = useState(false);
   const loc = useLocation();
   // regularización obligatoria pendiente: el aula queda reducida a la regularización (el servidor ya lo impone)
@@ -130,6 +139,7 @@ export function Layout() {
                     {!isTeacher && <Link role="menuitem" to="/cuenta" className="block px-3 py-2 font-medium hover:bg-gray-100 dark:hover:bg-white/10">Mi cuenta</Link>}
                     <Link role="menuitem" to="/perfil" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Mi perfil</Link>
                     <Link role="menuitem" to="/ayuda" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">❓ Ayuda</Link>
+                    {acceso.gestion && <Link role="menuitem" to="/gestion-acceso" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Gestión de acceso estudiantil</Link>}
                     {esMonitor && <Link role="menuitem" to="/secretaria" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Secretaría del curso</Link>}
                     <Link role="menuitem" to="/entregas" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Entregas en PDF</Link>
                     {!isTeacher && <Link role="menuitem" to="/practicas-anteriores" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Prácticas anteriores</Link>}
@@ -138,6 +148,7 @@ export function Layout() {
                     {isTeacher && <Link role="menuitem" to={docente ? '/' : '/docente'} className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10 md:hidden">{docente ? 'Vista de estudiante' : 'Panel docente'}</Link>}
                     {isAdmin && <Link role="menuitem" to="/docente/cuentas" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10 md:hidden">Cuentas</Link>}
                     <Link role="menuitem" to="/cambiar-clave" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Cambiar contraseña</Link>
+                    {acceso.passkeys && <Link role="menuitem" to="/acceso-sin-contrasena" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Acceso sin contraseña</Link>}
                     {isTeacher && <Link role="menuitem" to="/acerca" className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10">Estado del desarrollo</Link>}
                     <button role="menuitem" onClick={() => void signOut()} className="block w-full px-3 py-2 text-left text-red-700 hover:bg-gray-100 dark:text-red-300 dark:hover:bg-white/10">Cerrar sesión</button>
                   </div>

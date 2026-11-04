@@ -63,6 +63,9 @@ const Seguridad = lazy(() => import('@/pages/docente/Seguridad'));
 const OrbeIaPanel = lazy(() => import('@/pages/docente/OrbeIa'));
 const RegistroCalificaciones = lazy(() => import('@/pages/docente/RegistroCalificaciones'));
 const Secretaria = lazy(() => import('@/pages/estudiante/Secretaria'));
+const Recuperar = lazy(() => import('@/pages/publico/Recuperar'));
+const Passkeys = lazy(() => import('@/pages/estudiante/Passkeys'));
+const GestionAcceso = lazy(() => import('@/pages/docente/GestionAcceso'));
 
 function Home() {
   const { session, loading } = useAuth();
@@ -98,7 +101,7 @@ export default function App() {
               <Route path="cambiar-clave" element={<CambiarClave />} />
               <Route path="activar" element={<Activar />} />
               <Route path="registro" element={<SinRegistro />} />
-              <Route path="recuperar" element={<SinRegistro />} />
+              <Route path="recuperar" element={<Recuperar />} />
               {/* el estado del desarrollo menciona asignaturas: solo para el profesorado */}
               <Route path="acerca" element={teacher(<Acerca />)} />
 
@@ -157,6 +160,9 @@ export default function App() {
               <Route path="docente/orbe-ia" element={teacher(<OrbeIaPanel />)} />
               <Route path="docente/clases/:classId/registro" element={teacher(<RegistroCalificaciones />)} />
               <Route path="secretaria" element={auth(<Secretaria />)} />
+              <Route path="acceso-sin-contrasena" element={auth(<Passkeys />)} />
+              {/* profesor, administrador o monitor delegado: los permisos los decide el servidor */}
+              <Route path="gestion-acceso" element={auth(<GestionAcceso />)} />
               <Route path="docente/usuarios" element={<Navigate to="/docente/cuentas" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

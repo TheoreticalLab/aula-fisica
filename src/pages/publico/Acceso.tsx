@@ -6,6 +6,9 @@ import { ErrorBox, Field, Notice } from '@/components/ui';
 import { AVISO_PRIVACIDAD } from '@/lib/tiempo';
 import { contextoAcceso } from '@/lib/instalacion';
 import { problemasContrasena } from '../../../supabase/functions/_shared/cuentas.ts';
+import { anotarEventoPropio, configPublica, panelAcceso } from '@/api/acceso';
+import { soportaPasskeys } from '@/lib/acceso';
+import { useAsync } from '@/lib/util';
 
 function Marco({ title, children }: { title: string | null; children: ReactNode }) {
   return (
@@ -31,7 +34,27 @@ export function Ingresar({ titulo = 'Ingresar al aula' }: { titulo?: string | nu
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // interruptores del acceso sin contraseña (si la consulta falla, la pantalla queda como siempre)
+  const cfg = useAsync(() => configPublica().catch(() => null), []);
+  const conPasskey = !!cfg.data?.passkeys && soportaPasskeys(window as unknown as { PublicKeyCredential?: unknown; isSecureContext?: boolean });
   if (session && profile) return <Navigate to={profile.must_change_password ? '/cambiar-clave' : loc.state?.from ?? '/'} replace />;
+  async function entrarConPasskey() {
+    setBusy(true);
+    setError(null);
+    try {
+      // ceremonia WebAuthn completa y sesión creadas por Supabase Auth
+      const { data, error: pe } = await supabase.auth.signInWithPasskey();
+      if (pe) throw pe;
+      if (!data?.session) throw new Error('No se pudo iniciar sesión con la passkey.');
+      void anotarEventoPropio('ingreso_passkey');
+      nav(loc.state?.from ?? '/', { replace: true });
+    } catch (err) {
+      const m = errorMessage(err);
+      setError(/NotAllowed|abort|cancel/i.test(m) ? 'Se canceló el ingreso con passkey.' : m);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -63,9 +86,14 @@ export function Ingresar({ titulo = 'Ingresar al aula' }: { titulo?: string | nu
         <ErrorBox error={error} />
         <button className="btn-primario w-full" disabled={busy}>{busy ? 'Verificando…' : 'Ingresar'}</button>
       </form>
+      {conPasskey && (
+        <button type="button" className="btn-secundario mt-2 w-full" disabled={busy} onClick={() => void entrarConPasskey()}>🔑 Entrar con passkey</button>
+      )}
       <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-        ¿Primera vez? <Link to="/activar" className="enlace">Active su cuenta con la clave de su sección</Link>.
-        ¿Olvidó su contraseña? Pida al profesor que la restablezca.
+        ¿Primera vez? <Link to="/activar" className="enlace">Active su cuenta con la clave de su sección</Link>.{' '}
+        {cfg.data?.recuperacion
+          ? <>¿Olvidó su contraseña? <Link to="/recuperar" className="enlace">Recuperar acceso</Link> (verificación en persona, sin esperar a que el profesor la restablezca).</>
+          : <>¿Olvidó su contraseña? Pida al profesor que la restablezca.</>}
       </p>
     </Marco>
   );
@@ -93,7 +121,9 @@ export function CambiarClave() {
       if (ue) throw ue;
       await rpc('confirm_password_changed');
       await refreshProfile();
-      nav('/', { replace: true });
+      // tras una contraseña provisional o una recuperación: se ofrece el acceso sin contraseña, si está activado
+      const passkeys = obligatoria ? await panelAcceso().then((p) => p.passkeys).catch(() => false) : false;
+      nav(passkeys ? '/acceso-sin-contrasena' : '/', { replace: true, state: passkeys ? { tras_recuperacion: true } : undefined });
     } catch (err) {
       const m = errorMessage(err);
       setError(/same|different|igual/i.test(m) ? 'La nueva contraseña debe ser distinta de la provisional.' : m);
