@@ -146,7 +146,10 @@ do $$ begin
 end $$;
 select pg_temp.como('de790000-0000-4000-8000-000000000002');
 do $$ begin
-  if public.inactividad_aplicar() <> 1 then raise exception 'FALLO: aplicar (debe marcar solo a N)'; end if;
+  -- sobre la copia de producción también marca a estudiantes reales sin uso: se comprueba solo lo de la prueba
+  if public.inactividad_aplicar() < 1 then raise exception 'FALLO: aplicar no marcó a N'; end if;
+  if (select estado from public.inactividad_lista() where user_id = 'de790000-0000-4000-8000-000000000013') <> 'suspendida_inactividad' then raise exception 'FALLO: N no quedó suspendida'; end if;
+  if (select estado from public.inactividad_lista() where user_id = 'de790000-0000-4000-8000-000000000012') <> 'activa' then raise exception 'FALLO: aplicar suspendió a R'; end if;
   if (select estado from public.inactividad_lista() where user_id = 'de790000-0000-4000-8000-000000000011') <> 'suspendida_inactividad' then raise exception 'FALLO: estado de V'; end if;
   if (select estado from public.inactividad_lista() where user_id = 'de790000-0000-4000-8000-000000000014') <> 'suspendida' then raise exception 'FALLO: estado de B'; end if;
 end $$;

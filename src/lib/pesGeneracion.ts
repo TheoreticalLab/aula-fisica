@@ -35,8 +35,12 @@ export function planificarPes(n: number, lecciones: string[], niveles: NivelPes[
   return Array.from({ length: m }, (_, i) => ({ leccion_id: ls[i], dificultad: ns[i], tipo: ts[i], apartados }));
 }
 
-/** Tokens por problema: entrada (instrucciones + lección + existentes) y salida (apartados + razonamiento). */
-export const TOKENS_PES = { entradaTipica: 2500, entradaMaxima: 4000, salidaPorApartado: 550, razonamiento: 900 };
+/**
+ * Tokens por problema, calibrados con 104 llamadas reales (3–4 nov): entrada media 4 283 (p90 5 117, máx. 5 296), salida media
+ * 2 046. La salida máxima ya no es el ajuste de los chistes (3 000, que cortaba las respuestas): el servidor permite 12 000 y
+ * aquí se estima un máximo realista por apartado.
+ */
+export const TOKENS_PES = { entradaTipica: 4300, entradaMaxima: 5500, salidaPorApartado: 550, razonamiento: 900, salidaMaximaPorApartado: 1000, salidaMaximaBase: 1500 };
 
 export interface EstimacionPes {
   llamadas: number; costoTipico: number; costoMaximo: number; simulado: boolean; restantePresupuesto: number; llamadasRestantesHoy: number;
@@ -47,9 +51,10 @@ export function estimarPes(n: number, apartados: number, d: DatosEstimacion): Es
   const llamadas = Math.min(n, MAX_PAQUETE);
   const precio = (ent: number, sal: number) => (ent * d.precio_entrada + sal * d.precio_salida) / 1e6;
   const simulado = !d.api_real;
-  const salida = Math.min(d.max_salida, apartados * TOKENS_PES.salidaPorApartado + TOKENS_PES.razonamiento);
+  const salida = apartados * TOKENS_PES.salidaPorApartado + TOKENS_PES.razonamiento;
+  const salidaMaxima = apartados * TOKENS_PES.salidaMaximaPorApartado + TOKENS_PES.salidaMaximaBase;
   const costoTipico = simulado ? 0 : llamadas * precio(TOKENS_PES.entradaTipica, salida);
-  const costoMaximo = simulado ? 0 : llamadas * precio(TOKENS_PES.entradaMaxima, d.max_salida);
+  const costoMaximo = simulado ? 0 : llamadas * precio(TOKENS_PES.entradaMaxima, salidaMaxima);
   const restantePresupuesto = Math.max(0, d.presupuesto_mes - d.gastado_mes);
   const llamadasRestantesHoy = Math.max(0, d.limite_diario - d.llamadas_hoy);
   const avisos: string[] = [];

@@ -80,6 +80,26 @@ anticipados, validadas, tiempo total, puntuaciones, pendientes de revisión e in
 por debajo de la espera, pegados bloqueados, inactividad, reconexiones) son **para revisar, no pruebas de fraude**. El
 historial de cada estudiante muestra respuestas, tiempos, decisiones, eventos y controles.
 
+## 3 bis. Reutilizar problemas y auditoría de la generación con IA (migración 81)
+
+**Reutilizar.** En el editor de una práctica en borrador → «Añadir un ejercicio» → **«♻️ Reutilizar de otras prácticas»**:
+lista los problemas de sus otras prácticas extraordinarias, también de otra sección o asignatura. Se filtra por práctica
+y por texto, y «Añadir a esta práctica» lo copia tal como quedó: apartados, etapas, pesos, tiempos, claves, rúbricas,
+explicaciones y figuras. La copia es independiente y no gasta IA (`pes_reutilizables`, `pes_ejercicio_reutilizar`).
+
+**Auditoría (4-nov, con los datos reales del respaldo: 37 paquetes, 117 llamadas):**
+
+| Síntoma | Causa comprobada | Corrección |
+|---|---|---|
+| «Se detuvo / el servidor rechazó» con 5 apartados, nivel desafiante o tipos «errores» y «transferencia» | El límite de salida de «generar» era `least(max_output_tokens, 4000)`, y `max_output_tokens` (3000) es el ajuste de los chistes. Las 13 llamadas fallidas terminaron exactamente en 3000 tokens: la respuesta se cortaba. | Límite propio de 12 000 (solo se paga lo escrito), respuesta en streaming con más tiempo e instrucción de concisión. |
+| Esas llamadas se cobraban sin dejar rastro | Al fallar no se anotaban ni el motivo ni el costo en el paquete, y el paquete se detenía | Una respuesta cortada, sin formato o rechazada por el modelo cuenta como problema descartado, con su motivo y su costo, y el paquete sigue (se para tras 3 descartes seguidos). |
+| El presupuesto no contaba lo gastado en llamadas fallidas | La comprobación del presupuesto sumaba solo las llamadas «ok» (1,13 USD en 16 llamadas fallidas) | La reserva cuenta también las fallidas. Los paneles de gasto todavía muestran solo las «ok»: pendiente. |
+| «El resultado declarado no coincide» y «el dato no aparece en el enunciado» | Casi todos eran anteriores al arreglo del 4-nov a las 12:28 (unidades, factores de 1000). Después, ninguno en unos 25 problemas. | Ya corregido; se mantiene vigilado. |
+| «Falta la retroalimentación de la opción …» | La IA omitía el comentario de una opción incorrecta y se descartaba un problema válido | Se completa con un comentario genérico; el apartado queda, como toda selección, para la revisión del profesor. |
+
+La estimación de costo previa se recalibró con 104 llamadas reales: entrada típica de 4300 tokens (antes se suponía 2500)
+y salida máxima según el número de apartados.
+
 ## 4. Arquitectura
 
 - Migración 74 (`pes_nucleo`): tablas `pes_practicas`, `pes_ejercicios`, `pes_apartados`, `pes_claves`,

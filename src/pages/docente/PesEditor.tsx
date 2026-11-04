@@ -22,6 +22,7 @@ import { InlineMd } from '@/components/Markdown';
 import { ESTADO_PES, TABLA } from './PesTab';
 import { MonitorPes, PanelTiempos, PoliticaControl } from './PesSeguimiento';
 import { GenerarConIA } from './PesGenerarIA';
+import { ReutilizarPes } from './PesReutilizar';
 
 type Tab = 'datos' | 'contenido' | 'carga' | 'monitor' | 'estudiantes' | 'revision';
 const ETAPAS: { id: EtapaPes; t: string }[] = [
@@ -181,7 +182,7 @@ function resumenClave(a: DetallePes['ejercicios'][number]['apartados'][number]):
 function TabContenido({ d, recargar }: { d: DetallePes; recargar: () => Promise<void> }) {
   const p = d.practica;
   const borrador = p.estado === 'borrador';
-  const [agregar, setAgregar] = useState<'problema' | 'composicion' | 'redactar' | 'ia'>('problema');
+  const [agregar, setAgregar] = useState<'problema' | 'composicion' | 'redactar' | 'ia' | 'reutilizar'>('problema');
   const act = useAction();
   return (
     <div className="space-y-4">
@@ -205,13 +206,14 @@ function TabContenido({ d, recargar }: { d: DetallePes; recargar: () => Promise<
         <Card title="Añadir un ejercicio">
           <Tabs value={agregar} onChange={setAgregar} tabs={[
             { id: 'problema', label: 'Problema por etapas del banco' }, { id: 'composicion', label: 'Composición docente' }, { id: 'redactar', label: 'Redactar apartados' },
-            { id: 'ia', label: '✨ Generar con IA' },
+            { id: 'ia', label: '✨ Generar con IA' }, { id: 'reutilizar', label: '♻️ Reutilizar de otras prácticas' },
           ]} />
           <div className="mt-3">
             {agregar === 'problema' && <AgregarProblema d={d} recargar={recargar} />}
             {agregar === 'composicion' && <AgregarComposicion d={d} recargar={recargar} />}
             {agregar === 'redactar' && <AgregarRedactado d={d} recargar={recargar} />}
             {agregar === 'ia' && <GenerarConIA d={d} recargar={recargar} />}
+            {agregar === 'reutilizar' && <ReutilizarPes d={d} recargar={recargar} />}
           </div>
         </Card>
       )}

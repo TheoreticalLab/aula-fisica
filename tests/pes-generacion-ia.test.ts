@@ -7,8 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { grade } from '../supabase/functions/_shared/calificacion/calificar.ts';
 import {
   construirPeticionPes, ETAPAS, generarProblemaPes, simularProblema, validarEspecificacionPes, validarProblema,
-  type ContextoPes, type EspecificacionPes,
-} from '../supabase/functions/orbe-ia/pes.ts';
+  type ContextoPes, type EspecificacionPes, MOTIVO_SALIDA, RETRO_GENERICA } from '../supabase/functions/orbe-ia/pes.ts';
 import type { Deps, Peticion, RespuestaModelo } from '../supabase/functions/orbe-ia/handler.ts';
 import { aFormulario, estimarPes, planificarPes } from '@/lib/pesGeneracion';
 import { construirEjercicio } from '@/lib/pesRedaccion';
@@ -92,7 +91,10 @@ describe('PES · IA · verificación de cada problema', () => {
     expect(validarProblema(cambia(2, { formato: 'truefalse', vf: false, justificacion: 'Justificación modelo larga de al menos cuarenta caracteres.' }), spec(), CTX))
       .toMatchObject({ ok: false, motivo: expect.stringMatching(/al menos un apartado numérico/) });
     expect(validarProblema(cambia(3, { rubrica: 'corta' }), spec(), CTX)).toMatchObject({ ok: false, motivo: expect.stringMatching(/rúbrica/) });
-    expect(validarProblema(cambia(0, { retro: ['', '', 'x'] }), spec(), CTX)).toMatchObject({ ok: false, motivo: expect.stringMatching(/retroalimentación/) });
+    // retroalimentación ausente de una opción incorrecta (auditoría 4-nov): NO se descarta; se completa con un texto genérico
+    const sinRetro = validarProblema(cambia(0, { retro: ['', '', 'x'] }), spec(), CTX);
+    expect(sinRetro.ok).toBe(true);
+    if (sinRetro.ok) expect((sinRetro.propuesta.problema.apartados[0].clave as { optionFeedback: Record<number, string> }).optionFeedback).toEqual({ 1: RETRO_GENERICA, 2: RETRO_GENERICA });
     expect(validarProblema(cambia(1, { enunciado: BUENO.apartados[0].enunciado, formato: 'choice', opciones: ['Nula', 'Positiva', 'Negativa'], correcta: 0,
       retro: ['', 'La velocidad no cambia: no hay aceleración positiva.', 'La velocidad no disminuye: no hay aceleración negativa.'] }), spec(), CTX))
       .toMatchObject({ ok: false, motivo: expect.stringMatching(/mismo enunciado/) });
@@ -149,9 +151,21 @@ describe('PES · IA · un problema en la Edge Function', () => {
     expect(r2).toMatchObject({ ok: true, rechazado: expect.stringMatching(/2 apartados/) });
     expect(malo.llamadas.find((c) => c.fn === 'svc_pes_generar_guardar')!.args).toMatchObject({ p_propuesta: null, p_motivo: expect.stringMatching(/2 apartados/) });
   });
-  it('respuesta cortada, sin presupuesto o sin clave: no guarda nada', async () => {
+  it('respuesta cortada o sin formato (ya cobrada): cuenta como descarte con su motivo y su coste, y el paquete sigue', async () => {
     const c = servidor({ reserva: { api_real: true }, texto: '{"titulo":', stop: 'max_tokens' });
-    expect(await generarProblemaPes(body, PROF, c.deps)).toEqual({ ok: false, motivo: 'respuesta_cortada' });
+    const r = await generarProblemaPes(body, PROF, c.deps);
+    expect(r).toMatchObject({ ok: true, simulado: false, rechazado: MOTIVO_SALIDA.respuesta_cortada });
+    const g = c.llamadas.find((x) => x.fn === 'svc_pes_generar_guardar')!.args;
+    expect(g).toMatchObject({ p_propuesta: null, p_motivo: MOTIVO_SALIDA.respuesta_cortada });
+    expect(g.p_costo).toBeCloseTo((2500 * 4 + 2200 * 20) / 1e6);
+    expect(c.llamadas.find((x) => x.fn === 'svc_orbe_ia_finalizar_uso')!.args).toMatchObject({ p_ok: false, p_error: 'respuesta_cortada', p_output: 2200 });
+    const m = servidor({ reserva: { api_real: true }, texto: 'esto no es JSON' });
+    expect(await generarProblemaPes(body, PROF, m.deps)).toMatchObject({ ok: true, rechazado: MOTIVO_SALIDA.formato });
+    // en streaming y con más tiempo: un problema largo no agota la espera
+    expect((c.modelo.mock.calls[0][0] as Peticion).largo).toBe(true);
+  });
+  it('sin presupuesto o sin clave: no se llama al modelo ni se guarda nada (el paquete se detiene)', async () => {
+    const c = servidor();
     expect(c.llamadas.some((x) => x.fn === 'svc_pes_generar_guardar')).toBe(false);
     const p = servidor({ reserva: { ok: false, motivo: 'presupuesto' } });
     expect(await generarProblemaPes(body, PROF, p.deps)).toEqual({ ok: false, motivo: 'presupuesto' });
@@ -176,8 +190,10 @@ describe('PES · IA · en el aula: paquete, coste y edición', () => {
     const d: DatosEstimacion = { encendido: true, api_real: true, modelo: 'm', precio_entrada: 5, precio_salida: 25, max_salida: 4000, presupuesto_mes: 0.5, gastado_mes: 0.2, llamadas_hoy: 95, limite_diario: 100, por_lote: 4 };
     const e = estimarPes(10, 4, d);
     expect(e.llamadas).toBe(10);
-    expect(e.costoTipico).toBeCloseTo(10 * (2500 * 5 + (4 * 550 + 900) * 25) / 1e6, 10);
-    expect(e.costoMaximo).toBeCloseTo(10 * (4000 * 5 + 4000 * 25) / 1e6, 10);
+    // calibrado con llamadas reales: entrada típica 4 300, máxima 5 500; salida máxima por apartados (no el ajuste de los chistes)
+    expect(e.costoTipico).toBeCloseTo(10 * (4300 * 5 + (4 * 550 + 900) * 25) / 1e6, 10);
+    expect(e.costoMaximo).toBeCloseTo(10 * (5500 * 5 + (4 * 1000 + 1500) * 25) / 1e6, 10);
+    expect(estimarPes(10, 4, { ...d, max_salida: 3000 }).costoMaximo).toBeCloseTo(e.costoMaximo, 10);
     expect(e.cabeHoy).toBe(false);
     expect(e.cabePresupuesto).toBe(false);
     expect(estimarPes(10, 4, { ...d, api_real: false }).costoMaximo).toBe(0);
