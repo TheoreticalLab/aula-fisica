@@ -93,6 +93,9 @@ describe('PES · IA · verificación de cada problema', () => {
       .toMatchObject({ ok: false, motivo: expect.stringMatching(/al menos un apartado numérico/) });
     expect(validarProblema(cambia(3, { rubrica: 'corta' }), spec(), CTX)).toMatchObject({ ok: false, motivo: expect.stringMatching(/rúbrica/) });
     expect(validarProblema(cambia(0, { retro: ['', '', 'x'] }), spec(), CTX)).toMatchObject({ ok: false, motivo: expect.stringMatching(/retroalimentación/) });
+    expect(validarProblema(cambia(1, { enunciado: BUENO.apartados[0].enunciado, formato: 'choice', opciones: ['Nula', 'Positiva', 'Negativa'], correcta: 0,
+      retro: ['', 'La velocidad no cambia: no hay aceleración positiva.', 'La velocidad no disminuye: no hay aceleración negativa.'] }), spec(), CTX))
+      .toMatchObject({ ok: false, motivo: expect.stringMatching(/mismo enunciado/) });
   });
   it('tipos: «datos» exige la tabla; «conceptual» admite como mucho un apartado numérico', () => {
     expect(validarProblema(BUENO, spec({ tipo: 'datos' }), CTX)).toMatchObject({ ok: false, motivo: expect.stringMatching(/tabla/) });
@@ -139,6 +142,8 @@ describe('PES · IA · un problema en la Edge Function', () => {
     expect(r).toMatchObject({ ok: true, simulado: false, propuesta_id: 'prop-1' });
     expect(r.costo_usd).toBeCloseTo((2500 * 4 + 2200 * 20) / 1e6, 10);
     expect(s.modelo.mock.calls[0][0].schema).toBeDefined();
+    const sim = servidor({ reserva: { api_real: true }, texto: simularProblema(spec(), CTX, 2) });
+    expect(await generarProblemaPes(body, PROF, sim.deps)).toMatchObject({ ok: true, rechazado: expect.stringMatching(/simulación/) });
     const malo = servidor({ reserva: { api_real: true }, texto: JSON.stringify({ ...BUENO, apartados: BUENO.apartados.slice(0, 2) }) });
     const r2 = await generarProblemaPes(body, PROF, malo.deps);
     expect(r2).toMatchObject({ ok: true, rechazado: expect.stringMatching(/2 apartados/) });

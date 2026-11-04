@@ -12,7 +12,7 @@ import {
   type ApartadoRedactado, type DetallePes, type PropuestaPes,
 } from '@/api/pes';
 import {
-  aFormulario, estimarPes, MAX_PAQUETE, MOTIVO_IA, NIVELES_PES, planificarPes, TIPOS_PES, type NivelPes, type TipoProblemaPes,
+  aFormulario, DESCARTES_SEGUIDOS_MAX, estimarPes, MAX_PAQUETE, MOTIVO_IA, NIVELES_PES, planificarPes, TIPOS_PES, type NivelPes, type TipoProblemaPes,
 } from '@/lib/pesGeneracion';
 import { FORMATO, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, Empty, ErrorBox, Notice, Spinner } from '@/components/ui';
@@ -50,6 +50,7 @@ export function GenerarConIA({ d, recargar }: { d: DetallePes; recargar: () => P
     try {
       const gen = await act.run(() => pesGenerarIniciar(d.practica.id, { lecciones, niveles, tipos, apartados }, plan.length));
       if (!gen) return;
+      let seguidos = 0;                           // descartes seguidos: cada uno se cobra
       for (let i = 0; i < plan.length; i++) {
         if (detener.current) { setProg((p) => p && { ...p, parado: 'Detenido por usted.' }); break; }
         let r;
@@ -63,6 +64,11 @@ export function GenerarConIA({ d, recargar }: { d: DetallePes; recargar: () => P
         setProg((p) => p && { ...p, hechos: i + 1, creados: p.creados + (r.propuesta_id ? 1 : 0), costo: p.costo + (r.costo_usd ?? 0), simulado: !!r.simulado,
           rechazos: r.rechazado ? [...p.rechazos, `Problema ${i + 1}: ${r.rechazado}`] : p.rechazos });
         if (r.propuesta_id) void props.reload();
+        seguidos = r.rechazado ? seguidos + 1 : 0;
+        if (seguidos >= DESCARTES_SEGUIDOS_MAX && i + 1 < plan.length) {
+          setProg((p) => p && { ...p, parado: `Se detuvo para no gastar más: ${DESCARTES_SEGUIDOS_MAX} problemas seguidos descartados por el servidor. Revise los motivos; pruebe con otra lección, otro tipo o menos apartados.` });
+          break;
+        }
       }
     } finally {
       corriendo.current = false;

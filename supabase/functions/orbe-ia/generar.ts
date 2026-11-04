@@ -129,9 +129,45 @@ const fmt3 = (x: number) => String(Number(x.toPrecision(3)));
 export const norma = (t: string) => t.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '').slice(0, 90);
 export const textoOk = (t: unknown, min: number, max: number): t is string => typeof t === 'string' && t.trim().length >= min && t.length <= max && !/<\s*\/?\s*(script|iframe|style)|javascript:/i.test(t);
 
-/** ¿Aparece el valor del dato escrito en el enunciado? (acepta coma o punto decimal y notación científica simple) */
+/**
+ * El enunciado como lo lee el estudiante, para buscar números: sin las marcas de LaTeX que no cambian el valor
+ * (`$`, `\,`, `\text{kg}`, coma decimal `0{,}05`), coma decimal → punto y «× 10^» unificado.
+ */
+export function textoParaNumeros(t: string): string {
+  return t
+    .replace(/\\(?:text|mathrm|rm|mbox|operatorname)\s*\{([^{}]*)\}/g, ' $1')
+    .replace(/\{,\}/g, '.')
+    .replace(/\\[,;:! ]/g, ' ').replace(/[~$]/g, ' ')
+    .replace(/(\d),(\d)/g, '$1.$2')
+    .replace(/\s*(?:\\times|×|\\cdot|·|\*)\s*10\s*\^\s*/g, '×10^')
+    .replace(/\s+/g, ' ');
+}
+
+export interface NumeroEscrito { valor: number; unidad: ReturnType<typeof parseUnit> | null }
+
+/** Cada número escrito en el enunciado con la unidad que lo acompaña (si la hay y se entiende). */
+export function numerosEscritos(enunciado: string): NumeroEscrito[] {
+  const t = textoParaNumeros(enunciado);
+  const re = /(?<![\w.])(-?\d+(?:\.\d+)?)(?:×10\^\{?(-?\d+)\}?)?(?: ?([A-Za-zµμΩ°][A-Za-zµμΩ°0-9^/·\-]*))?/g;
+  const out: NumeroEscrito[] = [];
+  for (const m of t.matchAll(re)) {
+    const valor = Number(m[1]) * (m[2] ? 10 ** Number(m[2]) : 1);
+    if (!Number.isFinite(valor)) continue;
+    let unidad: NumeroEscrito['unidad'] = null;
+    const simbolo = (m[3] ?? '').replace(/[.\-^/·]+$/, '');
+    if (simbolo) { try { unidad = parseUnit(simbolo); } catch { unidad = null; } }
+    out.push({ valor, unidad });
+  }
+  return out;
+}
+
+const mismoNumero = (escrito: number, valor: number) =>
+  [valor, Number(valor.toPrecision(4)), Number(valor.toPrecision(3))].some((v) => Math.abs(escrito - v) <= 1e-9 * Math.max(1, Math.abs(v)));
+
+/** ¿Aparece el valor del dato escrito en el enunciado? (acepta coma o punto decimal, LaTeX y notación científica) */
 export function datoEnEnunciado(valor: number, enunciado: string): boolean {
-  const t = enunciado.replace(/\s/g, '').replace(/,/g, '.').replace(/\\,/g, '');
+  if (numerosEscritos(enunciado).some((n) => mismoNumero(n.valor, valor))) return true;
+  const t = textoParaNumeros(enunciado).replace(/\s/g, '');
   const formas = new Set([String(valor), valor.toString().replace(/\.0+$/, ''), Number(valor.toPrecision(4)).toString(), Number(valor.toPrecision(3)).toString()]);
   if (Math.abs(valor) >= 1e4 || (Math.abs(valor) < 1e-3 && valor !== 0)) {
     const [m, e] = valor.toExponential().split('e');
@@ -151,10 +187,12 @@ export function datoEnEnunciado(valor: number, enunciado: string): boolean {
 type Resultado = { ok: true; item: ItemGuardable } | { ok: false; motivo: string };
 
 /** También la usa la generación de problemas de la PES (pes.ts): `enunciado` es todo el texto que verá el estudiante. */
-export function validarNumerica(n: Record<string, unknown>, enunciado: string): { ok: true; key: NumericKey; unit_hint: string } | { ok: false; motivo: string } {
+/** `tolResultado`: diferencia relativa admitida entre el resultado que declara el modelo y el recalculado (la clave usa el recalculado). */
+export function validarNumerica(n: Record<string, unknown>, enunciado: string, tolResultado = 0.01): { ok: true; key: NumericKey; unit_hint: string } | { ok: false; motivo: string } {
   const datos = Array.isArray(n.datos) ? (n.datos as Record<string, unknown>[]) : [];
   if (!datos.length || datos.length > 12) return { ok: false, motivo: 'faltan los datos' };
   const vars: Record<string, Cantidad> = {};
+  const escritos = numerosEscritos(enunciado);
   for (const d of datos) {
     const nombre = typeof d.nombre === 'string' ? d.nombre.trim() : '';
     if (!/^[a-zA-Z_][a-zA-Z0-9_]{0,20}$/.test(nombre) || nombre in vars || ['pi', 'sqrt', 'abs', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'exp', 'ln', 'log10'].includes(nombre)) return { ok: false, motivo: `nombre de dato inválido «${nombre}»` };
@@ -163,8 +201,16 @@ export function validarNumerica(n: Record<string, unknown>, enunciado: string): 
     let u;
     try { u = parseUnit(typeof d.unidad === 'string' ? d.unidad : ''); } catch { return { ok: false, motivo: `unidad desconocida para ${nombre}: «${String(d.unidad)}»` }; }
     if (u.isAffineTemperature) return { ok: false, motivo: 'temperaturas en °C/°F como dato: use K' };
-    if (!datoEnEnunciado(valor, enunciado)) return { ok: false, motivo: `el dato ${nombre} = ${valor} no aparece en el enunciado` };
-    vars[nombre] = { v: valor * u.factor, d: u.dims };
+    // manda lo que ve el estudiante: si junto a ese número está escrita otra unidad de la misma magnitud
+    // (el modelo anotó «g» y el enunciado dice «0,05 kg»), se usa la del enunciado
+    const conUnidad = escritos.filter((x) => mismoNumero(x.valor, valor) && x.unidad && !x.unidad.isAffineTemperature && sameDims(x.unidad.dims, u!.dims));
+    if (conUnidad.length && !conUnidad.some((x) => Math.abs(x.unidad!.factor - u!.factor) <= 1e-12 * u!.factor)) u = conUnidad[0].unidad!;
+    // la misma cantidad escrita con otra unidad también vale («50 g» por un dato de 0,05 kg)
+    const si = valor * u.factor;
+    const presente = datoEnEnunciado(valor, enunciado)
+      || escritos.some((x) => x.unidad && !x.unidad.isAffineTemperature && sameDims(x.unidad.dims, u!.dims) && Math.abs(x.valor * x.unidad.factor - si) <= 1e-6 * Math.max(Math.abs(si), 1e-12));
+    if (!presente) return { ok: false, motivo: `el dato ${nombre} = ${valor} no aparece en el enunciado` };
+    vars[nombre] = { v: si, d: u.dims };
   }
   const unidad = typeof n.unidad === 'string' ? n.unidad.trim() : '';
   let ru;
@@ -175,7 +221,7 @@ export function validarNumerica(n: Record<string, unknown>, enunciado: string): 
   if (!sameDims(calc.d as Dims, ru.dims)) return { ok: false, motivo: `las dimensiones de la fórmula no son las de «${unidad || 'adimensional'}»` };
   const enUnidad = calc.v / ru.factor;
   const declarado = Number(n.resultado);
-  if (!Number.isFinite(declarado) || Math.abs(declarado - enUnidad) > Math.max(0.01 * Math.abs(enUnidad), 1e-9)) return { ok: false, motivo: `el resultado declarado (${n.resultado}) no coincide con el cálculo (${fmt3(enUnidad)})` };
+  if (!Number.isFinite(declarado) || Math.abs(declarado - enUnidad) > Math.max(tolResultado * Math.abs(enUnidad), 1e-9)) return { ok: false, motivo: `el resultado declarado (${n.resultado}) no coincide con el cálculo (${fmt3(enUnidad)})` };
   const angulo = ru.factor === Math.PI / 180;
   const value = `${fmt3(enUnidad)}${unidad ? ` ${unidad}` : ''}`;
   const base: NumericKey = angulo ? { format: 'numeric', value, relTol: 0, absTol: 0.0175 } : Math.abs(enUnidad) < 1e-9 ? { format: 'numeric', value, absTol: 1e-6 } : { format: 'numeric', value, relTol: 0.02 };

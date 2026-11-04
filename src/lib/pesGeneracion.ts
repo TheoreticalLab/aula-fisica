@@ -22,6 +22,8 @@ export const TIPOS_PES: { id: TipoProblemaPes; t: string; d: string }[] = [
   { id: 'transferencia', t: 'Variación de condiciones', d: 'Una situación base y un cambio de condiciones en los apartados finales' },
 ];
 export const MAX_PAQUETE = 50;
+/** El paquete se detiene solo tras estos descartes seguidos (cada uno se cobra). */
+export const DESCARTES_SEGUIDOS_MAX = 3;
 
 /** N problemas repartidos por igual entre las lecciones, con la mezcla de dificultades y tipos elegida (intercalados). */
 export function planificarPes(n: number, lecciones: string[], niveles: NivelPes[], tipos: TipoProblemaPes[], apartados: 3 | 4 | 5): EspecificacionPes[] {
