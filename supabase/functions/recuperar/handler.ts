@@ -58,8 +58,8 @@ export async function recuperar(body: unknown, ipHash: string | null, d: Deps, m
   const accion = texto(b.accion, 20);
 
   if (accion === 'config') {
-    const c = await rpc<{ passkeys: boolean; recuperacion: boolean; monitores: boolean; minutos_solicitud: number }>(d, 'svc_acceso_config', {});
-    return { status: 200, body: { passkeys: !!c?.passkeys, recuperacion: !!c?.recuperacion, monitores: !!c?.monitores, minutos_solicitud: c?.minutos_solicitud ?? 30 } };
+    const c = await rpc<{ passkeys: boolean; recuperacion: boolean; monitores: boolean; minutos_solicitud: number; inactividad_dias?: number | null }>(d, 'svc_acceso_config', {});
+    return { status: 200, body: { passkeys: !!c?.passkeys, recuperacion: !!c?.recuperacion, monitores: !!c?.monitores, minutos_solicitud: c?.minutos_solicitud ?? 30, inactividad_dias: c?.inactividad_dias ?? null } };
   }
 
   if (accion === 'solicitar') {

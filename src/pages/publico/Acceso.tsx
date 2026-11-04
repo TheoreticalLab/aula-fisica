@@ -95,6 +95,10 @@ export function Ingresar({ titulo = 'Ingresar al aula' }: { titulo?: string | nu
           ? <>¿Olvidó su contraseña? <Link to="/recuperar" className="enlace">Recuperar acceso</Link> (verificación en persona, sin esperar a que el profesor la restablezca).</>
           : <>¿Olvidó su contraseña? Pida al profesor que la restablezca.</>}
       </p>
+      {cfg.data?.inactividad_dias && (
+        <p className="mt-2 text-xs text-gray-500">Las cuentas de estudiantes que pasan {cfg.data.inactividad_dias} días sin usar el aula se suspenden.
+          {cfg.data.recuperacion ? <> Si es su caso, use <Link to="/recuperar" className="enlace">Recuperar acceso</Link>.</> : ' Si es su caso, hable con el profesor.'}</p>
+      )}
     </Marco>
   );
 }

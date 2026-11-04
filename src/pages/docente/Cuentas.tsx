@@ -15,9 +15,10 @@ import {
 import type { Role, SeccionResumen } from '@/api/tipos';
 import { downloadText, fecha, toCsv, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, Empty, ErrorBox, Field, Modal, Notice, PageTitle, Spinner, Tabs } from '@/components/ui';
+import { Inactividad } from './Inactividad';
 import { leerCsvCuentas, normalizarId, idValido, type FilaCuenta } from '../../../supabase/functions/_shared/cuentas.ts';
 
-type Tab = 'cuentas' | 'crear' | 'importar' | 'accesos';
+type Tab = 'cuentas' | 'crear' | 'importar' | 'accesos' | 'inactividad';
 
 /** Credenciales recién generadas: se muestran UNA vez; se pueden descargar o imprimir para entregarlas. */
 function Credenciales({ resultados, onCerrar }: { resultados: ResultadoCuenta[]; onCerrar: () => void }) {
@@ -153,7 +154,7 @@ export default function Cuentas() {
     <div>
       <PageTitle title="Cuentas" subtitle="Solo el administrador crea cuentas. No hay registro público ni se piden correos personales." />
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
-        { id: 'cuentas', label: 'Cuentas' }, { id: 'crear', label: 'Crear una cuenta' }, { id: 'importar', label: 'Importar CSV' }, { id: 'accesos', label: 'Accesos sospechosos' },
+        { id: 'cuentas', label: 'Cuentas' }, { id: 'crear', label: 'Crear una cuenta' }, { id: 'importar', label: 'Importar CSV' }, { id: 'accesos', label: 'Accesos sospechosos' }, { id: 'inactividad', label: 'Inactividad' },
       ]} />
       <ErrorBox error={action.error} />
       {resultados && <Credenciales resultados={resultados} onCerrar={() => setResultados(null)} />}
@@ -283,6 +284,7 @@ export default function Cuentas() {
         </Card>
       )}
 
+      {tab === 'inactividad' && <Inactividad esAdmin={isAdmin} />}
       {tab === 'accesos' && (
         <Card title="IDs con 3 o más intentos fallidos en las últimas 72 horas">
           <p className="mb-2 text-xs text-gray-500">

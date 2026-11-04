@@ -2,7 +2,7 @@
 import { invocar, rpc } from '@/lib/supabase';
 import type { EstadoSolicitud, MetodoVerificacion } from '@/lib/acceso';
 
-export interface ConfigPublica { passkeys: boolean; recuperacion: boolean; monitores: boolean; minutos_solicitud: number }
+export interface ConfigPublica { passkeys: boolean; recuperacion: boolean; monitores: boolean; minutos_solicitud: number; inactividad_dias?: number | null }
 
 export interface SeccionAcceso {
   class_id: string; seccion: string; curso: string; papel: 'admin' | 'profesor' | 'monitor';

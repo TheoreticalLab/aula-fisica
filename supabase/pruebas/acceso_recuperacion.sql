@@ -57,10 +57,20 @@ create function pg_temp.h(p text) returns text language sql as $$ select encode(
 create temp table t (k text primary key, v jsonb);
 grant all on t to authenticated, service_role, anon;
 
--- 0) Todo apagado por defecto; ningún monitor tiene el permiso; sin acceso directo a las tablas
+-- 0) Todo apagado por defecto; ningún monitor tiene el permiso; sin acceso directo a las tablas.
+-- En una base nueva la configuración viene apagada; sobre la copia de producción puede estar encendida: se comprueba
+-- el valor por defecto de las columnas y se parte de la configuración apagada (todo se deshace al final).
 do $$ begin
-  if (select passkeys or recuperacion or recuperacion_monitores from public.acceso_config where id = 1) then raise exception 'FALLO: config no apagada'; end if;
-  if exists (select 1 from public.acceso_monitores) or exists (select 1 from public.acceso_secciones) then raise exception 'FALLO: permisos automáticos'; end if;
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'acceso_config'
+             and column_name in ('passkeys', 'recuperacion', 'recuperacion_monitores') and column_default <> 'false') then
+    raise exception 'FALLO: config no apagada por defecto';
+  end if;
+end $$;
+update public.acceso_config set passkeys = false, recuperacion = false, recuperacion_monitores = false, minutos_solicitud = 30,
+  minutos_aprobacion = 10, horas_sesion_reciente = 12, max_aprobaciones_monitor_dia = 5 where id = 1;
+do $$ begin
+  if exists (select 1 from public.acceso_monitores where class_id::text like 'ac770000-%')
+     or exists (select 1 from public.acceso_secciones where class_id::text like 'ac770000-%') then raise exception 'FALLO: permisos automáticos'; end if;
 end $$;
 set local role service_role;
 do $$ begin
@@ -123,7 +133,8 @@ end $$;
 reset role;
 do $$ begin
   if exists (select 1 from public.acceso_monitores where user_id = 'ac770000-0000-4000-8000-000000000013') then raise exception 'FALLO: monitor de B con permiso'; end if;
-  if (select count(*) from public.acceso_eventos where accion in ('configurar', 'configurar_seccion', 'otorgar_permiso') and resultado = 'ok') <> 4 then
+  if (select count(*) from public.acceso_eventos where accion in ('configurar', 'configurar_seccion', 'otorgar_permiso') and resultado = 'ok'
+      and actor::text like 'ac770000-%') <> 4 then
     raise exception 'FALLO: configuración sin auditar';
   end if;
 end $$;
@@ -154,7 +165,7 @@ begin
 end $$;
 reset role;
 do $$ begin
-  if (select count(*) from public.acceso_solicitudes where elegible) <> 1 then raise exception 'FALLO: elegibilidad'; end if;
+  if (select count(*) from public.acceso_solicitudes where elegible and login_declarado in ('ac-est-s', 'no-existe-77', 'ac-prof-a', 'ac-est-x')) <> 1 then raise exception 'FALLO: elegibilidad'; end if;
   if (select user_id from public.acceso_solicitudes where login_declarado = 'ac-prof-a') is not null then raise exception 'FALLO: cuenta docente elegible'; end if;
   if not exists (select 1 from public.acceso_alertas where tipo = 'cuenta_no_elegible') then raise exception 'FALLO: sin alerta de cuenta docente'; end if;
   if (select class_id from public.acceso_solicitudes where login_declarado = 'ac-est-s') <> 'ac770000-0000-4000-8000-0000000000a0' then raise exception 'FALLO: sección'; end if;

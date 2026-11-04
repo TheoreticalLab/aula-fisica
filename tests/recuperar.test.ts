@@ -109,6 +109,6 @@ describe('recuperar · estado y canje', () => {
 
   it('config: solo interruptores', async () => {
     const { d } = deps({ svc_acceso_config: { passkeys: true, recuperacion: false, monitores: false, minutos_solicitud: 30 } });
-    expect((await recuperar({ accion: 'config' }, null, d)).body).toEqual({ passkeys: true, recuperacion: false, monitores: false, minutos_solicitud: 30 });
+    expect((await recuperar({ accion: 'config' }, null, d)).body).toEqual({ passkeys: true, recuperacion: false, monitores: false, minutos_solicitud: 30, inactividad_dias: null });
   });
 });

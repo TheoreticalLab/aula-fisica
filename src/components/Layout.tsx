@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { IntroLaboratorio } from '@/components/IntroLaboratorio';
 import { supabase } from '@/lib/supabase';
-import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
 import { SeguimientoTiempo } from '@/components/SeguimientoTiempo';
 import { ReceptorMensajes } from '@/components/ReceptorMensajes';
@@ -53,7 +53,8 @@ const topLink = ({ isActive }: { isActive: boolean }) =>
   `rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-white/15 text-white' : 'text-primario-100 hover:bg-white/10'}`;
 
 export function Layout() {
-  const { session, profile, isTeacher, isAdmin, signOut, loading } = useAuth();
+  const { session, profile, isTeacher, isAdmin, signOut, loading, refreshProfile } = useAuth();
+  const navegar = useNavigate();
   // Bienvenida animada: una vez por inicio de sesión (la clave cambia con cada nuevo inicio de sesión)
   const claveIntro = session ? `aula-intro:${session.user.id}:${session.user.last_sign_in_at ?? ''}` : '';
   const [introVista, setIntroVista] = useState(false);
@@ -81,6 +82,25 @@ export function Layout() {
       setAcceso(error || !d ? { passkeys: false, gestion: false } : { passkeys: !!d.passkeys, gestion: Array.isArray(d.secciones) && d.secciones.length > 0 });
     });
   }, [session, profile?.active, profile?.must_change_password]);
+  // suspensión por inactividad (migración 79): registra el uso al abrir el aula y al volver a la pestaña; si venció el plazo,
+  // el servidor marca la suspensión y aquí se explica cómo reactivarla
+  const [inactividad, setInactividad] = useState<{ dias: number } | null>(null);
+  const refrescarPerfil = useRef(refreshProfile);
+  refrescarPerfil.current = refreshProfile;
+  useEffect(() => {
+    if (!session || profile?.role !== 'student') return setInactividad(null);
+    const comprobar = () => void supabase.rpc('cuenta_presencia').then(({ data }) => {
+      const d = data as { suspendida?: boolean; motivo?: string; dias?: number } | null;
+      if (d?.suspendida && d.motivo === 'inactividad') {
+        setInactividad({ dias: d.dias ?? 10 });
+        if (profile?.active) void refrescarPerfil.current();
+      } else setInactividad(null);
+    });
+    comprobar();
+    const alVolver = () => { if (document.visibilityState === 'visible') comprobar(); };
+    document.addEventListener('visibilitychange', alVolver);
+    return () => document.removeEventListener('visibilitychange', alVolver);
+  }, [session, profile?.role, profile?.active]);
   const [menu, setMenu] = useState(false);
   const loc = useLocation();
   // regularización obligatoria pendiente: el aula queda reducida a la regularización (el servidor ya lo impone)
@@ -163,9 +183,22 @@ export function Layout() {
       <main id="contenido" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-5 outline-none md:pb-10">
         {session && profile && !profile.active ? (
           <div className="mx-auto max-w-md tarjeta text-center">
-            <h1 className="mb-2 font-serif text-xl font-semibold">Cuenta no habilitada</h1>
-            <p className="mb-4 text-sm">Su cuenta está suspendida o todavía no ha sido autorizada. Consulte al profesor o al administrador del aula.</p>
-            <button className="btn-secundario" onClick={() => void signOut()}>Salir</button>
+            <h1 className="mb-2 font-serif text-xl font-semibold">{inactividad ? 'Cuenta suspendida por inactividad' : 'Cuenta no habilitada'}</h1>
+            {inactividad ? (
+              <>
+                <p className="mb-4 text-sm">Su cuenta pasó {inactividad.dias} días o más sin usar el aula y quedó suspendida. Para reactivarla, pídaselo al profesor o use
+                  «Recuperar acceso»: el profesor o un monitor de su sección verificará su identidad en persona.</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <button className="btn-primario" onClick={() => void signOut().then(() => navegar('/recuperar'))}>Recuperar acceso</button>
+                  <button className="btn-secundario" onClick={() => void signOut()}>Salir</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="mb-4 text-sm">Su cuenta está suspendida o todavía no ha sido autorizada. Consulte al profesor o al administrador del aula.</p>
+                <button className="btn-secundario" onClick={() => void signOut()}>Salir</button>
+              </>
+            )}
           </div>
         ) : bloqueado && !bloqueo.permitida ? (
           <PantallaBloqueo secciones={bloqueo.secciones} onSalir={() => void signOut()} />
