@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getAttempt, submitAttempt } from '@/api/estudiante';
 import type { AttemptItem } from '@/api/tipos';
@@ -8,7 +8,9 @@ import { Ejercicio } from '@/components/Ejercicio';
 import { Markdown } from '@/components/Markdown';
 import { REVEAL_TEXT } from './Actividad';
 import { AvisoTelemetria, TelemetriaProvider, useTelemetria } from '@/components/Telemetria';
-import { examOpen, funcionAusente, type AperturaExamen } from '@/api/examen';
+import { examEntrada, examIntegridad, examOpen, funcionAusente, type AperturaExamen } from '@/api/examen';
+import { BarreraCopiado, useVigilanciaSalida } from '@/components/IntegridadExamen';
+import { confirmarSinSalida, SIN_INTEGRIDAD } from '@/lib/examen/integridad';
 import { asistidaEstado } from '@/api/asistida';
 import { PracticaAsistida } from './PracticaAsistida';
 import { estaRespondida, ExamenUnaALaVez } from './ExamenUnaALaVez';
@@ -52,6 +54,16 @@ function MapaEjercicios({ items }: { items: AttemptItem[] }) {
   );
 }
 
+/** Recordatorio permanente durante una evaluación con «bloquear al salir». */
+function AvisoProtegida() {
+  return (
+    <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-100" role="note">
+      🔒 <strong>Evaluación protegida.</strong> No salga de esta página hasta entregar: si cambia de pestaña o de aplicación, la pantalla se bloquea y
+      necesitará el código del profesor para volver.
+    </div>
+  );
+}
+
 export default function Intento() {
   const { attemptId = '' } = useParams();
   const st = useAsync(() => getAttempt(attemptId), [attemptId]);
@@ -66,6 +78,14 @@ export default function Intento() {
   // tiempo mínimo de realización (migración 78): latidos solo en prácticas en curso del propio estudiante
   const tiempoPosible = !!st.data && st.data.flags.is_owner && st.data.attempt.mode === 'practice' && !!st.data.attempt.activity_id && st.data.attempt.status === 'in_progress';
   const tiempo = useTiempoActivo(attemptId, tiempoPosible);
+  // evaluación protegida (migración 85): bloquear al salir e impedir copiar; lo decide el servidor
+  const integ = useAsync(() => (usaMotor ? examIntegridad(attemptId) : Promise.resolve(SIN_INTEGRIDAD)), [attemptId, usaMotor]);
+  const vigilar = usaMotor && !justSubmitted && !!integ.data?.bloquear_al_salir;
+  const sinCopiar = usaMotor && !justSubmitted && !!integ.data?.impedir_copiar;
+  useVigilanciaSalida(attemptId, vigilar);
+  // en la interfaz clásica la entrada se registra aquí («una pregunta a la vez» la registra exam_open)
+  const clasica = apertura.data?.modo === 'clasico';
+  useEffect(() => { if (vigilar && clasica) void examEntrada(attemptId).catch(() => undefined); }, [vigilar, clasica, attemptId]);
   if ((st.loading && !st.data) || (usaMotor && apertura.loading && !apertura.data) || (posibleAsistida && asistida.loading && asistida.data === undefined)) return <Spinner />;
   if (st.error) return <ErrorBox error={st.error} onRetry={st.reload} />;
   const view = st.data!;
@@ -90,10 +110,13 @@ export default function Intento() {
         <PageTitle title={activity?.title ?? 'Evaluación'} subtitle={<Badge tone="purple">Evaluación · una pregunta a la vez</Badge>}
           back={activity ? { to: `/actividad/${activity.id}`, label: 'Actividad' } : undefined} />
         {servidor.estado === 'vencido' && <Notice tone="warn">El tiempo oficial terminó. Ya no puede cambiar respuestas; se entregará lo guardado.</Notice>}
-        <ExamenUnaALaVez view={view} servidor={servidor}
-          onItems={(items) => st.setData({ ...view, items })}
-          recargar={async () => { const v = await getAttempt(attemptId); st.setData(v); return v; }}
-          onEntregado={() => { setJustSubmitted(true); void st.reload(); }} />
+        {vigilar && <AvisoProtegida />}
+        <BarreraCopiado attemptId={attempt.id} activo={sinCopiar}>
+          <ExamenUnaALaVez view={view} servidor={servidor}
+            onItems={(items) => st.setData({ ...view, items })}
+            recargar={async () => { const v = await getAttempt(attemptId); st.setData(v); return v; }}
+            onEntregado={() => { setJustSubmitted(true); void st.reload(); }} />
+        </BarreraCopiado>
       </TelemetriaProvider>
     );
   }
@@ -112,7 +135,7 @@ export default function Intento() {
     const msg = sinResponder
       ? `Quedan ${sinResponder} ejercicios sin responder. Si entrega ahora, contarán como incorrectos. ¿Entregar?`
       : '¿Entregar el intento? Después no podrá modificar sus respuestas.';
-    if (!window.confirm(msg)) return;
+    if (!confirmarSinSalida(msg)) return;
     tel?.envio('solicitado');
     // pequeña espera para que se guarden los últimos borradores
     await new Promise((r) => setTimeout(r, 1300));
@@ -160,6 +183,8 @@ export default function Intento() {
         <Notice tone="warn">El plazo terminó. Ya no puede cambiar respuestas, pero puede entregar lo que guardó a tiempo para que se califique.</Notice>
       )}
       {attempt.status === 'in_progress' && flags.is_owner && <BarraTiempoActivo estado={tiempo} />}
+      {vigilar && <AvisoProtegida />}
+      <BarreraCopiado attemptId={attempt.id} activo={sinCopiar}>
       <div className="space-y-4">
         {view.items.length > 1 && attempt.status === 'in_progress' && flags.is_owner && <MapaEjercicios items={view.items} />}
         {view.items.map((it, i) => (
@@ -170,6 +195,7 @@ export default function Intento() {
           </div>
         ))}
       </div>
+      </BarreraCopiado>
       <ErrorBox error={action.error} />
       {attempt.status === 'in_progress' && flags.is_owner && activity && (
         <div className="sticky bottom-20 z-30 mt-6 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-white/10 dark:bg-primario-950/95 md:bottom-4">

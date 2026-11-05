@@ -113,6 +113,21 @@ body.modo-concentracion header.sticky {
   position: static;
 }
 
+/* Evaluación con «impedir copiar» (migración 85): el enunciado no se selecciona ni abre el menú de copiar del móvil.
+   Los campos de respuesta SÍ: en iOS, user-select:none en un antepasado impide escribir en ellos si no se reactiva. */
+.sin-copiar {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.sin-copiar input,
+.sin-copiar textarea,
+.sin-copiar [contenteditable='true'],
+.sin-copiar math-field {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .apartado-resaltado { scroll-margin-top: 5rem; animation: resaltar 2.5s ease-out; }
 @keyframes resaltar { from { background: rgb(250 204 21 / 0.45); } to { background: transparent; } }
 

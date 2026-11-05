@@ -10,7 +10,10 @@ export function ModoExamen({ activityId }: { activityId: string }) {
   const action = useAction();
   const [cfg, setCfg] = useState<ConfigExamen | null>(null);
   const [ok, setOk] = useState(false);
-  useEffect(() => { if (st.data) setCfg({ presentacion: st.data.presentacion, navegacion: st.data.navegacion, duracion_s: st.data.duracion_s, pausas: st.data.pausas }); }, [st.data]);
+  useEffect(() => {
+    if (st.data) setCfg({ presentacion: st.data.presentacion, navegacion: st.data.navegacion, duracion_s: st.data.duracion_s, pausas: st.data.pausas,
+      ...(st.data.integridad ? { integridad: { bloquear_al_salir: st.data.integridad.bloquear_al_salir, impedir_copiar: st.data.integridad.impedir_copiar, codigo: '' } } : {}) });
+  }, [st.data]);
   if (st.loading && !st.data) return <Spinner />;
   if (st.error) return funcionAusente(st.error) ? null : <ErrorBox error={st.error} onRetry={st.reload} />;
   if (!cfg) return null;
@@ -64,6 +67,9 @@ export function ModoExamen({ activityId }: { activityId: string }) {
           </fieldset>
         )}
       </div>
+      {cfg.integridad && (
+        <Integridad valor={cfg.integridad} codigoGuardado={!!st.data?.integridad?.codigo_configurado} onChange={(i) => set({ integridad: i })} />
+      )}
       <ErrorBox error={action.error} />
       <div className="mt-3 flex items-center gap-3">
         <button className="btn-primario" onClick={() => void guardar()} disabled={action.busy}>{action.busy ? 'Guardando…' : 'Guardar modo de examen'}</button>
@@ -71,6 +77,41 @@ export function ModoExamen({ activityId }: { activityId: string }) {
       </div>
       <ExamenAdaptativo activityId={activityId} onCambio={st.reload} />
     </Card>
+  );
+}
+
+type ValorIntegridad = NonNullable<ConfigExamen['integridad']>;
+
+/** Quiz y exámenes protegidos (migración 85): bloquear al salir (con código) e impedir copiar y pegar. */
+function Integridad({ valor: v, codigoGuardado, onChange }: { valor: ValorIntegridad; codigoGuardado: boolean; onChange: (v: ValorIntegridad) => void }) {
+  const falta = v.bloquear_al_salir && !codigoGuardado && (v.codigo ?? '').trim().length < 4;
+  return (
+    <fieldset className="mt-4 border-t border-gray-200 pt-4 dark:border-white/10">
+      <legend className="etiqueta">Protección durante el intento</legend>
+      <p className="mb-2 text-xs text-gray-500">Se aplican de inmediato, también a los intentos en curso. El reloj del examen sigue corriendo mientras un estudiante está bloqueado.</p>
+      <label className="flex items-start gap-2 py-1 text-sm">
+        <input type="checkbox" checked={v.bloquear_al_salir} onChange={(e) => onChange({ ...v, bloquear_al_salir: e.target.checked })} />
+        <span><strong>Bloquear si sale del examen</strong>
+          <span className="block text-xs text-gray-500">Cambiar de pestaña o de aplicación, minimizar, apagar la pantalla, más de 5 s fuera, recargar, cerrar o ir a otra página del aula
+            bloquea su pantalla. Solo vuelve con el código de abajo o si usted lo libera (Comunicación → Pantallas bloqueadas, Orbe Control o el resumen de esta evaluación).
+            Mientras está bloqueado, el servidor no acepta sus respuestas. Una llamada entrante en el teléfono también cuenta como salida.</span></span>
+      </label>
+      {v.bloquear_al_salir && (
+        <label className="ml-6 block max-w-sm text-sm">
+          <span className="etiqueta">Código de desbloqueo {codigoGuardado && <Badge tone="green">guardado</Badge>}</span>
+          <input className="campo" type="text" autoComplete="off" maxLength={32} value={v.codigo ?? ''} placeholder={codigoGuardado ? 'Dejar vacío para conservar el actual' : '4 a 32 caracteres'}
+            onChange={(e) => onChange({ ...v, codigo: e.target.value })} />
+          <span className="mt-1 block text-xs text-gray-500">Anótelo: se guarda cifrado y no se puede volver a mostrar. No distingue mayúsculas. Cambiarlo no afecta a quien ya esté bloqueado.</span>
+          {falta && <span className="mt-1 block text-xs text-acento-700">Escriba el código para poder guardar.</span>}
+        </label>
+      )}
+      <label className="flex items-start gap-2 py-1 text-sm">
+        <input type="checkbox" checked={v.impedir_copiar} onChange={(e) => onChange({ ...v, impedir_copiar: e.target.checked })} />
+        <span><strong>Impedir copiar y pegar</strong>
+          <span className="block text-xs text-gray-500">No se puede pegar ni arrastrar texto en las respuestas, ni copiar o seleccionar el enunciado. Los intentos quedan anotados.
+            Es una barrera de la página: no impide fotografiar la pantalla ni usar otro dispositivo.</span></span>
+      </label>
+    </fieldset>
   );
 }
 

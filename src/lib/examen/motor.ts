@@ -21,6 +21,8 @@ export interface ConfigExamen {
   navegacion: Navegacion;
   duracion_s: number | null;                 // límite por intento (null = solo el cierre de la actividad)
   pausas: { permitidas: boolean; max_numero: number; max_total_s: number; detienen_reloj: boolean };
+  /** Bloquear al salir e impedir copiar (migración 85). Al guardar, `codigo` vacío conserva el anterior. */
+  integridad?: { bloquear_al_salir: boolean; impedir_copiar: boolean; codigo_configurado?: boolean; codigo?: string };
 }
 
 export const CONFIG_EXAMEN_POR_DEFECTO: ConfigExamen = {

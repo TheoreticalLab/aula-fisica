@@ -1,8 +1,15 @@
 /** Reglas del examen explicadas al estudiante antes de empezar (lógica pura). */
 import type { ConfigExamen } from './motor';
+import { reglasIntegridad } from './integridad';
 
 export function describirReglas(c: ConfigExamen): { titulo: string; lineas: string[] } | null {
-  if (c.presentacion !== 'una_a_la_vez') return null;
+  const protegida = reglasIntegridad(c.integridad);
+  if (c.presentacion !== 'una_a_la_vez') return protegida.length ? { titulo: 'Evaluación protegida', lineas: protegida } : null;
+  const r = describirUnaALaVez(c);
+  return { titulo: r.titulo, lineas: [...protegida, ...r.lineas] };
+}
+
+function describirUnaALaVez(c: ConfigExamen): { titulo: string; lineas: string[] } {
   const min = (s: number) => Math.round(s / 60);
   const l: string[] = [];
   l.push('Verá una pregunta a la vez. Use «Siguiente» y «Anterior», o los números de arriba.');

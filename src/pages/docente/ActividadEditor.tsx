@@ -27,6 +27,7 @@ import { CODIGO_ERROR } from '@/lib/codigos';
 import { DisenoExamen } from './lieia/DisenoExamen';
 import { ModoExamen } from './ModoExamen';
 import { MonitorExamen } from './MonitorExamen';
+import { IntegridadExamen } from './IntegridadExamen';
 import { ConfigAsistida } from './ConfigAsistida';
 import { ConfigTiempoMinimo } from './ConfigTiempoMinimo';
 import ConfigControl from './ConfigControl';
@@ -212,7 +213,7 @@ export default function ActividadEditor() {
       {tab === 'config' && <CopiarASecciones activityId={activityId} courseId={cls.course_id} classId={cls.id} />}
       {tab === 'ejercicios' && <TabEjercicios activityId={activityId} courseId={cls.course_id} lessons={lessons} initial={st.data!.items} initialExercises={st.data!.exercises} onSaved={st.reload} />}
       {tab === 'diseno' && <DisenoExamen activityId={activityId} courseId={cls.course_id} estudiantesSeccion={0} />}
-      {tab === 'resultados' && act.mode === 'exam' && <div className="mt-4"><MonitorExamen activityId={activityId} /></div>}
+      {tab === 'resultados' && act.mode === 'exam' && <div className="mt-4"><MonitorExamen activityId={activityId} /><IntegridadExamen activityId={activityId} /></div>}
       {tab === 'resultados' && act.mode === 'practice' && <div className="mt-4"><ProcesoAprendizaje activityId={activityId} /></div>}
       {tab === 'resultados' && <TabResultados act={act} classId={cls.id} />}
     </div>
