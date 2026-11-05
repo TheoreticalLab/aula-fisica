@@ -199,7 +199,12 @@ do $$ begin
   if exists (select 1 from antes x where x.h is distinct from (select md5(to_jsonb(a)::text) from public.attempts a where a.id::text = x.pk) and x.tabla = 'attempts') then
     raise exception 'FALLO: la vista previa modificó intentos';
   end if;
-  if exists (select 1 from public.fusion_operaciones) or exists (select 1 from public.fusion_filas) then raise exception 'FALLO: la simulación dejó rastros'; end if;
+  -- solo las cuentas de esta prueba: en una copia de producción puede haber fusiones reales anteriores
+  if exists (select 1 from public.fusion_operaciones o where o.principal::text like 'fa820000-%' or o.secundaria::text like 'fa820000-%')
+     or exists (select 1 from public.fusion_filas f join public.fusion_operaciones o on o.id = f.op
+                where o.principal::text like 'fa820000-%' or o.secundaria::text like 'fa820000-%') then
+    raise exception 'FALLO: la simulación dejó rastros';
+  end if;
 end $$;
 
 -- 5) Ejecución: exige sesión reciente; rechaza una huella vieja (los datos cambiaron)
@@ -267,12 +272,13 @@ do $$ declare P uuid := 'fa820000-0000-4000-8000-000000000011'; S uuid := 'fa820
   -- prácticas extraordinarias: X (solo S respondió) pasa entera; la asignación vacía de P queda en la bitácora; Y se queda (decisión «principal»)
   if (select user_id from public.pes_respuestas where practica_id = 'fa820000-0000-4000-8000-0000000000aa') <> P
      or (select estado from public.pes_estado where practica_id = 'fa820000-0000-4000-8000-0000000000aa' and user_id = P) <> 'completada' then raise exception 'FALLO: PES X'; end if;
-  if (select count(*) from public.fusion_filas where accion = 'archivar' and tabla in ('pes_asignaciones', 'pes_estado')) <> 2 then raise exception 'FALLO: archivo de la asignación vacía'; end if;
+  if (select count(*) from public.fusion_filas f join public.fusion_operaciones o on o.id = f.op
+      where o.principal::text like 'fa820000-%' and f.accion = 'archivar' and f.tabla in ('pes_asignaciones', 'pes_estado')) <> 2 then raise exception 'FALLO: archivo de la asignación vacía'; end if;
   if (select count(*) from public.pes_respuestas where practica_id = 'fa820000-0000-4000-8000-0000000000ab' and user_id = S) <> 1 then raise exception 'FALLO: PES Y'; end if;
   -- secundaria desactivada, sin sesiones, con el ID de archivo; la principal entra con la matrícula de la secundaria
   if (select active from public.profiles where id = S) or exists (select 1 from auth.sessions where user_id = S) then raise exception 'FALLO: la secundaria sigue operativa'; end if;
   if (select login_id from public.profiles where id = P) <> '9008383260' or (select login_id from public.profiles where id = S) not like 'fusionada-%' then raise exception 'FALLO: ID de acceso'; end if;
-  if not exists (select 1 from public.fusion_eventos where accion = 'ejecutar' and resultado = 'ok') then raise exception 'FALLO: bitácora'; end if;
+  if not exists (select 1 from public.fusion_eventos where accion = 'ejecutar' and resultado = 'ok' and principal::text like 'fa820000-%') then raise exception 'FALLO: bitácora'; end if;
 end $$;
 
 -- caso 12: con un token emitido antes, la secundaria no puede operar sobre nada
