@@ -223,6 +223,9 @@ export const TABLAS_PROTEGIDAS = [
   'attempt_active_time',
   'cuenta_actividad',
   'cuenta_suspensiones',
+  'fusion_operaciones',
+  'fusion_filas',
+  'fusion_eventos',
 ];
 
 export async function contarFilas(db: pg.Client, tablas: string[]): Promise<Record<string, number>> {
