@@ -1,5 +1,6 @@
 // Edge Function «entregas» (Deno): subida y descarga de los PDF de las entregas escritas, y capturas de la
-// «Regularización de prácticas anteriores» (capturas.ts, almacenamiento privado aparte).
+// «Regularización de prácticas anteriores» (capturas.ts, almacenamiento privado aparte), fotos de clases impartidas
+// (clases.ts) e imágenes de los controles de laboratorio (controles.ts).
 //
 // Verifica el JWT del usuario y usa la clave service_role (variable de entorno del servidor, nunca expuesta al
 // navegador) para el almacenamiento privado y las funciones svc_*, que deciden la autorización.
@@ -8,6 +9,7 @@ import { BUCKET, descargar, HttpError, MAX_BYTES_ABSOLUTO, subir, type Deps } fr
 import {
   BUCKET_CAPTURAS, destino, eliminarBorrador, MAX_BYTES_CAPTURA, MIME_CAPTURA, quitarCaptura, subirCaptura, verCaptura, type DepsCapturas,
 } from './capturas.ts';
+import { BUCKET_LABORATORIO, MAX_BYTES_CONTROL, MIME_CONTROL, subirControl, verControl } from './controles.ts';
 import { BUCKET_CLASES, eliminarClase, MAX_BYTES_FOTO_CLASE, MAX_BYTES_MINIATURA, quitarFotoClase, subirFotoClase, verFotosClase } from './clases.ts';
 
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '*').split(',').map((s) => s.trim());
@@ -124,6 +126,32 @@ Deno.serve(async (req) => {
       },
     };
 
+    // Controles de laboratorio (migración 84): mismo patrón, otro bucket privado
+    const depsLab: DepsCapturas = {
+      ...depsCapturas,
+      ensureBucket: async () => {
+        const { data } = await admin.storage.getBucket(BUCKET_LABORATORIO);
+        if (!data) {
+          const { error } = await admin.storage.createBucket(BUCKET_LABORATORIO, { public: false, fileSizeLimit: MAX_BYTES_CONTROL, allowedMimeTypes: [...MIME_CONTROL] });
+          if (error && !/exist/i.test(error.message)) throw error;
+        }
+      },
+      upload: async (path, bytes, mime) => {
+        const { error } = await admin.storage.from(BUCKET_LABORATORIO).upload(path, bytes, { contentType: mime, upsert: false });
+        if (!error) return 'nuevo';
+        if (/exist|duplicate/i.test(error.message)) return 'existe';
+        throw error;
+      },
+      remove: async (paths) => {
+        await admin.storage.from(BUCKET_LABORATORIO).remove(paths);
+      },
+      signedUrl: async (path, seconds) => {
+        const { data, error } = await admin.storage.from(BUCKET_LABORATORIO).createSignedUrl(path, seconds);
+        if (error || !data) throw error ?? new Error('Sin enlace');
+        return data.signedUrl;
+      },
+    };
+
     const tipo = req.headers.get('Content-Type') ?? '';
     let out: unknown;
     if (tipo.startsWith('multipart/form-data')) {
@@ -137,6 +165,10 @@ Deno.serve(async (req) => {
         const mini = m instanceof File && m.size <= MAX_BYTES_MINIATURA ? { bytes: new Uint8Array(await m.arrayBuffer()) } : null;
         out = await subirFotoClase({ session_id: form.get('session_id'), posicion: form.get('posicion'), sha_original: form.get('sha_original') },
           foto, mini, userData.user.id, depsClases);
+      } else if (form.get('modulo') === 'laboratorio') {
+        const imagen = f instanceof File && f.size <= MAX_BYTES_CONTROL ? { bytes: new Uint8Array(await f.arrayBuffer()) } : null;
+        if (f instanceof File && !imagen) throw new HttpError(413, 'La imagen es demasiado grande');
+        out = await subirControl(form.get('box_id'), imagen, userData.user.id, depsLab);
       } else if (form.get('modulo') === 'regularizacion') {
         const imagen = f instanceof File && f.size <= MAX_BYTES_CAPTURA ? { bytes: new Uint8Array(await f.arrayBuffer()) } : null;
         if (f instanceof File && !imagen) throw new HttpError(413, 'La imagen es demasiado grande');
@@ -154,6 +186,7 @@ Deno.serve(async (req) => {
       else if (body?.action === 'captura_ver') out = await verCaptura(body.capture_id, userData.user.id, depsCapturas, destino(body.destino));
       else if (body?.action === 'captura_quitar') out = await quitarCaptura(body.capture_id, userData.user.id, depsCapturas, destino(body.destino));
       else if (body?.action === 'borrador_eliminar') out = await eliminarBorrador(body.declaration_id, userData.user.id, depsCapturas);
+      else if (body?.action === 'control_ver') out = await verControl(body.file_id, userData.user.id, depsLab);
       else if (body?.action === 'clase_fotos') out = await verFotosClase(body.session_id, userData.user.id, depsClases);
       else if (body?.action === 'clase_foto_quitar') out = await quitarFotoClase(body.image_id, userData.user.id, depsClases);
       else if (body?.action === 'clase_eliminar') out = await eliminarClase(body.session_id, userData.user.id, depsClases);

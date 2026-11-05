@@ -1,6 +1,7 @@
 /**
  * Página principal de una asignatura: presentación y objetivos, continuar, actividades pendientes y prácticas,
  * progreso, calificaciones autorizadas, avisos y el programa (unidades y minicapítulos).
+ * Las asignaturas de laboratorio (courses.laboratorio_controles) muestran LabCurso: controles y evaluaciones.
  * Los estudiantes solo reciben las unidades PUBLICADAS (lo filtra la base de datos); el profesor ve todas con su estado.
  */
 import { useState } from 'react';
@@ -15,6 +16,7 @@ import { InlineMd, Markdown } from '@/components/Markdown';
 import { getSimulation } from '@/sims/catalogo';
 import { programaMio } from '@/api/programa';
 import { AvancePrograma, ProgramaTemario } from '@/components/ProgramaEstudiante';
+import LabCurso from './LabCurso';
 
 const ESTADO: Record<UnitStatus, { texto: string; tono: 'gray' | 'amber' | 'green' | 'red' }> = {
   borrador: { texto: 'Borrador', tono: 'gray' },
@@ -46,6 +48,10 @@ export default function Temario() {
   if (loading) return <Spinner />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   const { course, units, lessons, progress, programa, secciones, actividades, notas, avisos } = data!;
+  // asignatura de laboratorio (migración 84): controles y evaluaciones, sin capítulos ni lecciones
+  if (course.laboratorio_controles) {
+    return <LabCurso course={course} actividades={actividades} avisos={avisos} secciones={secciones} isTeacher={isTeacher} />;
+  }
   const prog = new Map(progress.map((p) => [p.lesson_id, p]));
   const visibles = units.filter((u) => !u.hidden || isTeacher);
   const ultima = leerUltimaLeccion(profile?.id);

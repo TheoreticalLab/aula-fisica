@@ -85,6 +85,8 @@ export interface Course {
   objectives?: string[];
   /** Programa académico con seguimiento de lo impartido (migración 71). */
   programa?: boolean;
+  /** Asignatura de laboratorio (migración 84): número de controles fotográficos; sin capítulos ni lecciones. */
+  laboratorio_controles?: number | null;
 }
 
 /** Estado de publicación de una unidad (migración 11). Los estudiantes solo ven «publicado». */

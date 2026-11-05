@@ -40,8 +40,9 @@ import { TabSeguimiento } from './SeguimientoTab';
 import { TabPrograma } from './ProgramaTab';
 import { CopiarActividad } from './CopiarActividad';
 import { TabPes } from './PesTab';
+import { TabControlesLab } from './LabControles';
 
-type Tab = 'estudiantes' | 'asistencia' | 'clases' | 'programa' | 'avisos' | 'actividades' | 'pes' | 'seguimiento' | 'entregas' | 'regularizacion' | 'coincidencias' | 'calificaciones' | 'revision' | 'estadisticas';
+type Tab = 'estudiantes' | 'controles' | 'asistencia' | 'clases' | 'programa' | 'avisos' | 'actividades' | 'pes' | 'seguimiento' | 'entregas' | 'regularizacion' | 'coincidencias' | 'calificaciones' | 'revision' | 'estadisticas';
 
 export default function Clase() {
   const { classId = '' } = useParams();
@@ -76,6 +77,7 @@ export default function Clase() {
         onChange={(t) => setParams({ t }, { replace: true })}
         tabs={[
           { id: 'estudiantes', label: 'Estudiantes y grupos' },
+          ...(course.laboratorio_controles ? [{ id: 'controles' as Tab, label: 'Controles de laboratorio' }] : []),
           { id: 'asistencia', label: 'Asistencia' },
           { id: 'clases', label: 'Clases impartidas' },
           ...(course.programa ? [{ id: 'programa' as Tab, label: 'Programa impartido' }] : []),
@@ -92,6 +94,7 @@ export default function Clase() {
         ]}
       />
       {tab === 'estudiantes' && <TabEstudiantes c={c} onChange={(nc) => cls.setData({ c: nc, course, secciones })} />}
+      {tab === 'controles' && !!course.laboratorio_controles &&<TabControlesLab classId={c.id} />}
       {tab === 'asistencia' && <TabAsistencia classId={c.id} nombre={c.name} />}
       {tab === 'clases' && <TabClasesImpartidas classId={c.id} />}
       {tab === 'programa' && course.programa && <TabPrograma classId={c.id} />}
