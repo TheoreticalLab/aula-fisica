@@ -75,7 +75,14 @@ export interface OpenKey {
   rubric: string;
 }
 
-export type AnswerKey = ChoiceKey | TrueFalseKey | NumericKey | TextKey | OpenKey;
+/** Respuesta oral (migración 86): siempre la califica el profesor con su rúbrica. */
+export interface AudioKey {
+  format: 'audio';
+  /** Criterios para la revisión manual del profesor (nunca se envían al estudiante durante el examen). */
+  rubric: string;
+}
+
+export type AnswerKey = ChoiceKey | TrueFalseKey | NumericKey | TextKey | OpenKey | AudioKey;
 
 /** Respuesta enviada por el estudiante (columna responses.answer). */
 export interface StudentAnswer {
@@ -83,6 +90,9 @@ export interface StudentAnswer {
   value?: boolean; // truefalse
   justification?: string; // truefalse
   text?: string; // numeric, text, open
+  /** Pregunta oral: la grabación vigente (la registra el servidor al subirla) y su duración. */
+  audio_id?: string;
+  duracion_ms?: number;
 }
 
 export type GradeStatus = 'correct' | 'partial' | 'incorrect' | 'invalid' | 'pending_review';

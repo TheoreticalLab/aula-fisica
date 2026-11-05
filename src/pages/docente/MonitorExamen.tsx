@@ -1,7 +1,7 @@
 /** Seguimiento en vivo de una evaluación con el motor de examen (se actualiza cada 10 s). Solo estado, sin respuestas. */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { examExtend, examMonitor, type MonitorExamenDatos } from '@/api/examen';
+import { examExtend, examMonitor, finalizarVencidos, type MonitorExamenDatos } from '@/api/examen';
 import { formatoCuenta } from '@/lib/examen/reloj';
 import { estadoEnVivo } from '@/lib/examen/monitor';
 import { Badge, Card } from '@/components/ui';
@@ -22,6 +22,19 @@ export function MonitorExamen({ activityId }: { activityId: string }) {
     catch (err) { window.alert(err instanceof Error ? err.message : String(err)); }
     finally { setOcupado(null); }
   }
+  // intentos con el tiempo oficial vencido cuyo estudiante cerró el navegador: se entregan y califican con lo guardado
+  // a tiempo (solo los vencidos; lo decide el servidor). Mientras el monitor esté abierto, cada minuto.
+  const [finalizados, setFinalizados] = useState(0);
+  useEffect(() => {
+    let vivo = true;
+    const finalizar = async () => {
+      try { const r = await finalizarVencidos(activityId); if (vivo && r.finalized) { setFinalizados((x) => x + r.finalized); setRecarga((x) => x + 1); } }
+      catch { /* sin la migración 85 o sin permiso: no hace nada */ }
+    };
+    void finalizar();
+    const t = setInterval(() => void finalizar(), 60_000);
+    return () => { vivo = false; clearInterval(t); };
+  }, [activityId]);
   useEffect(() => {
     let vivo = true;
     const cargar = async () => {
@@ -42,6 +55,7 @@ export function MonitorExamen({ activityId }: { activityId: string }) {
         <Badge tone="green">{d.en_curso.length} respondiendo</Badge>
         <Badge tone="blue">{d.entregados} entregados</Badge>
         <Badge>{sinEmpezar} sin empezar</Badge>
+        {finalizados > 0 && <Badge tone="amber">{finalizados} entregado(s) al vencer el tiempo</Badge>}
       </div>
       {d.en_curso.length ? (
         <ul className="divide-y divide-gray-100 dark:divide-white/10">

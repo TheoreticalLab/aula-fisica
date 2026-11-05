@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getAttempt, submitAttempt } from '@/api/estudiante';
 import type { AttemptItem } from '@/api/tipos';
 import { fecha, puntaje, relativo, useAction, useAsync } from '@/lib/util';
@@ -9,7 +9,7 @@ import { Markdown } from '@/components/Markdown';
 import { REVEAL_TEXT } from './Actividad';
 import { AvisoTelemetria, TelemetriaProvider, useTelemetria } from '@/components/Telemetria';
 import { examEntrada, examIntegridad, examOpen, funcionAusente, type AperturaExamen } from '@/api/examen';
-import { BarreraCopiado, useVigilanciaSalida } from '@/components/IntegridadExamen';
+import { BarreraCopiado, BotonSalirExamen, useVigilanciaSalida } from '@/components/IntegridadExamen';
 import { confirmarSinSalida, SIN_INTEGRIDAD } from '@/lib/examen/integridad';
 import { asistidaEstado } from '@/api/asistida';
 import { PracticaAsistida } from './PracticaAsistida';
@@ -80,7 +80,10 @@ export default function Intento() {
   const tiempo = useTiempoActivo(attemptId, tiempoPosible);
   // evaluación protegida (migración 85): bloquear al salir e impedir copiar; lo decide el servidor
   const integ = useAsync(() => (usaMotor ? examIntegridad(attemptId) : Promise.resolve(SIN_INTEGRIDAD)), [attemptId, usaMotor]);
-  const vigilar = usaMotor && !justSubmitted && !!integ.data?.bloquear_al_salir;
+  // salida autorizada con código (botón «Salir»): deja de vigilar antes de irse
+  const [saliendo, setSaliendo] = useState(false);
+  const navegar = useNavigate();
+  const vigilar = usaMotor && !justSubmitted && !saliendo && !!integ.data?.bloquear_al_salir;
   const sinCopiar = usaMotor && !justSubmitted && !!integ.data?.impedir_copiar;
   useVigilanciaSalida(attemptId, vigilar);
   // en la interfaz clásica la entrada se registra aquí («una pregunta a la vez» la registra exam_open)
@@ -108,7 +111,8 @@ export default function Intento() {
     return (
       <TelemetriaProvider attemptId={attempt.id} activo>
         <PageTitle title={activity?.title ?? 'Evaluación'} subtitle={<Badge tone="purple">Evaluación · una pregunta a la vez</Badge>}
-          back={activity ? { to: `/actividad/${activity.id}`, label: 'Actividad' } : undefined} />
+          back={activity && !vigilar ? { to: `/actividad/${activity.id}`, label: 'Actividad' } : undefined}
+          actions={vigilar && activity ? <BotonSalirExamen attemptId={attempt.id} onAutorizada={() => { setSaliendo(true); navegar(`/actividad/${activity.id}`); }} /> : undefined} />
         {servidor.estado === 'vencido' && <Notice tone="warn">El tiempo oficial terminó. Ya no puede cambiar respuestas; se entregará lo guardado.</Notice>}
         {vigilar && <AvisoProtegida />}
         <BarreraCopiado attemptId={attempt.id} activo={sinCopiar}>
@@ -127,7 +131,7 @@ export default function Intento() {
   };
   const sinResponder = view.items.filter((it) => {
     const a = it.response?.answer;
-    return !a || (!a.text?.trim() && !a.selected?.length && typeof a.value !== 'boolean');
+    return !a || (!a.text?.trim() && !a.selected?.length && typeof a.value !== 'boolean' && !a.audio_id);
   }).length;
   const vencido = activity?.closes_at && new Date(activity.closes_at).getTime() <= Date.now();
 
@@ -160,7 +164,8 @@ export default function Intento() {
             {activity?.closes_at && attempt.status === 'in_progress' && <span>Cierra {relativo(activity.closes_at)}</span>}
           </span>
         }
-        back={activity ? { to: `/actividad/${activity.id}`, label: 'Actividad' } : undefined}
+        back={activity && !vigilar ? { to: `/actividad/${activity.id}`, label: 'Actividad' } : undefined}
+        actions={vigilar && activity ? <BotonSalirExamen attemptId={attempt.id} onAutorizada={() => { setSaliendo(true); navegar(`/actividad/${activity.id}`); }} /> : undefined}
       />
       {view.student && flags.is_reviewer && <Notice>Vista del profesor: intento de {view.student.full_name}. <Link className="enlace" to={`/docente/intentos/${attempt.id}`}>Abrir revisión</Link></Notice>}
       {activity?.instructions && attempt.status === 'in_progress' && <div className="tarjeta mb-4"><Markdown>{activity.instructions}</Markdown></div>}

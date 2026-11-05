@@ -12,6 +12,7 @@ export function ModoExamen({ activityId }: { activityId: string }) {
   const [ok, setOk] = useState(false);
   useEffect(() => {
     if (st.data) setCfg({ presentacion: st.data.presentacion, navegacion: st.data.navegacion, duracion_s: st.data.duracion_s, pausas: st.data.pausas,
+      ...(st.data.sin_saltos !== undefined ? { sin_saltos: st.data.sin_saltos } : {}),
       ...(st.data.integridad ? { integridad: { bloquear_al_salir: st.data.integridad.bloquear_al_salir, impedir_copiar: st.data.integridad.impedir_copiar, codigo: '' } } : {}) });
   }, [st.data]);
   if (st.loading && !st.data) return <Spinner />;
@@ -40,6 +41,10 @@ export function ModoExamen({ activityId }: { activityId: string }) {
               <span><strong>Libre</strong><span className="block text-xs text-gray-500">Puede ir y volver entre preguntas y marcarlas para revisar.</span></span></label>
             <label className="flex items-start gap-2 py-1 text-sm"><input type="radio" checked={cfg.navegacion === 'solo_adelante'} onChange={() => set({ navegacion: 'solo_adelante' })} />
               <span><strong>Solo hacia adelante</strong><span className="block text-xs text-gray-500">Una pregunta ya vista no se puede volver a abrir ni modificar.</span></span></label>
+            {cfg.navegacion === 'solo_adelante' && cfg.integridad && (
+              <label className="ml-6 flex items-start gap-2 py-1 text-sm"><input type="checkbox" checked={!!cfg.sin_saltos} onChange={(e) => set({ sin_saltos: e.target.checked })} />
+                <span><strong>En orden, sin saltar</strong><span className="block text-xs text-gray-500">Solo se pasa a la siguiente pregunta (1 → 2 → 3…); no se puede abrir la 5 desde la 2. Lo comprueba el servidor.</span></span></label>
+            )}
           </fieldset>
         )}
         {unaALaVez && (

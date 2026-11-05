@@ -23,7 +23,7 @@ const DEFINITIVO = /terminó|entregado|no se puede modificar|no pertenece|invál
 
 export const estaRespondida = (it: AttemptItem) => {
   const a = it.response?.answer;
-  return !!a && (!!a.text?.trim() || !!a.selected?.length || typeof a.value === 'boolean');
+  return !!a && (!!a.text?.trim() || !!a.selected?.length || typeof a.value === 'boolean' || !!a.audio_id);
 };
 
 interface Persistido { motor: EstadoMotor; seqBase: number }

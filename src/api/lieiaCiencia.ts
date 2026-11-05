@@ -13,7 +13,9 @@ export interface ActividadLab { id: string; titulo: string; modo: string; cierra
 export const actividades = (classId: string) => rpc<ActividadLab[]>('lieia_activities', { p_class: classId });
 
 const aPregunta = (e: Exercise, posicion: number, meta: MetaBanco | null): Pregunta => ({
-  id: e.id, posicion, prompt: e.prompt, format: e.format, category: e.category, difficulty: e.difficulty, concepts: e.concepts ?? [],
+  // la respuesta oral (migración 86) entra en LIEIA como respuesta de revisión manual, igual que el desarrollo escrito
+  // (sin cambiar algoritmos ni umbrales de los detectores)
+  id: e.id, posicion, prompt: e.prompt, format: e.format === 'audio' ? 'open' : e.format, category: e.category, difficulty: e.difficulty, concepts: e.concepts ?? [],
   opciones: e.options?.length ?? null, unit_hint: e.unit_hint, meta, published: e.published, leccion: e.lesson_id ?? null,
 });
 

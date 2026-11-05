@@ -77,11 +77,27 @@ export const examIntegridad = (attemptId: string) => rpc<EstadoIntegridad>('exam
   .catch((e) => { if (funcionAusente(e)) return SIN_INTEGRIDAD; throw e; });
 export const examSalida = (attemptId: string, motivo: MotivoSalida) => rpc<{ bloqueado: boolean }>('exam_salida', { p_attempt: attemptId, p_motivo: motivo });
 export const examEntrada = (attemptId: string) => unaVez(`entrada:${attemptId}`, () => rpc<{ bloqueado: boolean }>('exam_entrada', { p_attempt: attemptId }));
-export const examEventoCopia = (attemptId: string, tipo: TipoCopia) => rpc<void>('exam_evento_copia', { p_attempt: attemptId, p_tipo: tipo });
+export const examEventoCopia = (attemptId: string, tipo: TipoCopia, resultado: 'bloqueado' | 'detectado', via: 'teclado' | 'menu' | 'evento') =>
+  rpc<void>('exam_evento_copia', { p_attempt: attemptId, p_tipo: tipo, p_resultado: resultado, p_via: via });
+export const examIncidencia = (attemptId: string, motivo: 'microfono_denegado' | 'microfono_error' | 'grabacion_fallida' | 'subida_fallida' | 'sin_conexion') =>
+  rpc<void>('exam_incidencia', { p_attempt: attemptId, p_motivo: motivo });
+/** Botón «Salir»: solo con un código temporal del profesor (5 fallos → 10 min de espera). */
+export const examSalirAutorizado = (attemptId: string, codigo: string) =>
+  rpc<{ ok: boolean; intentos?: number; espera_hasta?: string; entregado?: boolean }>('exam_salir_autorizado', { p_attempt: attemptId, p_codigo: codigo });
+// profesorado: códigos temporales (se muestran una sola vez)
+export interface CodigoTemporal { id: string; user_id: string | null; nombre: string | null; vence: string; usos: number; usos_max: number; creado: string }
+export const examCodigoGenerar = (activityId: string, userId: string | null, minutos: number, usos: number) =>
+  rpc<{ id: string; codigo: string; vence: string; usos_max: number; user_id: string | null }>('exam_codigo_generar', { p_activity: activityId, p_user: userId, p_minutos: minutos, p_usos: usos });
+export const examCodigosActivos = (activityId: string) => rpc<CodigoTemporal[]>('exam_codigos_activos', { p_activity: activityId });
+export const examCodigoAnular = (id: string) => rpc<void>('exam_codigo_anular', { p_codigo: id });
+/** Entrega y califica SOLO los intentos con el tiempo oficial vencido (Edge Function «calificar»). */
+export const finalizarVencidos = (activityId: string) =>
+  invocar<{ finalized: number; errors: string[] }>('calificar', { action: 'finalizar_vencidos', activity_id: activityId });
 export interface FilaIntegridad {
   user_id: string; nombre: string; matricula: string | null; attempt_id: string; estado: string; inicio: string;
   salidas: number; reingresos: number; pegados: number; arrastres: number; copias: number; ultima_salida: string | null; lock_id: string | null;
-  detalle: { tipo: string; motivo: string | null; en: string }[];
+  salidas_autorizadas?: number; codigos_fallidos?: number; incidencias?: number;
+  detalle: { tipo: string; motivo: string | null; en: string; resultado?: string | null; pregunta?: number | null }[];
 }
 export const examIntegridadResumen = (activityId: string) =>
   rpc<{ config: { bloquear_al_salir: boolean; impedir_copiar: boolean; codigo_configurado: boolean } | null; estudiantes: FilaIntegridad[] }>('exam_integridad_resumen', { p_activity: activityId });

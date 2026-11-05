@@ -5,6 +5,7 @@ import { deleteExercise, getExerciseFull, isCourseStaff, saveExercise } from '@/
 import { getConcepts, getLessonList } from '@/api/estudiante';
 import type { AnswerKey, Category, Difficulty, Exercise, ExerciseRole, Figure, Format, GradeResult, StudentAnswer } from '@/api/tipos';
 import { CATEGORIA, DIFICULTAD, FORMATO, useAction, useAsync } from '@/lib/util';
+import { CONFIG_AUDIO_POR_DEFECTO, type ConfigAudio } from '@/api/audio';
 import { Card, ErrorBox, Field, Notice, PageTitle, Spinner, StatusBadge } from '@/components/ui';
 import { EditorMarkdown } from '@/components/EditorMarkdown';
 import { EnunciadoEjercicio, EntradaRespuesta, SolucionBox } from '@/components/Ejercicio';
@@ -20,6 +21,7 @@ function defaultKey(format: Format): AnswerKey {
     case 'numeric': return { format, value: '' };
     case 'text': return { format, accepted: [''] };
     case 'open': return { format, rubric: '' };
+    case 'audio': return { format, rubric: '' };
   }
 }
 
@@ -142,6 +144,31 @@ function KeyEditor({ draft, k, onChange }: { draft: Draft; k: AnswerKey; onChang
   return <EditorMarkdown label="Rúbrica para la revisión manual" value={k.rubric} onChange={(v) => onChange({ ...k, rubric: v })} rows={5} />;
 }
 
+/** Pregunta de respuesta oral (migración 86): límites técnicos 5–600 s y 1–5 grabaciones (el servidor los aplica). */
+function ConfigAudioEditor({ valor: c, onChange }: { valor: ConfigAudio; onChange: (c: ConfigAudio) => void }) {
+  const n = (v: string, min: number, max: number, def: number) => Math.max(min, Math.min(max, Number(v) || def));
+  return (
+    <fieldset className="mt-3 rounded-lg border border-gray-200 p-3 dark:border-white/10">
+      <legend className="etiqueta px-1">Respuesta oral</legend>
+      <p className="mb-2 text-xs text-gray-500">El estudiante graba con el micrófono de su computadora, celular o tableta. Las grabaciones son privadas: solo las escuchan él, el profesorado de la sección y el administrador. Se califica a mano con la rúbrica.</p>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <label className="text-sm">Duración mínima (s)
+          <input type="number" className="campo" min={5} max={600} value={c.min_s} onChange={(e) => { const min = n(e.target.value, 5, 600, 60); onChange({ ...c, min_s: min, max_s: Math.max(min, c.max_s) }); }} /></label>
+        <label className="text-sm">Duración máxima (s)
+          <input type="number" className="campo" min={c.min_s} max={600} value={c.max_s} onChange={(e) => onChange({ ...c, max_s: n(e.target.value, c.min_s, 600, 120) })} /></label>
+        <label className="text-sm">Grabaciones permitidas
+          <input type="number" className="campo" min={1} max={5} value={c.max_grabaciones} onChange={(e) => onChange({ ...c, max_grabaciones: n(e.target.value, 1, 5, 2) })} /></label>
+      </div>
+      <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={c.reproducir_previa} onChange={(e) => onChange({ ...c, reproducir_previa: e.target.checked })} /> Escuchar la grabación antes de enviarla</label>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={c.transcripcion} onChange={(e) => onChange({ ...c, transcripcion: e.target.checked })} /> Transcripción automática</label>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={c.ia} onChange={(e) => onChange({ ...c, ia: e.target.checked })} /> Sugerencia de corrección con IA</label>
+      {(c.transcripcion || c.ia) && (
+        <p className="mt-1 text-xs text-acento-700 dark:text-acento-300">Quedan anotadas, pero hoy no hay un servicio de voz a texto configurado en el aula: no se transcribe ni se sugiere nada. La nota siempre la pone el profesor.</p>
+      )}
+    </fieldset>
+  );
+}
+
 export default function EjercicioEditor() {
   const { exerciseId = 'nuevo' } = useParams();
   const [params] = useSearchParams();
@@ -191,7 +218,9 @@ export default function EjercicioEditor() {
   if (st.error) return <ErrorBox error={st.error} />;
   const set = (p: Partial<Draft>) => { setSavedMsg(false); setDraft({ ...draft, ...p }); };
   const setFormat = (format: Format) => {
-    set({ format, options: format === 'choice' ? draft.options ?? ['', '', '', ''] : null, multiple: format === 'choice' ? draft.multiple : false });
+    // audio_config solo se envía en preguntas orales (el servidor la anula en los demás formatos)
+    set({ format, options: format === 'choice' ? draft.options ?? ['', '', '', ''] : null, multiple: format === 'choice' ? draft.multiple : false,
+      ...(format === 'audio' ? { audio_config: draft.audio_config ?? CONFIG_AUDIO_POR_DEFECTO } : {}) });
     if (key.format !== format) setKey(defaultKey(format));
     setTest({});
     setTestResult(null);
@@ -299,6 +328,9 @@ export default function EjercicioEditor() {
               <Field label="Unidad sugerida (opcional)" hint="Aparece como ejemplo de formato en el campo de respuesta.">
                 {(id) => <input id={id} className="campo" value={draft.unit_hint ?? ''} onChange={(e) => set({ unit_hint: e.target.value || null })} />}
               </Field>
+            )}
+            {draft.format === 'audio' && (
+              <ConfigAudioEditor valor={draft.audio_config ?? CONFIG_AUDIO_POR_DEFECTO} onChange={(c) => set({ audio_config: c })} />
             )}
             <details className="mt-3" open={!!draft.figure}>
               <summary className="cursor-pointer text-sm font-medium">Gráfica del enunciado</summary>

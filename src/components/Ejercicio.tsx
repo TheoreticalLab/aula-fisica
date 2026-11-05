@@ -24,6 +24,8 @@ import { useTelemetria, useTelemetriaV2 } from './Telemetria';
 import { preguntaVisible } from '@/lib/telemetria/visibilidad';
 import { describirRespuesta } from '@/lib/telemetria/rastreador';
 import { confirmarCopia, decidir, esperaReintento, guardarCopia, leerCopia, type Almacen } from '@/lib/borradores';
+import { GrabadorAudio, ReproductorAudio } from './GrabadorAudio';
+import { contarPalabras } from '@/lib/util';
 
 const ALMACEN_LOCAL: Almacen | null = typeof localStorage === 'undefined' ? null : {
   leer: (k) => localStorage.getItem(k), escribir: (k, v) => localStorage.setItem(k, v), borrar: (k) => localStorage.removeItem(k),
@@ -38,8 +40,12 @@ const TECLAS = ['·', '/', '^', '²', '³', '×10^', '−', '°', 'm/s', 'm/s²'
 function esVacia(f: string, a: StudentAnswer): boolean {
   if (f === 'choice') return !a.selected?.length;
   if (f === 'truefalse') return typeof a.value !== 'boolean';
+  if (f === 'audio') return !a.audio_id;
   return !a.text?.trim();
 }
+
+/** Desarrollo escrito y respuesta oral: las califica el profesor (sin «Comprobar», pistas de refuerzo ni solución). */
+const esManual = (f: string) => f === 'open' || f === 'audio';
 
 /** Ids que identifican la versión (variante por intento) de una pregunta. */
 export interface IdsVariante { attempt: string; exercise: string }
@@ -134,6 +140,7 @@ export function EntradaRespuesta({
   onChange,
   disabled,
   orden,
+  attemptId,
 }: {
   ex: AttemptItem['exercise'];
   answer: StudentAnswer;
@@ -141,8 +148,17 @@ export function EntradaRespuesta({
   disabled: boolean;
   /** orden de presentación de los índices ORIGINALES (opciones aleatorias); cada opción conserva su letra y su índice */
   orden?: number[];
+  /** intento en curso del propio estudiante: necesario para grabar una respuesta oral */
+  attemptId?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  if (ex.format === 'audio') {
+    // respuesta oral: el estudiante graba; en la revisión (o sin intento propio) solo se escucha la grabación vigente
+    if (attemptId) return <GrabadorAudio attemptId={attemptId} exerciseId={ex.id} answer={answer} onChange={onChange} disabled={disabled} />;
+    return answer.audio_id
+      ? <div className="text-sm"><p className="mb-1">Respuesta oral{answer.duracion_ms ? ` (${Math.round(answer.duracion_ms / 1000)} s)` : ''}</p><ReproductorAudio audioId={answer.audio_id} /></div>
+      : <p className="text-sm text-gray-500">Pregunta de respuesta oral: el estudiante graba su respuesta con el micrófono.</p>;
+  }
   if (ex.format === 'choice') {
     const sel = answer.selected ?? [];
     const opciones = ex.options ?? [];
@@ -226,8 +242,11 @@ export function EntradaRespuesta({
     <div>
       <label className="etiqueta" htmlFor={`txt-${ex.id}`}>{ex.format === 'open' ? 'Desarrollo' : 'Respuesta'}</label>
       {ex.format === 'open' ? (
-        <textarea id={`txt-${ex.id}`} className="campo min-h-[160px]" disabled={disabled} value={answer.text ?? ''} maxLength={5000}
-          onChange={(e) => onChange({ text: e.target.value })} placeholder="Escriba el planteamiento, los pasos y el resultado con unidades." />
+        <>
+          <textarea id={`txt-${ex.id}`} className="campo min-h-[220px]" disabled={disabled} value={answer.text ?? ''} maxLength={5000}
+            onChange={(e) => onChange({ text: e.target.value })} placeholder="Escriba su explicación con sus propias palabras." aria-describedby={`pal-${ex.id}`} />
+          <p id={`pal-${ex.id}`} className="mt-1 text-xs text-gray-500" aria-live="polite">{contarPalabras(answer.text ?? '')} palabras (contador orientativo)</p>
+        </>
       ) : (
         <input id={`txt-${ex.id}`} className="campo" disabled={disabled} value={answer.text ?? ''} maxLength={300} onChange={(e) => onChange({ text: e.target.value })} />
       )}
@@ -400,7 +419,7 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
         });
         // Orbe IA (nivel C): solo en práctica; el componente decide si toca y cuándo (nunca en evaluaciones)
         if (r.state.status === 'correct' && practice) window.dispatchEvent(new CustomEvent('orbe-ia:evento', { detail: 'ejercicio_correcto' }));
-        if (r.state.status !== 'correct' && ex.format !== 'open') {
+        if (r.state.status !== 'correct' && !esManual(ex.format)) {
           acciones.refuerzo(ex.id).then(setSimilares).catch(() => setSimilares([]));
         }
       }
@@ -474,7 +493,8 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
       </header>
       <EnunciadoEjercicio ex={ex} attemptId={view.attempt.id} />
       <div className="mt-3">
-        <EntradaRespuesta ex={ex} answer={answer} onChange={change} disabled={locked || !view.flags.is_owner || busy} orden={orden} />
+        <EntradaRespuesta ex={ex} answer={answer} onChange={change} disabled={locked || !view.flags.is_owner || busy} orden={orden}
+          attemptId={view.flags.is_owner && view.attempt.status === 'in_progress' ? view.attempt.id : undefined} />
       </div>
 
       {item.hints && item.hints.length > 0 && (
@@ -520,7 +540,7 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {showCheck && (
             <button className="btn-primario" disabled={busy || esVacia(ex.format, answer)} onClick={comprobar}>
-              {ex.format === 'open' ? 'Enviar' : 'Comprobar'}
+              {esManual(ex.format) ? 'Enviar' : 'Comprobar'}
             </button>
           )}
           {showCheck && view.flags.hints_enabled && item.hints_total > hintsUsed && (
@@ -528,12 +548,12 @@ export function Ejercicio({ index, item, view, onChange, onReload, acciones = AC
               Pista ({hintsUsed}/{item.hints_total})
             </button>
           )}
-          {showCheck && view.flags.reveal_allowed && ex.format !== 'open' && (
+          {showCheck && view.flags.reveal_allowed && !esManual(ex.format) && (
             <button className="btn-texto" disabled={busy} onClick={verSolucion}>
               Ver solución
             </button>
           )}
-          {showCheck && ex.format !== 'open' && (
+          {showCheck && !esManual(ex.format) && (
             <span className="text-xs text-gray-500">
               {triesLeft} {triesLeft === 1 ? 'intento restante' : 'intentos restantes'}
             </span>

@@ -49,8 +49,10 @@ export function crearLimitador(ms = 2000) {
 let suspendidoHasta = 0;
 export const vigilanciaSuspendida = (ahora = Date.now()) => ahora < suspendidoHasta;
 export function suspenderVigilancia(ms: number, ahora = Date.now()) { suspendidoHasta = Math.max(suspendidoHasta, ahora + ms); }
+/** Termina una suspensión (tras cerrar el diálogo): la vigilancia vuelve en `margen` ms. */
+export function reanudarVigilancia(margen = 1500, ahora = Date.now()) { suspendidoHasta = ahora + margen; }
 /** window.confirm sin que el diálogo cuente como salida del examen. */
 export function confirmarSinSalida(mensaje: string): boolean {
   suspenderVigilancia(60_000);
-  try { return window.confirm(mensaje); } finally { suspendidoHasta = Date.now() + 1500; }
+  try { return window.confirm(mensaje); } finally { reanudarVigilancia(); }
 }

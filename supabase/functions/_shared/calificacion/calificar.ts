@@ -391,6 +391,14 @@ export function validateAnswerShape(answer: unknown): StudentAnswer | null {
     if (typeof a.value !== 'boolean') return null;
     out.value = a.value;
   }
+  if (a.audio_id !== undefined) {
+    if (typeof a.audio_id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.audio_id)) return null;
+    out.audio_id = a.audio_id;
+  }
+  if (a.duracion_ms !== undefined) {
+    if (typeof a.duracion_ms !== 'number' || !Number.isFinite(a.duracion_ms) || a.duracion_ms < 0) return null;
+    out.duracion_ms = a.duracion_ms;
+  }
   for (const f of ['justification', 'text'] as const) {
     if (a[f] !== undefined) {
       if (typeof a[f] !== 'string' || (a[f] as string).length > MAX_TEXT_LENGTH) return null;
@@ -413,6 +421,9 @@ export function grade(key: AnswerKey, answer: StudentAnswer, optionCount?: numbe
     case 'open':
       if (!answer.text || !answer.text.trim()) return { status: 'invalid', credit: 0, messages: ['Escriba su respuesta.'], code: 'empty' };
       return { status: 'pending_review', credit: 0, messages: ['Respuesta registrada. El profesor la revisará.'], code: 'manual' };
+    case 'audio':
+      if (!answer.audio_id) return { status: 'invalid', credit: 0, messages: ['Grabe y envíe su respuesta oral.'], code: 'empty' };
+      return { status: 'pending_review', credit: 0, messages: ['Grabación registrada. El profesor la escuchará y la calificará.'], code: 'manual' };
   }
 }
 
@@ -429,5 +440,7 @@ export function describeKey(key: AnswerKey, options?: string[]): string {
       return key.accepted[0] ?? '';
     case 'open':
       return 'Respuesta de desarrollo: vea la explicación.';
+    case 'audio':
+      return 'Respuesta oral: la califica el profesor.';
   }
 }

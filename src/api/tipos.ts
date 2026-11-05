@@ -5,7 +5,8 @@ export type { AnswerKey, GradeResult, StudentAnswer };
 
 export type Role = 'student' | 'teacher' | 'admin';
 export type Difficulty = 'basico' | 'intermedio' | 'desafiante';
-export type Format = 'choice' | 'truefalse' | 'numeric' | 'text' | 'open';
+/** 'audio' = respuesta oral (migración 86). */
+export type Format = 'choice' | 'truefalse' | 'numeric' | 'text' | 'open' | 'audio';
 export type Category = 'seleccion' | 'vf_justificacion' | 'numerica' | 'grafica' | 'conceptual' | 'error' | 'desarrollo' | 'experimento';
 export type ExerciseRole = 'practice' | 'reinforcement' | 'bank';
 export type Mode = 'practice' | 'exam';
@@ -205,6 +206,8 @@ export interface Exercise {
   points: number;
   published: boolean;
   updated_at: string;
+  /** Respuesta oral (migración 86): duración, grabaciones, escucha previa; el servidor la normaliza. */
+  audio_config?: { min_s: number; max_s: number; max_grabaciones: number; reproducir_previa: boolean; transcripcion: boolean; ia: boolean } | null;
 }
 
 export interface ExerciseKeyRow {

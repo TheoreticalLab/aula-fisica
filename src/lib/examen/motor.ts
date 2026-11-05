@@ -21,6 +21,8 @@ export interface ConfigExamen {
   navegacion: Navegacion;
   duracion_s: number | null;                 // límite por intento (null = solo el cierre de la actividad)
   pausas: { permitidas: boolean; max_numero: number; max_total_s: number; detienen_reloj: boolean };
+  /** Con «solo hacia adelante»: además, solo se pasa a la SIGUIENTE (1 → 2 → 3…), sin saltar (migración 85). */
+  sin_saltos?: boolean;
   /** Bloquear al salir e impedir copiar (migración 85). Al guardar, `codigo` vacío conserva el anterior. */
   integridad?: { bloquear_al_salir: boolean; impedir_copiar: boolean; codigo_configurado?: boolean; codigo?: string };
 }
@@ -113,6 +115,7 @@ export function puedeIrA(e: EstadoMotor, id: string, c: ConfigExamen): string | 
   if (c.navegacion === 'solo_adelante' && e.activa) {
     const i = e.orden.indexOf(e.activa), j = e.orden.indexOf(id);
     if (j < i || (e.fase === 'revision' && e.visitadas.includes(id))) return 'En este examen no se puede volver a preguntas anteriores.';
+    if (c.sin_saltos && j > i + 1) return 'En este examen las preguntas se responden en orden: solo puede pasar a la siguiente.';
   }
   return null;
 }

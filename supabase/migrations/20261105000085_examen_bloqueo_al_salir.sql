@@ -19,6 +19,9 @@
 alter table public.exam_settings add column if not exists bloquear_al_salir boolean not null default false;
 alter table public.exam_settings add column if not exists impedir_copiar boolean not null default false;
 alter table public.exam_settings add column if not exists codigo_salida_hash text;
+-- «sin saltos»: con navegación solo hacia adelante, además solo se pasa a la SIGUIENTE pregunta (1 → 2 → 3…)
+alter table public.exam_settings add column if not exists sin_saltos boolean not null default false;
+alter table public.exam_sessions add column if not exists sin_saltos boolean not null default false;
 do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'exam_settings_codigo_salida_chk') then
     alter table public.exam_settings add constraint exam_settings_codigo_salida_chk check (not bloquear_al_salir or codigo_salida_hash is not null);
@@ -31,17 +34,54 @@ create table if not exists public.exam_integridad_eventos (
   id bigserial primary key,
   attempt_id uuid not null references public.attempts (id) on delete cascade,
   user_id uuid not null references public.profiles (id) on delete cascade,
-  tipo text not null check (tipo in ('entrada', 'salida', 'reingreso', 'pegado', 'arrastre', 'copia')),
-  motivo text check (motivo is null or motivo in ('oculta', 'sin_foco', 'cierre', 'navegacion', 'reapertura')),
+  tipo text not null check (tipo in ('entrada', 'salida', 'reingreso', 'pegado', 'arrastre', 'copia', 'salida_autorizada', 'codigo_fallido', 'incidencia')),
+  motivo text check (motivo is null or motivo ~ '^[a-z_]{3,40}$'),
+  -- pregunta en pantalla en ese momento (la activa de la sesión; NULL en la interfaz clásica)
+  exercise_id uuid references public.exercises (id) on delete set null,
+  -- en copiar / pegar / arrastrar: 'bloqueado' (el navegador lo impidió) o 'detectado' (solo se vio)
+  resultado text check (resultado is null or resultado in ('bloqueado', 'detectado')),
   lock_id uuid references public.screen_locks (id) on delete set null,
   created_at timestamptz not null default now()
 );
 create index if not exists exam_integridad_eventos_intento on public.exam_integridad_eventos (attempt_id, created_at);
+create index if not exists exam_integridad_eventos_lock on public.exam_integridad_eventos (lock_id) where lock_id is not null;
 alter table public.exam_integridad_eventos enable row level security;
 revoke all on public.exam_integridad_eventos from anon, authenticated;
+-- el profesorado de la sección los recibe por Realtime (avisos en el panel); el estudiante, no. Sin datos privados:
+-- nunca se guarda el contenido del portapapeles.
+drop policy if exists exam_integridad_eventos_docente on public.exam_integridad_eventos;
+create policy exam_integridad_eventos_docente on public.exam_integridad_eventos for select to authenticated
+  using (exists (select 1 from public.attempts a join public.activities act on act.id = a.activity_id
+                 where a.id = attempt_id and public.grades_teacher(act.class_id)));
+grant select on public.exam_integridad_eventos to authenticated;
+do $$ begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+     and not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'exam_integridad_eventos') then
+    alter publication supabase_realtime add table public.exam_integridad_eventos;
+  end if;
+end $$;
+
+-- códigos TEMPORALES del profesor: salir del examen con autorización o volver a entrar tras un bloqueo.
+-- Alcance: una evaluación y, si se indica, un solo estudiante; caducan; usos limitados; se guardan cifrados.
+create table if not exists public.exam_codigos (
+  id uuid primary key default gen_random_uuid(),
+  activity_id uuid not null references public.activities (id) on delete cascade,
+  user_id uuid references public.profiles (id) on delete cascade,
+  code_hash text not null,
+  expires_at timestamptz not null,
+  usos_max integer not null check (usos_max between 1 and 200),
+  usos integer not null default 0,
+  creado_por uuid references public.profiles (id) on delete set null,
+  created_at timestamptz not null default now(),
+  anulado_at timestamptz
+);
+create index if not exists exam_codigos_actividad on public.exam_codigos (activity_id, expires_at);
+alter table public.exam_codigos enable row level security;
+revoke all on public.exam_codigos from anon, authenticated;
 
 insert into public.fusion_tablas (tabla, estrategia, ancla, clave, orden, nota)
-  values ('exam_integridad_eventos', 'intento', 'attempt_id', null, 20, 'viaja con su intento')
+  values ('exam_integridad_eventos', 'intento', 'attempt_id', null, 20, 'viaja con su intento'),
+         ('exam_codigos', 'mover', null, null, 70, 'código temporal dirigido a un estudiante')
   on conflict (tabla) do nothing;
 
 -- 3) piezas internas -----------------------------------------------------------------------------------------------
@@ -70,15 +110,26 @@ $$;
 
 -- Registra un evento y, si es una salida o un reingreso en una evaluación protegida, bloquea la pantalla con el código
 -- de la evaluación (un solo bloqueo activo por estudiante: si ya lo hay, solo se anota).
-create or replace function public.exam_registrar(p_attempt uuid, p_tipo text, p_motivo text)
+-- Salida autorizada con un código del profesor desde la última entrada: esa salida y la vuelta siguiente no bloquean.
+create or replace function public.exam_con_pase(p_attempt uuid)
+returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  -- por orden de registro (id), que no empata aunque dos eventos tengan la misma hora
+  select exists (select 1 from public.exam_integridad_eventos e where e.attempt_id = p_attempt and e.tipo = 'salida_autorizada'
+    and e.id > coalesce((select max(x.id) from public.exam_integridad_eventos x where x.attempt_id = p_attempt and x.tipo = 'entrada'), 0))
+$$;
+
+create or replace function public.exam_registrar(p_attempt uuid, p_tipo text, p_motivo text, p_resultado text default null)
 returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
-declare a public.attempts; act public.activities; v_hash text; v_lock uuid; v_bloquea boolean;
+declare a public.attempts; act public.activities; v_hash text; v_lock uuid; v_bloquea boolean; v_ej uuid; v_nuevo boolean := false;
 begin
   select * into a from public.attempts where id = p_attempt for update;      -- serializa avisos simultáneos
   if a.id is null then return jsonb_build_object('bloqueado', false); end if;
-  v_bloquea := p_tipo in ('salida', 'reingreso') and public.exam_protegido(p_attempt);
+  v_bloquea := p_tipo in ('salida', 'reingreso') and public.exam_protegido(p_attempt) and not public.exam_con_pase(p_attempt);
+  select s.activa into v_ej from public.exam_sessions s where s.attempt_id = p_attempt;
   if v_bloquea then
     select l.id into v_lock from public.screen_locks l where l.user_id = a.user_id and l.unlocked_at is null order by l.created_at desc limit 1;
     if v_lock is null then
@@ -89,11 +140,15 @@ begin
           format('Saliste de «%s» antes de entregarlo. Para volver a entrar, pide el código al profesor. El tiempo del examen sigue corriendo.', left(act.title, 200)),
           v_hash)
         returning id into v_lock;
+      v_nuevo := true;
     end if;
   end if;
-  -- registro acotado (500 eventos por intento): un navegador manipulado no puede inflar la tabla
-  if (select count(*) from public.exam_integridad_eventos e where e.attempt_id = p_attempt) < 500 then
-    insert into public.exam_integridad_eventos (attempt_id, user_id, tipo, motivo, lock_id) values (p_attempt, a.user_id, p_tipo, p_motivo, v_lock);
+  -- registro acotado (500 eventos por intento): un navegador manipulado no puede inflar la tabla. Los eventos de
+  -- códigos, entradas y bloqueos se anotan siempre (de ellos dependen el límite de intentos y el pase de salida).
+  if p_tipo in ('entrada', 'reingreso', 'salida_autorizada', 'codigo_fallido') or v_nuevo
+     or (select count(*) from public.exam_integridad_eventos e where e.attempt_id = p_attempt) < 500 then
+    insert into public.exam_integridad_eventos (attempt_id, user_id, tipo, motivo, exercise_id, resultado, lock_id)
+      values (p_attempt, a.user_id, p_tipo, p_motivo, v_ej, p_resultado, v_lock);
   end if;
   return jsonb_build_object('bloqueado', v_lock is not null);
 end;
@@ -110,7 +165,7 @@ begin
   select user_id into v_user from public.attempts where id = p_attempt;
   if not public.exam_protegido(p_attempt) then return jsonb_build_object('bloqueado', public.exam_bloqueado(v_user)); end if;
   if exists (select 1 from public.exam_integridad_eventos e where e.attempt_id = p_attempt and e.tipo = 'entrada') and not public.exam_bloqueado(v_user) then
-    perform public.exam_registrar(p_attempt, 'reingreso', 'reapertura');
+    perform public.exam_registrar(p_attempt, 'reingreso', 'reapertura');      -- con pase (salida autorizada): no bloquea
   end if;
   perform public.exam_registrar(p_attempt, 'entrada', null);
   return jsonb_build_object('bloqueado', public.exam_bloqueado(v_user));
@@ -172,8 +227,9 @@ begin
 end;
 $$;
 
--- Intento de pegar, arrastrar o copiar (ya impedido en el navegador): solo se anota
-create or replace function public.exam_evento_copia(p_attempt uuid, p_tipo text)
+-- Intento de pegar, arrastrar o copiar: se anota con la pregunta activa y si el navegador lo impidió o solo lo vio.
+-- p_via: cómo se intentó ('teclado', 'menu', 'evento'). Nunca se recibe el contenido del portapapeles.
+create or replace function public.exam_evento_copia(p_attempt uuid, p_tipo text, p_resultado text, p_via text)
 returns void
 language plpgsql security definer set search_path = ''
 as $$
@@ -181,8 +237,78 @@ declare a public.attempts;
 begin
   a := public.exam_intento_propio(p_attempt);
   if p_tipo is null or p_tipo not in ('pegado', 'arrastre', 'copia') then raise exception 'Tipo no válido' using errcode = '22023'; end if;
+  if p_resultado is null or p_resultado not in ('bloqueado', 'detectado') then raise exception 'Resultado no válido' using errcode = '22023'; end if;
+  if p_via is not null and p_via not in ('teclado', 'menu', 'evento') then raise exception 'Vía no válida' using errcode = '22023'; end if;
   if a.status <> 'in_progress' then return; end if;
-  perform public.exam_registrar(p_attempt, p_tipo, null);
+  perform public.exam_registrar(p_attempt, p_tipo, p_via, p_resultado);
+end;
+$$;
+
+-- Incidencia técnica durante el examen (p. ej. micrófono denegado en una pregunta oral): se anota, no bloquea
+create or replace function public.exam_incidencia(p_attempt uuid, p_motivo text)
+returns void
+language plpgsql security definer set search_path = ''
+as $$
+declare a public.attempts;
+begin
+  a := public.exam_intento_propio(p_attempt);
+  if p_motivo is null or p_motivo not in ('microfono_denegado', 'microfono_error', 'grabacion_fallida', 'subida_fallida', 'sin_conexion') then
+    raise exception 'Motivo no válido' using errcode = '22023';
+  end if;
+  if a.status <> 'in_progress' then return; end if;
+  perform public.exam_registrar(p_attempt, 'incidencia', p_motivo);
+end;
+$$;
+
+-- ¿Vale este código temporal para este intento? Si vale, consume un uso. (Interno.)
+create or replace function public.exam_codigo_consumir(p_attempt uuid, p_code text)
+returns boolean
+language plpgsql security definer set search_path = ''
+as $$
+declare a public.attempts; c record;
+begin
+  select * into a from public.attempts where id = p_attempt;
+  if a.id is null or p_code is null or char_length(btrim(p_code)) = 0 then return false; end if;
+  for c in
+    select x.id, x.code_hash from public.exam_codigos x
+    where x.activity_id = a.activity_id and (x.user_id is null or x.user_id = a.user_id)
+      and x.anulado_at is null and x.expires_at > now() and x.usos < x.usos_max
+    order by x.created_at desc
+    for update
+  loop
+    if extensions.crypt(lower(btrim(p_code)), c.code_hash) = c.code_hash then
+      update public.exam_codigos set usos = usos + 1 where id = c.id;
+      return true;
+    end if;
+  end loop;
+  return false;
+end;
+$$;
+
+-- Botón «Salir» del examen: solo con un código del profesor. 5 fallos seguidos → 10 minutos sin poder intentarlo.
+create or replace function public.exam_salir_autorizado(p_attempt uuid, p_codigo text)
+returns jsonb
+language plpgsql security definer set search_path = ''
+as $$
+declare a public.attempts; v_fallos integer; v_desde bigint;
+begin
+  a := public.exam_intento_propio(p_attempt);
+  if a.status <> 'in_progress' then return jsonb_build_object('ok', true, 'entregado', true); end if;
+  perform 1 from public.attempts where id = p_attempt for update;
+  -- fallos seguidos: desde la última salida autorizada (por orden de registro) y en los últimos 10 minutos
+  v_desde := coalesce((select max(e.id) from public.exam_integridad_eventos e where e.attempt_id = p_attempt and e.tipo = 'salida_autorizada'), 0);
+  select count(*) into v_fallos from public.exam_integridad_eventos e
+    where e.attempt_id = p_attempt and e.tipo = 'codigo_fallido' and e.id > v_desde and e.created_at > now() - interval '10 minutes';
+  if v_fallos >= 5 then
+    return jsonb_build_object('ok', false, 'espera_hasta',
+      (select max(e.created_at) from public.exam_integridad_eventos e where e.attempt_id = p_attempt and e.tipo = 'codigo_fallido') + interval '10 minutes');
+  end if;
+  if public.exam_codigo_consumir(p_attempt, p_codigo) then
+    perform public.exam_registrar(p_attempt, 'salida_autorizada', 'codigo_docente');
+    return jsonb_build_object('ok', true);
+  end if;
+  perform public.exam_registrar(p_attempt, 'codigo_fallido', 'salida');
+  return jsonb_build_object('ok', false, 'intentos', v_fallos + 1);
 end;
 $$;
 
@@ -206,13 +332,125 @@ begin
         'copias', count(*) filter (where e.tipo = 'copia'),
         'ultima_salida', max(e.created_at) filter (where e.tipo in ('salida', 'reingreso')),
         'lock_id', (select l.id from public.screen_locks l where l.user_id = p.id and l.unlocked_at is null order by l.created_at desc limit 1),
-        'detalle', coalesce(jsonb_agg(jsonb_build_object('tipo', e.tipo, 'motivo', e.motivo, 'en', e.created_at) order by e.created_at)
+        'salidas_autorizadas', count(*) filter (where e.tipo = 'salida_autorizada'),
+        'codigos_fallidos', count(*) filter (where e.tipo = 'codigo_fallido'),
+        'incidencias', count(*) filter (where e.tipo = 'incidencia'),
+        'detalle', coalesce(jsonb_agg(jsonb_build_object('tipo', e.tipo, 'motivo', e.motivo, 'resultado', e.resultado, 'en', e.created_at,
+                       'pregunta', array_position(public.exam_item_order(a.id), e.exercise_id)) order by e.created_at)
                      filter (where e.tipo <> 'entrada'), '[]')) z
       from public.attempts a
       join public.profiles p on p.id = a.user_id
       left join public.exam_integridad_eventos e on e.attempt_id = a.id
       where a.activity_id = p_activity
       group by p.id, p.full_name, p.student_code, p.login_id, a.id, a.status, a.started_at) q));
+end;
+$$;
+
+-- Códigos temporales: el profesor los genera (se muestran UNA vez), los ve sin el código y los anula.
+-- p_user NULL = vale para cualquier estudiante de la evaluación. Minutos 1–240 (15 por defecto); usos 1–200 (1).
+create or replace function public.exam_codigo_generar(p_activity uuid, p_user uuid, p_minutos integer, p_usos integer)
+returns jsonb
+language plpgsql security definer set search_path = ''
+as $$
+declare act public.activities; v_code text; v_min integer := coalesce(p_minutos, 15); v_usos integer := coalesce(p_usos, 1); v_id uuid; v_vence timestamptz;
+begin
+  select * into act from public.activities where id = p_activity;
+  if act.id is null or not public.grades_teacher(act.class_id) then raise exception 'Sin permiso' using errcode = '42501'; end if;
+  if act.mode <> 'exam' then raise exception 'Solo para evaluaciones' using errcode = '22023'; end if;
+  if v_min < 1 or v_min > 240 or v_usos < 1 or v_usos > 200 then raise exception 'Duración (1–240 min) o usos (1–200) fuera de rango' using errcode = '22023'; end if;
+  if p_user is not null and not exists (select 1 from public.enrollments e where e.class_id = act.class_id and e.user_id = p_user) then
+    raise exception 'El estudiante no pertenece a esta sección' using errcode = '42501';
+  end if;
+  -- 6 cifras al azar (generador criptográfico)
+  v_code := lpad(((('x' || encode(extensions.gen_random_bytes(4), 'hex'))::bit(32)::bigint) % 1000000)::text, 6, '0');
+  v_vence := now() + make_interval(mins => v_min);
+  insert into public.exam_codigos (activity_id, user_id, code_hash, expires_at, usos_max, creado_por)
+    values (p_activity, p_user, extensions.crypt(v_code, extensions.gen_salt('bf')), v_vence, v_usos, auth.uid())
+    returning id into v_id;
+  return jsonb_build_object('id', v_id, 'codigo', v_code, 'vence', v_vence, 'usos_max', v_usos, 'user_id', p_user);
+end;
+$$;
+
+create or replace function public.exam_codigos_activos(p_activity uuid)
+returns jsonb
+language plpgsql stable security definer set search_path = ''
+as $$
+declare act public.activities;
+begin
+  select * into act from public.activities where id = p_activity;
+  if act.id is null or not public.grades_teacher(act.class_id) then raise exception 'Sin permiso' using errcode = '42501'; end if;
+  return (select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'user_id', c.user_id, 'nombre', p.full_name, 'vence', c.expires_at,
+      'usos', c.usos, 'usos_max', c.usos_max, 'creado', c.created_at) order by c.created_at desc), '[]')
+    from public.exam_codigos c left join public.profiles p on p.id = c.user_id
+    where c.activity_id = p_activity and c.anulado_at is null and c.expires_at > now() and c.usos < c.usos_max);
+end;
+$$;
+
+create or replace function public.exam_codigo_anular(p_codigo uuid)
+returns void
+language plpgsql security definer set search_path = ''
+as $$
+declare v_act uuid;
+begin
+  select activity_id into v_act from public.exam_codigos where id = p_codigo;
+  if v_act is null or not public.grades_teacher((select class_id from public.activities where id = v_act)) then
+    raise exception 'Sin permiso' using errcode = '42501';
+  end if;
+  update public.exam_codigos set anulado_at = now() where id = p_codigo and anulado_at is null;
+end;
+$$;
+
+-- unlock_screen (migración 19) + un bloqueo causado por salir de un examen también se quita con un código TEMPORAL
+-- vigente de esa evaluación (además del código fijo de la evaluación). Mismos límites: 5 fallos → 10 minutos.
+create or replace function public.unlock_screen(p_lock uuid, p_code text)
+returns jsonb language plpgsql security definer set search_path = ''
+as $$
+declare r public.screen_locks; v_attempt uuid;
+begin
+  if auth.uid() is null then raise exception 'Debe iniciar sesión' using errcode = '28000'; end if;
+  select * into r from public.screen_locks where id = p_lock and user_id = auth.uid() for update;
+  if not found then raise exception 'Bloqueo no encontrado' using errcode = 'P0002'; end if;
+  if r.unlocked_at is not null then return jsonb_build_object('ok', true); end if;
+  if r.locked_until is not null and r.locked_until > now() then
+    return jsonb_build_object('ok', false, 'espera_hasta', r.locked_until);
+  end if;
+  if extensions.crypt(lower(btrim(coalesce(p_code, ''))), r.code_hash) = r.code_hash then
+    update public.screen_locks set unlocked_at = now(), unlocked_by = 'codigo', failed_attempts = 0 where id = p_lock;
+    return jsonb_build_object('ok', true);
+  end if;
+  select e.attempt_id into v_attempt from public.exam_integridad_eventos e where e.lock_id = p_lock order by e.created_at limit 1;
+  if v_attempt is not null and public.exam_codigo_consumir(v_attempt, p_code) then
+    update public.screen_locks set unlocked_at = now(), unlocked_by = 'codigo', failed_attempts = 0 where id = p_lock;
+    return jsonb_build_object('ok', true);
+  end if;
+  update public.screen_locks set failed_attempts = failed_attempts + 1,
+      locked_until = case when (failed_attempts + 1) % 5 = 0 then now() + interval '10 minutes' end
+    where id = p_lock returning * into r;
+  return jsonb_build_object('ok', false, 'intentos', r.failed_attempts, 'espera_hasta', r.locked_until);
+end;
+$$;
+
+-- Intentos con el tiempo oficial VENCIDO (más 30 s de gracia por la red) que siguen abiertos porque el estudiante
+-- cerró el navegador: la Edge Function «calificar» (acción finalizar_vencidos) los entrega y califica con lo guardado
+-- a tiempo. Solo el profesorado de la sección, el personal de la asignatura o un administrador. Nunca toca intentos
+-- que aún tienen tiempo.
+create or replace function public.svc_finalize_vencidos_context(p_teacher uuid, p_activity uuid)
+returns jsonb
+language plpgsql security definer set search_path = ''
+as $$
+declare act public.activities;
+begin
+  select * into act from public.activities where id = p_activity;
+  if act.id is null then raise exception 'Actividad no encontrada' using errcode = '42501'; end if;
+  if not exists (select 1 from public.profiles where id = p_teacher and role = 'admin')
+     and not exists (select 1 from public.class_teachers where class_id = act.class_id and user_id = p_teacher)
+     and not exists (select 1 from public.course_staff s join public.classes c on c.course_id = s.course_id where c.id = act.class_id and s.user_id = p_teacher) then
+    raise exception 'No autorizado' using errcode = '42501';
+  end if;
+  return (select coalesce(jsonb_agg(jsonb_build_object('attempt_id', t.id, 'user_id', t.user_id)), '[]'::jsonb)
+          from public.attempts t
+          where t.activity_id = p_activity and t.status = 'in_progress'
+            and public.exam_deadline(t.id) is not null and now() >= public.exam_deadline(t.id) + interval '30 seconds');
 end;
 $$;
 
@@ -224,12 +462,12 @@ returns jsonb
 language sql stable security definer set search_path = ''
 as $$
   select coalesce(
-    (select jsonb_build_object('presentacion', s.presentacion, 'navegacion', s.navegacion, 'duracion_s', s.duracion_s,
+    (select jsonb_build_object('presentacion', s.presentacion, 'navegacion', s.navegacion, 'sin_saltos', s.sin_saltos, 'duracion_s', s.duracion_s,
        'pausas', jsonb_build_object('permitidas', s.pausas_permitidas, 'max_numero', s.pausas_max, 'max_total_s', s.pausa_max_total_s, 'detienen_reloj', s.pausa_detiene_reloj),
        'integridad', jsonb_build_object('bloquear_al_salir', s.bloquear_al_salir, 'impedir_copiar', s.impedir_copiar, 'codigo_configurado', s.codigo_salida_hash is not null),
        'configurado', true)
      from public.exam_settings s where s.activity_id = p_activity),
-    jsonb_build_object('presentacion', 'todas', 'navegacion', 'libre', 'duracion_s', null,
+    jsonb_build_object('presentacion', 'todas', 'navegacion', 'libre', 'sin_saltos', false, 'duracion_s', null,
       'pausas', jsonb_build_object('permitidas', false, 'max_numero', 0, 'max_total_s', 0, 'detienen_reloj', false),
       'integridad', jsonb_build_object('bloquear_al_salir', false, 'impedir_copiar', false, 'codigo_configurado', false), 'configurado', false))
 $$;
@@ -240,7 +478,7 @@ create or replace function public.exam_settings_save(p_activity uuid, p_cfg json
 returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
-declare v_class uuid; v_mode public.activity_mode; v_pp boolean; v_prev public.exam_settings; v_bloq boolean; v_imp boolean; v_cod text; v_hash text;
+declare v_class uuid; v_mode public.activity_mode; v_pp boolean; v_prev public.exam_settings; v_bloq boolean; v_imp boolean; v_cod text; v_hash text; v_ss boolean;
 begin
   select class_id, mode into v_class, v_mode from public.activities where id = p_activity;
   if v_class is null or not public.is_class_teacher(v_class) then raise exception 'Sin permiso' using errcode = '42501'; end if;
@@ -249,6 +487,9 @@ begin
   select * into v_prev from public.exam_settings where activity_id = p_activity;
   begin
     v_pp := coalesce((p_cfg -> 'pausas' ->> 'permitidas')::boolean, false);
+    -- sin saltos solo tiene sentido con «solo hacia adelante»; sin la clave se conserva lo anterior
+    v_ss := coalesce(p_cfg ->> 'navegacion', 'libre') = 'solo_adelante'
+      and coalesce((p_cfg ->> 'sin_saltos')::boolean, v_prev.sin_saltos, false);
     if p_cfg ? 'integridad' then
       v_bloq := coalesce((p_cfg -> 'integridad' ->> 'bloquear_al_salir')::boolean, false);
       v_imp := coalesce((p_cfg -> 'integridad' ->> 'impedir_copiar')::boolean, false);
@@ -269,17 +510,17 @@ begin
   end if;
   begin
     insert into public.exam_settings as s (activity_id, presentacion, navegacion, duracion_s, pausas_permitidas, pausas_max, pausa_max_total_s, pausa_detiene_reloj,
-      bloquear_al_salir, impedir_copiar, codigo_salida_hash, updated_by, updated_at)
+      bloquear_al_salir, impedir_copiar, codigo_salida_hash, sin_saltos, updated_by, updated_at)
     values (p_activity,
       coalesce(p_cfg ->> 'presentacion', 'una_a_la_vez'), coalesce(p_cfg ->> 'navegacion', 'libre'), (p_cfg ->> 'duracion_s')::integer,
       v_pp, case when v_pp then coalesce((p_cfg -> 'pausas' ->> 'max_numero')::integer, 1) else 0 end,
       case when v_pp then coalesce((p_cfg -> 'pausas' ->> 'max_total_s')::integer, 300) else 0 end,
       v_pp and coalesce((p_cfg -> 'pausas' ->> 'detienen_reloj')::boolean, false),
-      v_bloq, v_imp, v_hash, auth.uid(), now())
+      v_bloq, v_imp, v_hash, v_ss, auth.uid(), now())
     on conflict (activity_id) do update set presentacion = excluded.presentacion, navegacion = excluded.navegacion, duracion_s = excluded.duracion_s,
       pausas_permitidas = excluded.pausas_permitidas, pausas_max = excluded.pausas_max, pausa_max_total_s = excluded.pausa_max_total_s,
       pausa_detiene_reloj = excluded.pausa_detiene_reloj, bloquear_al_salir = excluded.bloquear_al_salir, impedir_copiar = excluded.impedir_copiar,
-      codigo_salida_hash = excluded.codigo_salida_hash, updated_by = excluded.updated_by, updated_at = now();
+      codigo_salida_hash = excluded.codigo_salida_hash, sin_saltos = excluded.sin_saltos, updated_by = excluded.updated_by, updated_at = now();
   exception when check_violation or invalid_text_representation then
     raise exception 'Configuración fuera de los límites permitidos' using errcode = '22023';
   end;
@@ -308,8 +549,9 @@ begin
     end if;
     if a.status <> 'in_progress' then return jsonb_build_object('modo', 'clasico'); end if;
     v_orden := public.exam_item_order(p_attempt);
-    insert into public.exam_sessions (attempt_id, user_id, presentacion, navegacion, duracion_s, pausas_permitidas, pausas_max, pausa_max_total_s, pausa_detiene_reloj, activa)
-      values (p_attempt, a.user_id, cfg.presentacion, cfg.navegacion, cfg.duracion_s, cfg.pausas_permitidas, cfg.pausas_max, cfg.pausa_max_total_s, cfg.pausa_detiene_reloj, v_orden[1])
+    insert into public.exam_sessions (attempt_id, user_id, presentacion, navegacion, duracion_s, pausas_permitidas, pausas_max, pausa_max_total_s, pausa_detiene_reloj, activa, sin_saltos)
+      values (p_attempt, a.user_id, cfg.presentacion, cfg.navegacion, cfg.duracion_s, cfg.pausas_permitidas, cfg.pausas_max, cfg.pausa_max_total_s, cfg.pausa_detiene_reloj, v_orden[1],
+        cfg.navegacion = 'solo_adelante' and cfg.sin_saltos)
       returning * into s;
   end if;
   if a.status = 'in_progress' then
@@ -345,11 +587,69 @@ begin
     if j < i or (j <> i and exists (select 1 from public.exam_events e where e.attempt_id = p_attempt and e.tipo in ('apertura', 'ir_a') and e.exercise_id = p_exercise)) then
       raise exception 'En este examen no se puede volver a preguntas anteriores' using errcode = 'P0001';
     end if;
+    -- sin saltos: solo la pregunta siguiente (no se puede abrir la 5 desde la 2)
+    if s.sin_saltos and j > i + 1 then
+      raise exception 'En este examen las preguntas se responden en orden: solo puede pasar a la siguiente' using errcode = 'P0001';
+    end if;
   end if;
   update public.exam_sessions set activa = p_exercise, ultimo_contacto = now() where attempt_id = p_attempt;
   insert into public.exam_events (attempt_id, user_id, tipo, exercise_id) values (p_attempt, s.user_id, 'ir_a', p_exercise);
   return jsonb_build_object('ahora_ms', public.exam_ms(now()), 'activa', p_exercise);
 end;
+$$;
+
+-- exam_assert_navegable (migración 35) + en «solo hacia adelante», una pregunta que el servidor nunca abrió no se
+-- puede responder (antes, los 10 s de gracia pensados para el último guardado de la pregunta que se deja también
+-- dejaban guardar en una pregunta FUTURA justo después de navegar). En «libre», igual que antes.
+create or replace function public.exam_assert_navegable(p_attempt uuid, p_exercise uuid)
+returns void
+language plpgsql security definer set search_path = ''
+as $$
+declare s public.exam_sessions; v_dejada timestamptz;
+begin
+  select * into s from public.exam_sessions where attempt_id = p_attempt;
+  if not found or s.activa is null or s.activa = p_exercise then return; end if;
+  if s.navegacion = 'solo_adelante' and not exists (select 1 from public.exam_events e where e.attempt_id = p_attempt
+       and e.tipo in ('apertura', 'ir_a') and e.exercise_id = p_exercise) then
+    raise exception 'Esta pregunta todavía no se ha abierto' using errcode = 'P0001';
+  end if;
+  -- momento en que la dejó: la PRIMERA salida posterior a la última llegada (por orden de registro, que no empata)
+  select min(e.t) into v_dejada from public.exam_events e
+    where e.attempt_id = p_attempt and e.tipo = 'ir_a' and e.exercise_id <> p_exercise
+      and e.id > coalesce((select max(e2.id) from public.exam_events e2 where e2.attempt_id = p_attempt and e2.tipo in ('apertura', 'ir_a') and e2.exercise_id = p_exercise), 0);
+  if s.navegacion = 'solo_adelante' and (v_dejada is null or now() > v_dejada + interval '10 seconds') then
+    raise exception 'En este examen no se puede modificar una pregunta anterior' using errcode = 'P0001';
+  end if;
+  update public.exam_sessions set fuera_de_turno = fuera_de_turno + 1 where attempt_id = p_attempt and (v_dejada is null or now() > v_dejada + interval '10 seconds');
+end;
+$$;
+
+-- exam_state (migración 35) + «sin_saltos» en la configuración que recibe el navegador
+create or replace function public.exam_state(p_attempt uuid)
+returns jsonb
+language sql stable security definer set search_path = ''
+as $$
+  select jsonb_build_object(
+    'modo', 'una_a_la_vez',
+    'ahora_ms', public.exam_ms(now()),
+    'inicio_ms', public.exam_ms(a.started_at),
+    'limite_ms', public.exam_ms(public.exam_deadline(a.id)),
+    'cierre_ms', public.exam_ms(act.closes_at),
+    'activa', s.activa,
+    'orden', to_jsonb(public.exam_item_order(a.id)),
+    'config', jsonb_build_object('presentacion', s.presentacion, 'navegacion', s.navegacion, 'sin_saltos', s.sin_saltos, 'duracion_s', s.duracion_s,
+      'pausas', jsonb_build_object('permitidas', s.pausas_permitidas, 'max_numero', s.pausas_max, 'max_total_s', s.pausa_max_total_s, 'detienen_reloj', s.pausa_detiene_reloj)),
+    'pausa', jsonb_build_object('n', s.pausas_n, 'ms', s.pausas_ms, 'desde_ms', public.exam_ms(s.pausa_desde)),
+    'visitadas', (select coalesce(jsonb_agg(distinct e.exercise_id), '[]'::jsonb) from public.exam_events e where e.attempt_id = a.id and e.tipo in ('apertura', 'ir_a') and e.exercise_id is not null),
+    'diario_seq', s.diario_seq,
+    'diario_fin_ms', public.exam_ms(s.diario_fin),
+    'estado', case when a.status <> 'in_progress' then 'entregado'
+                   when public.exam_deadline(a.id) is not null and now() >= public.exam_deadline(a.id) then 'vencido'
+                   when s.pausa_desde is not null then 'en_pausa' else 'en_curso' end)
+  from public.attempts a
+  join public.exam_sessions s on s.attempt_id = a.id
+  left join public.activities act on act.id = a.activity_id
+  where a.id = p_attempt
 $$;
 
 -- assert_attempt_writable (migración 35) + en una evaluación, con la pantalla bloqueada no se escribe nada
@@ -394,16 +694,30 @@ $$;
 -- 7) permisos -----------------------------------------------------------------------------------------------------
 revoke all on function public.exam_bloqueado(uuid) from public, anon, authenticated;
 revoke all on function public.exam_protegido(uuid) from public, anon, authenticated;
-revoke all on function public.exam_registrar(uuid, text, text) from public, anon, authenticated;
+revoke all on function public.exam_registrar(uuid, text, text, text) from public, anon, authenticated;
+revoke all on function public.exam_con_pase(uuid) from public, anon, authenticated;
+revoke all on function public.exam_codigo_consumir(uuid, text) from public, anon, authenticated;
+revoke all on function public.exam_salir_autorizado(uuid, text) from public, anon;
+revoke all on function public.exam_incidencia(uuid, text) from public, anon;
+revoke all on function public.exam_codigo_generar(uuid, uuid, integer, integer) from public, anon;
+revoke all on function public.exam_codigos_activos(uuid) from public, anon;
+revoke all on function public.exam_codigo_anular(uuid) from public, anon;
+revoke all on function public.svc_finalize_vencidos_context(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.svc_finalize_vencidos_context(uuid, uuid) to service_role;
+grant execute on function public.exam_salir_autorizado(uuid, text) to authenticated;
+grant execute on function public.exam_incidencia(uuid, text) to authenticated;
+grant execute on function public.exam_codigo_generar(uuid, uuid, integer, integer) to authenticated;
+grant execute on function public.exam_codigos_activos(uuid) to authenticated;
+grant execute on function public.exam_codigo_anular(uuid) to authenticated;
 revoke all on function public.exam_registrar_entrada(uuid) from public, anon, authenticated;
 revoke all on function public.exam_intento_propio(uuid) from public, anon, authenticated;
 revoke all on function public.exam_integridad(uuid) from public, anon;
 revoke all on function public.exam_salida(uuid, text) from public, anon;
 revoke all on function public.exam_entrada(uuid) from public, anon;
-revoke all on function public.exam_evento_copia(uuid, text) from public, anon;
+revoke all on function public.exam_evento_copia(uuid, text, text, text) from public, anon;
 revoke all on function public.exam_integridad_resumen(uuid) from public, anon;
 grant execute on function public.exam_integridad(uuid) to authenticated;
 grant execute on function public.exam_salida(uuid, text) to authenticated;
 grant execute on function public.exam_entrada(uuid) to authenticated;
-grant execute on function public.exam_evento_copia(uuid, text) to authenticated;
+grant execute on function public.exam_evento_copia(uuid, text, text, text) to authenticated;
 grant execute on function public.exam_integridad_resumen(uuid) to authenticated;

@@ -155,10 +155,14 @@ export const CATEGORIA: Record<string, string> = {
   desarrollo: 'Problema desarrollado',
   experimento: 'Basada en un experimento',
 };
+/** Palabras de un texto (contador orientativo de las respuestas de desarrollo). */
+export const contarPalabras = (s: string) => (s.trim() ? s.trim().split(/\s+/u).filter((w) => /[\p{L}\p{N}]/u.test(w)).length : 0);
+
 export const FORMATO: Record<string, string> = {
   choice: 'Opciones',
   truefalse: 'Verdadero/falso',
   numeric: 'Numérica',
   text: 'Texto corto',
   open: 'Desarrollo (manual)',
+  audio: 'Respuesta oral (audio, manual)',
 };

@@ -28,13 +28,15 @@ export function tiempoLectura(a: { lectura?: { texto: string; minSegundos?: numb
 
 export interface EjercicioActividad {
   id: string;
-  /** Slug de la lección del curso a la que pertenece (para estadísticas y el banco del profesor). */
-  leccion: string;
+  /** Slug de la lección del curso a la que pertenece (para estadísticas y el banco del profesor). Opcional en las
+   *  asignaturas sin lecciones (laboratorio). */
+  leccion?: string;
   category: ExerciseCategory;
   difficulty: Difficulty;
   concepts: string[];
   prompt: string;
-  format: 'choice' | 'numeric';
+  /** 'open' = desarrollo escrito con rúbrica (revisión docente). */
+  format: 'choice' | 'numeric' | 'open';
   options?: string[];
   figure?: ExerciseDef['figure'];
   unitHint?: string;
@@ -45,13 +47,26 @@ export interface EjercicioActividad {
 export interface ActividadDef {
   /** Nombre corto y estable (se usa en el nombre del archivo y para el id de la actividad). */
   clave: string;
-  /** Nombre exacto de la sección (clase) donde se crea. */
+  /** Nombre exacto de la sección (clase) donde se crea, o '*' = una copia en CADA sección activa de la asignatura
+   *  (al menos una; las secciones creadas después se cubren aplicando de nuevo el archivo). */
   seccion: string;
   /** Código de la asignatura (courses.code). */
   curso: string;
   titulo: string;
   instrucciones: string;
-  ajustes: { modo: 'practice' | 'exam'; intentosPorEjercicio: number; pistas: boolean; revelar: 'immediate' | 'after_submit' | 'after_close' | 'never'; publicada: boolean };
+  ajustes: {
+    modo: 'practice' | 'exam'; intentosPorEjercicio: number; pistas: boolean; revelar: 'immediate' | 'after_submit' | 'after_close' | 'never'; publicada: boolean;
+    /** Intentos por estudiante (sin indicar: sin límite). */
+    maxIntentos?: number;
+  };
+  /** Motor de examen (migraciones 35 y 85): una pregunta a la vez, duración oficial y protecciones. */
+  examen?: {
+    duracionMin: number; navegacion: 'libre' | 'solo_adelante'; sinSaltos: boolean;
+    /** Bloquear al salir: el código fijo se genera al azar y nadie lo conoce; el profesor usa códigos temporales. */
+    bloquearAlSalir: boolean; impedirCopiar: boolean;
+  };
+  /** Puntuación total esperada (se comprueba). */
+  puntosTotales?: number;
   /** Lectura cronometrada antes de los ejercicios (requiere la migración 10). Sin minSegundos, se calcula del texto. */
   lectura?: { texto: string; minSegundos?: number };
   ejercicios: EjercicioActividad[];
@@ -87,12 +102,20 @@ export async function validarActividad(a: ActividadDef): Promise<string[]> {
     if (seg < MIN_SEGUNDOS || seg > MAX_SEGUNDOS) p.push(`tiempo de lectura fuera de rango: ${seg} s`);
   }
   if (a.ajustes.modo === 'exam' && (a.ajustes.revelar === 'immediate' || a.ajustes.pistas)) p.push('en evaluación no puede haber pistas ni retroalimentación inmediata');
+  if (a.examen && a.ajustes.modo !== 'exam') p.push('el motor de examen solo se aplica a evaluaciones');
+  if (a.examen && (a.examen.duracionMin < 1 || a.examen.duracionMin > 360)) p.push('duración del examen fuera de 1–360 min');
+  if (a.examen?.sinSaltos && a.examen.navegacion !== 'solo_adelante') p.push('«sin saltos» requiere navegación solo hacia adelante');
+  if (a.ajustes.maxIntentos !== undefined && (a.ajustes.maxIntentos < 1 || a.ajustes.maxIntentos > 50)) p.push('intentos por estudiante fuera de 1–50');
+  if (a.puntosTotales !== undefined) {
+    const suma = a.ejercicios.reduce((s, e) => s + (e.points ?? 1), 0);
+    if (suma !== a.puntosTotales) p.push(`los puntos suman ${suma}, no ${a.puntosTotales}`);
+  }
   const ids = new Set<string>();
   for (const e of a.ejercicios) {
     const at = `${e.id}:`;
     if (ids.has(e.id)) p.push(`${at} id repetido`);
     ids.add(e.id);
-    if (!lecciones.has(e.leccion)) p.push(`${at} la lección «${e.leccion}» no existe`);
+    if (e.leccion !== undefined && !lecciones.has(e.leccion)) p.push(`${at} la lección «${e.leccion}» no existe`);
     for (const c of e.concepts) if (!conceptos.has(c)) p.push(`${at} el concepto «${c}» no existe`);
     if (!e.prompt.trim()) p.push(`${at} enunciado vacío`);
     // fórmulas que KaTeX no pueda dibujar
@@ -100,7 +123,9 @@ export async function validarActividad(a: ActividadDef): Promise<string[]> {
     (e.options ?? []).forEach((o, i) => checkMarkdown(`${e.id} opción ${i + 1}`, o, p));
     e.clave.hints.forEach((h, i) => checkMarkdown(`${e.id} pista ${i + 1}`, h, p));
     checkMarkdown(`${e.id} explicación`, e.clave.explanation, p);
-    if (!e.clave.hints.length) p.push(`${at} sin pistas`);
+    // en una evaluación no hay pistas (no se muestran); en una práctica son obligatorias
+    if (!e.clave.hints.length && a.ajustes.modo !== 'exam') p.push(`${at} sin pistas`);
+    if (e.points !== undefined && !(e.points > 0)) p.push(`${at} puntos no válidos`);
     if (!e.clave.explanation.trim()) p.push(`${at} sin explicación`);
     const k = e.clave.answer;
     if (k.format !== e.format) p.push(`${at} el formato de la clave (${k.format}) no coincide con el del ejercicio (${e.format})`);
@@ -124,12 +149,96 @@ export async function validarActividad(a: ActividadDef): Promise<string[]> {
       for (const ce of k.commonErrors ?? []) {
         if (grade(k, { text: ce.value }).status === 'correct') p.push(`${at} el error típico «${ce.value}» cae dentro de la tolerancia`);
       }
+    } else if (k.format === 'open') {
+      if (!k.rubric.trim()) p.push(`${at} la pregunta de desarrollo no tiene rúbrica`);
+      checkMarkdown(`${e.id} rúbrica`, k.rubric, p);
+      if (grade(k, { text: 'respuesta' }).status !== 'pending_review') p.push(`${at} el desarrollo no queda pendiente de revisión`);
     }
   }
   return p;
 }
 
+/** Ejercicios (de la asignatura, compartidos por sus secciones) y sus claves: idempotente por (curso, slug). */
+function sqlEjercicios(a: ActividadDef, curso: string, out: string[]) {
+  a.ejercicios.forEach((e, i) => {
+    out.push(`\n-- ${e.id}`);
+    out.push(`insert into public.exercises (course_id, lesson_id, slug, position, category, difficulty, role, format, concepts, prompt, options, multiple, figure, simulation, unit_hint, points, published, created_by)
+select ${curso}, ${e.leccion ? `(select l.id from public.lessons l where l.course_id = ${curso} and l.slug = ${q(e.leccion)})` : 'null'}, ${q(e.id)}, ${i + 1},
+  ${q(e.category)}::public.exercise_category, ${q(e.difficulty)}::public.exercise_difficulty, 'bank'::public.exercise_role, ${q(e.format)}::public.exercise_format,
+  ${arr(e.concepts)}, ${q(e.prompt)}, ${j(e.options)}, false, ${j(e.figure)}, null, ${q(e.unitHint ?? null)}, ${e.points ?? 1}, true,
+  (select id from public.profiles where role = 'admin' order by created_at limit 1)
+on conflict (course_id, slug) do nothing;`);
+    out.push(`insert into public.exercise_keys (exercise_id, answer, hints, explanation)
+select e.id, ${j(e.clave.answer)}, ${j(e.clave.hints)}, ${q(e.clave.explanation)} from public.exercises e where e.course_id = ${curso} and e.slug = ${q(e.id)}
+on conflict (exercise_id) do nothing;`);
+  });
+}
+
+/**
+ * Una copia de la actividad en CADA sección activa de la asignatura (seccion: '*'). Id estable por sección
+ * (md5 de asignatura + clave + sección): repetir el archivo no duplica nada y cubre las secciones nuevas. La
+ * actividad se crea oculta, se comprueba (preguntas, claves, puntos, configuración de examen) y SOLO entonces se
+ * publica, en la misma transacción. Una actividad ya existente no se toca (si el profesor la ocultó, sigue oculta).
+ */
+function sqlTodasLasSecciones(a: ActividadDef): string {
+  const curso = `(select id from public.courses where code = ${q(a.curso)})`;
+  const n = a.ejercicios.length;
+  const s = a.ajustes;
+  const x = a.examen;
+  const total = a.ejercicios.reduce((t, e) => t + (e.points ?? 1), 0);
+  const out: string[] = [];
+  out.push(`-- Datos privados generados por scripts/generar-actividad.ts («${a.clave}»). CONTIENE CLAVES DE RESPUESTA: no lo publique.`);
+  out.push(`-- Actividad: ${a.titulo} · todas las secciones activas de ${a.curso} · ${n} ejercicios · ${total} puntos. Idempotente.`);
+  out.push(`do $chk$ begin
+  if ${curso} is null then raise exception 'No existe la asignatura %', ${q(a.curso)}; end if;
+  if not exists (select 1 from public.classes c where c.course_id = ${curso} and not c.archived) then
+    raise exception 'La asignatura % no tiene ninguna sección activa: créela en el panel («Crear una sección») y vuelva a aplicar', ${q(a.curso)};
+  end if;
+end $chk$;`);
+  sqlEjercicios(a, curso, out);
+  out.push(`\ndo $act$
+declare v_curso uuid := ${curso}; c record; v_act uuid; v_nueva boolean; v_n integer := 0;
+begin
+  for c in select cl.id, cl.name from public.classes cl where cl.course_id = v_curso and not cl.archived order by cl.created_at loop
+    v_act := md5(${q(`actividad:${a.curso}:${a.clave}:`)} || c.id::text)::uuid;
+    v_nueva := not exists (select 1 from public.activities where id = v_act);
+    insert into public.activities (id, class_id, title, instructions, mode, max_tries_per_item, max_attempts, reveal_policy, hints_enabled, published, created_by)
+      values (v_act, c.id, ${q(a.titulo)}, ${q(a.instrucciones)}, ${q(s.modo)}::public.activity_mode, ${s.intentosPorEjercicio}, ${s.maxIntentos ?? 'null'},
+        ${q(s.revelar)}::public.reveal_policy, ${s.pistas}, false, (select id from public.profiles where role = 'admin' order by created_at limit 1))
+      on conflict (id) do nothing;
+    insert into public.activity_items (activity_id, exercise_id, position)
+      select v_act, e.id, x.pos from unnest(${arr(a.ejercicios.map((e) => e.id))}) with ordinality as x(slug, pos)
+      join public.exercises e on e.course_id = v_curso and e.slug = x.slug
+      on conflict (activity_id, exercise_id) do nothing;${x ? `
+    insert into public.exam_settings (activity_id, presentacion, navegacion, duracion_s, pausas_permitidas, sin_saltos, bloquear_al_salir, impedir_copiar, codigo_salida_hash)
+      values (v_act, 'una_a_la_vez', ${q(x.navegacion)}, ${x.duracionMin * 60}, false, ${x.sinSaltos}, ${x.bloquearAlSalir}, ${x.impedirCopiar},
+        ${x.bloquearAlSalir ? `extensions.crypt(encode(extensions.gen_random_bytes(24), 'base64'), extensions.gen_salt('bf'))` : 'null'})
+      on conflict (activity_id) do nothing;` : ''}
+    -- comprobaciones ANTES de publicar
+    if (select count(*) from public.activity_items where activity_id = v_act) <> ${n} then raise exception 'La actividad de % no quedó con ${n} ejercicios', c.name; end if;
+    if (select count(*) from public.activity_items i join public.exercise_keys k on k.exercise_id = i.exercise_id where i.activity_id = v_act) <> ${n} then
+      raise exception 'Faltan claves de respuesta en la actividad de %', c.name;
+    end if;
+    if (select sum(coalesce(i.points, e.points)) from public.activity_items i join public.exercises e on e.id = i.exercise_id where i.activity_id = v_act) <> ${total} then
+      raise exception 'La actividad de % no suma ${total} puntos', c.name;
+    end if;
+    if exists (select 1 from public.activity_items i join public.exercises e on e.id = i.exercise_id join public.exercise_keys k on k.exercise_id = e.id
+               where i.activity_id = v_act and k.answer ->> 'format' <> e.format::text) then
+      raise exception 'Formato de clave distinto del de la pregunta en %', c.name;
+    end if;${x ? `
+    if not exists (select 1 from public.exam_settings where activity_id = v_act and presentacion = 'una_a_la_vez' and duracion_s = ${x.duracionMin * 60}) then
+      raise exception 'Falta la configuración de examen en %', c.name;
+    end if;` : ''}
+    if v_nueva and ${s.publicada} then update public.activities set published = true where id = v_act; end if;
+    v_n := v_n + 1;
+  end loop;
+  raise notice 'Actividad «%» en % sección(es)', ${q(a.titulo)}, v_n;
+end $act$;`);
+  return out.join('\n') + '\n';
+}
+
 export function sqlActividad(a: ActividadDef): string {
+  if (a.seccion === '*') return sqlTodasLasSecciones(a);
   const actId = uuidEstable(`actividad:${a.curso}:${a.clave}`);
   const curso = `(select id from public.courses where code = ${q(a.curso)})`;
   const clase = `(select c.id from public.classes c where c.course_id = ${curso} and c.name = ${q(a.seccion)} and not c.archived)`;
@@ -203,7 +312,10 @@ async function main() {
   const archivo = previo ?? `${marca}_${actividad.clave}.sql`;
   writeFileSync(join(dir, archivo), sqlActividad(actividad), { mode: 0o600 });
   const nc = actividad.ejercicios.filter((e) => e.format === 'choice').length;
-  console.log(`✔ ${actividad.ejercicios.length} ejercicios verificados con el motor de calificación (${nc} de selección, ${actividad.ejercicios.length - nc} numéricos).`);
+  const nn = actividad.ejercicios.filter((e) => e.format === 'numeric').length;
+  const nd = actividad.ejercicios.filter((e) => e.format === 'open').length;
+  const pts = actividad.ejercicios.reduce((t, e) => t + (e.points ?? 1), 0);
+  console.log(`✔ ${actividad.ejercicios.length} ejercicios verificados con el motor de calificación (${nc} de selección, ${nn} numéricos, ${nd} de desarrollo; ${pts} puntos).`);
   if (actividad.lectura) {
     const t = analizarTexto(actividad.lectura.texto);
     const seg = tiempoLectura(actividad);

@@ -108,9 +108,10 @@ describe('integración (estática)', () => {
     expect(mig).not.toMatch(/drop (table|column)|truncate|alter column .* type|rename/i);
     expect(mig).toMatch(/exam_integridad_eventos enable row level security/);
     expect(mig).not.toMatch(/grant [^;]* to anon/i);
-    for (const f of ['exam_bloqueado(uuid)', 'exam_protegido(uuid)', 'exam_registrar(uuid, text, text)', 'exam_registrar_entrada(uuid)']) {
+    for (const f of ['exam_bloqueado(uuid)', 'exam_protegido(uuid)', 'exam_registrar(uuid, text, text, text)', 'exam_registrar_entrada(uuid)',
+      'exam_codigo_consumir(uuid, text)', 'exam_con_pase(uuid)', 'svc_finalize_vencidos_context(uuid, uuid)']) {
       expect(mig).toContain(`revoke all on function public.${f} from public, anon, authenticated;`);
-      expect(mig).not.toContain(`grant execute on function public.${f}`);
+      expect(mig).not.toContain(`grant execute on function public.${f} to authenticated`);
     }
   });
 });

@@ -38,12 +38,18 @@ grant all on t to authenticated;
 
 -- 0) permisos: ayudantes no invocables, tabla no legible, anónimo fuera
 do $$ begin
-  if has_function_privilege('authenticated', 'public.exam_registrar(uuid, text, text)', 'execute') then raise exception 'FALLO: exam_registrar expuesto'; end if;
+  if has_function_privilege('authenticated', 'public.exam_registrar(uuid, text, text, text)', 'execute') then raise exception 'FALLO: exam_registrar expuesto'; end if;
+  if has_function_privilege('authenticated', 'public.exam_codigo_consumir(uuid, text)', 'execute') then raise exception 'FALLO: exam_codigo_consumir expuesto'; end if;
+  if has_function_privilege('authenticated', 'public.exam_con_pase(uuid)', 'execute') then raise exception 'FALLO: exam_con_pase expuesto'; end if;
+  if has_table_privilege('authenticated', 'public.exam_codigos', 'select') then raise exception 'FALLO: códigos legibles'; end if;
   if has_function_privilege('authenticated', 'public.exam_registrar_entrada(uuid)', 'execute') then raise exception 'FALLO: exam_registrar_entrada expuesto'; end if;
   if has_function_privilege('authenticated', 'public.exam_bloqueado(uuid)', 'execute') then raise exception 'FALLO: exam_bloqueado expuesto'; end if;
   if has_function_privilege('authenticated', 'public.exam_protegido(uuid)', 'execute') then raise exception 'FALLO: exam_protegido expuesto'; end if;
   if has_function_privilege('anon', 'public.exam_salida(uuid, text)', 'execute') then raise exception 'FALLO: anon'; end if;
-  if has_table_privilege('authenticated', 'public.exam_integridad_eventos', 'select') then raise exception 'FALLO: eventos legibles'; end if;
+  -- los eventos se leen por RLS (solo el profesorado de la sección, para los avisos en tiempo real); nunca se escriben directo
+  if not (select relrowsecurity from pg_class where oid = 'public.exam_integridad_eventos'::regclass) then raise exception 'FALLO: eventos sin RLS'; end if;
+  if has_table_privilege('authenticated', 'public.exam_integridad_eventos', 'insert') or has_table_privilege('authenticated', 'public.exam_integridad_eventos', 'update')
+     or has_table_privilege('authenticated', 'public.exam_integridad_eventos', 'delete') then raise exception 'FALLO: eventos escribibles'; end if;
   if has_column_privilege('authenticated', 'public.exam_settings', 'codigo_salida_hash', 'select') then raise exception 'FALLO: hash legible'; end if;
 end $$;
 
@@ -144,7 +150,7 @@ do $$ declare q uuid := (select v::uuid from t where k = 'q1'); begin
   exception when insufficient_privilege then null; end;
   begin perform public.exam_integridad(q); raise exception 'FALLO: E2 leyó la integridad de E1';
   exception when insufficient_privilege then null; end;
-  begin perform public.exam_evento_copia(q, 'pegado'); raise exception 'FALLO: E2 anotó un pegado a E1';
+  begin perform public.exam_evento_copia(q, 'pegado', 'bloqueado', 'teclado'); raise exception 'FALLO: E2 anotó un pegado a E1';
   exception when insufficient_privilege then null; end;
   begin perform public.exam_integridad_resumen('eb850000-0000-4000-8000-0000000000a1'); raise exception 'FALLO: un estudiante vio el resumen';
   exception when insufficient_privilege then null; end;
@@ -169,12 +175,28 @@ do $$ declare p uuid; begin
 end $$;
 -- copiar / pegar: se anotan; tipo inventado rechazado
 do $$ declare q uuid := (select v::uuid from t where k = 'q1'); begin
-  perform public.exam_evento_copia(q, 'pegado');
-  perform public.exam_evento_copia(q, 'pegado');
-  perform public.exam_evento_copia(q, 'copia');
-  begin perform public.exam_evento_copia(q, 'teclear'); raise exception 'FALLO: tipo inventado';
+  perform public.exam_evento_copia(q, 'pegado', 'bloqueado', 'teclado');
+  perform public.exam_evento_copia(q, 'pegado', 'bloqueado', 'evento');
+  perform public.exam_evento_copia(q, 'copia', 'bloqueado', 'menu');
+  begin perform public.exam_evento_copia(q, 'teclear', 'bloqueado', null); raise exception 'FALLO: tipo inventado';
   exception when invalid_parameter_value then null; end;
+  begin perform public.exam_evento_copia(q, 'pegado', 'ignorado', null); raise exception 'FALLO: resultado inventado';
+  exception when invalid_parameter_value then null; end;
+  begin perform 1 from public.exam_integridad_eventos limit 1;
+    if found then raise exception 'FALLO: el estudiante lee eventos'; end if;
+  exception when insufficient_privilege then null; end;
 end $$;
+reset role;
+do $$ begin
+  -- el evento guarda la pregunta en pantalla (la activa de la sesión) y el resultado; nunca el contenido
+  if not exists (select 1 from public.exam_integridad_eventos e join public.exam_sessions s on s.attempt_id = e.attempt_id
+                 where e.attempt_id = (select v::uuid from t where k = 'q1') and e.tipo = 'pegado' and e.exercise_id = s.activa
+                   and e.resultado = 'bloqueado' and e.motivo = 'teclado') then
+    raise exception 'FALLO: el evento de pegado no guarda pregunta/resultado/vía';
+  end if;
+end $$;
+set local role authenticated;
+select pg_temp.como('eb850000-0000-4000-8000-000000000011');
 
 -- 8) examen clásico (todas las preguntas en una página): la entrada la registra exam_entrada
 do $$ declare q uuid; r jsonb; begin
@@ -201,7 +223,129 @@ do $$ declare r jsonb; e jsonb; begin
   if e ->> 'lock_id' is null then raise exception 'FALLO: el resumen no muestra el bloqueo activo'; end if;
   if r::text ~ '\$2[aby]\$' then raise exception 'FALLO: hash en el resumen'; end if;
   perform public.release_screen_lock((e ->> 'lock_id')::uuid);
+  -- el profesor ve los eventos (lo que recibe por Realtime); ve la pregunta de cada uno
+  if not exists (select 1 from public.exam_integridad_eventos where attempt_id = (select v::uuid from t where k = 'q1') and tipo = 'pegado') then
+    raise exception 'FALLO: el profesor no ve los eventos';
+  end if;
+  if not exists (select 1 from jsonb_array_elements(e -> 'detalle') d where d ->> 'tipo' = 'pegado' and (d ->> 'pregunta')::int = 2) then
+    raise exception 'FALLO: el detalle no indica la pregunta %', e -> 'detalle';
+  end if;
 end $$;
+-- un profesor ajeno no ve eventos de otra sección
+select pg_temp.como('eb850000-0000-4000-8000-000000000002');
+do $$ begin
+  if exists (select 1 from public.exam_integridad_eventos where attempt_id = (select v::uuid from t where k = 'q1')) then raise exception 'FALLO: profesor ajeno ve eventos'; end if;
+  begin perform public.exam_codigo_generar('eb850000-0000-4000-8000-0000000000a1', null, 15, 1); raise exception 'FALLO: profesor ajeno generó un código';
+  exception when insufficient_privilege then null; end;
+end $$;
+
+-- 9b) códigos temporales: salir con autorización, pase de vuelta, desbloqueo, caducidad, alcance y fuerza bruta
+select pg_temp.como('eb850000-0000-4000-8000-000000000001');
+do $$ declare r jsonb; begin
+  r := public.exam_codigo_generar('eb850000-0000-4000-8000-0000000000a1', 'eb850000-0000-4000-8000-000000000011', 15, 1);
+  if r ->> 'codigo' !~ '^[0-9]{6}$' then raise exception 'FALLO: código %', r; end if;
+  insert into t values ('cod_e1', r ->> 'codigo'), ('cod_e1_id', r ->> 'id');
+  r := public.exam_codigo_generar('eb850000-0000-4000-8000-0000000000a1', 'eb850000-0000-4000-8000-000000000012', 15, 1);
+  insert into t values ('cod_e2', r ->> 'codigo');
+  begin perform public.exam_codigo_generar('eb850000-0000-4000-8000-0000000000a1', null, 999, 1); raise exception 'FALLO: 999 minutos';
+  exception when invalid_parameter_value then null; end;
+  if jsonb_array_length(public.exam_codigos_activos('eb850000-0000-4000-8000-0000000000a1')) <> 2 then raise exception 'FALLO: lista de códigos'; end if;
+  if public.exam_codigos_activos('eb850000-0000-4000-8000-0000000000a1')::text ~ '"codigo"|\$2[aby]\$' then raise exception 'FALLO: la lista expone el código'; end if;
+end $$;
+-- E1 en un quiz nuevo (reinicio del tiempo del q1 para la prueba)
+reset role;
+update public.attempts set started_at = now() where id = (select v::uuid from t where k = 'q1');
+set local role authenticated;
+select pg_temp.como('eb850000-0000-4000-8000-000000000011');
+do $$ declare q uuid := (select v::uuid from t where k = 'q1'); r jsonb; i integer; begin
+  -- el código de OTRO estudiante no sirve
+  r := public.exam_salir_autorizado(q, (select v from t where k = 'cod_e2'));
+  if (r ->> 'ok')::boolean then raise exception 'FALLO: salió con el código de otro estudiante'; end if;
+  -- salida autorizada con su código: la salida y la vuelta no bloquean
+  r := public.exam_salir_autorizado(q, (select v from t where k = 'cod_e1'));
+  if not (r ->> 'ok')::boolean then raise exception 'FALLO: no salió con su código %', r; end if;
+  r := public.exam_salida(q, 'navegacion');
+  if (r ->> 'bloqueado')::boolean then raise exception 'FALLO: la salida autorizada bloqueó'; end if;
+  perform public.exam_open(q);
+  if public.my_screen_lock() is not null then raise exception 'FALLO: la vuelta tras salida autorizada bloqueó'; end if;
+  -- el pase se gastó: una nueva salida sí bloquea; y el código ya usado no sirve de nuevo (1 uso)
+  r := public.exam_salida(q, 'oculta');
+  if not (r ->> 'bloqueado')::boolean then raise exception 'FALLO: el pase no se consumió'; end if;
+  if (public.unlock_screen((public.my_screen_lock() ->> 'id')::uuid, (select v from t where k = 'cod_e1')) ->> 'ok')::boolean then
+    raise exception 'FALLO: un código de un solo uso sirvió dos veces';
+  end if;
+end $$;
+select pg_temp.como('eb850000-0000-4000-8000-000000000001');
+select set_config('prueba.cod3', public.exam_codigo_generar('eb850000-0000-4000-8000-0000000000a1', 'eb850000-0000-4000-8000-000000000011', 15, 1) ->> 'codigo', true);
+select pg_temp.como('eb850000-0000-4000-8000-000000000011');
+do $$ declare r jsonb; begin
+  -- un código temporal vigente también quita el bloqueo causado por salir de ESA evaluación
+  r := public.unlock_screen((public.my_screen_lock() ->> 'id')::uuid, current_setting('prueba.cod3'));
+  if not (r ->> 'ok')::boolean then raise exception 'FALLO: el código temporal no desbloqueó %', r; end if;
+end $$;
+-- caducado y anulado no sirven; 5 fallos seguidos imponen espera
+reset role;
+update public.exam_codigos set expires_at = now() - interval '1 minute' where id = (select v::uuid from t where k = 'cod_e1_id');
+set local role authenticated;
+select pg_temp.como('eb850000-0000-4000-8000-000000000001');
+select set_config('prueba.cod4', public.exam_codigo_generar('eb850000-0000-4000-8000-0000000000a1', null, 15, 5) ->> 'id', true);
+select public.exam_codigo_anular(current_setting('prueba.cod4')::uuid);
+select pg_temp.como('eb850000-0000-4000-8000-000000000011');
+do $$ declare q uuid := (select v::uuid from t where k = 'q1'); r jsonb; i integer; begin
+  for i in 1..5 loop r := public.exam_salir_autorizado(q, '000000'); end loop;
+  r := public.exam_salir_autorizado(q, '000000');
+  if r ->> 'espera_hasta' is null then raise exception 'FALLO: sin espera tras 5 fallos %', r; end if;
+end $$;
+
+-- 9c) sin saltos: 1 → 2 → 3; no se puede abrir la 3 desde la 1 ni volver
+select pg_temp.como('eb850000-0000-4000-8000-000000000001');
+do $$ declare r jsonb; begin
+  r := public.exam_settings_save('eb850000-0000-4000-8000-0000000000a3', '{"presentacion":"una_a_la_vez","navegacion":"solo_adelante","sin_saltos":true,"duracion_s":900}');
+  if not (r ->> 'sin_saltos')::boolean then raise exception 'FALLO: sin_saltos no se guardó %', r; end if;
+  -- sin «solo hacia adelante», sin_saltos no se activa
+  r := public.exam_settings_save('eb850000-0000-4000-8000-0000000000a2', '{"presentacion":"todas","navegacion":"libre","sin_saltos":true}');
+  if (r ->> 'sin_saltos')::boolean then raise exception 'FALLO: sin_saltos con navegación libre'; end if;
+end $$;
+-- el intento anterior de E2 en el examen 3 se da por entregado para abrir uno nuevo con la nueva configuración
+reset role;
+update public.attempts set status = 'submitted', submitted_at = now()
+  where activity_id = 'eb850000-0000-4000-8000-0000000000a3' and user_id = 'eb850000-0000-4000-8000-000000000012';
+set local role authenticated;
+select pg_temp.como('eb850000-0000-4000-8000-000000000012');
+do $$ declare q uuid; r jsonb; o jsonb; begin
+  q := public.start_activity_attempt('eb850000-0000-4000-8000-0000000000a3');
+  r := public.exam_open(q);
+  if not (r -> 'config' ->> 'sin_saltos')::boolean then raise exception 'FALLO: el navegador no recibe sin_saltos'; end if;
+  o := r -> 'orden';
+  begin perform public.exam_goto(q, (o ->> 2)::uuid); raise exception 'FALLO: saltó de la 1 a la 3';
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
+  perform public.exam_goto(q, (o ->> 1)::uuid);
+  begin perform public.exam_goto(q, (o ->> 0)::uuid); raise exception 'FALLO: volvió a la 1';
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
+  -- no puede guardar en la 3 sin abrirla, ni en la 1 ya dejada (pasados 10 s de gracia; aquí: nunca abierta la 3)
+  begin perform public.exam_save(q, (o ->> 2)::uuid, '{"selected":[0]}', 5); raise exception 'FALLO: guardó una pregunta futura';
+  exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
+  perform public.exam_goto(q, (o ->> 2)::uuid);
+end $$;
+
+-- 9d) cierre por tiempo: el contexto de «finalizar vencidos» solo trae intentos vencidos y solo al profesorado
+reset role;
+do $$ declare r jsonb; begin
+  update public.attempts set started_at = now() - interval '3 hours' where id = (select v::uuid from t where k = 'q2');
+  -- q2 es clásico (sin duración): nunca vence por tiempo → no aparece
+  r := public.svc_finalize_vencidos_context('eb850000-0000-4000-8000-000000000001', 'eb850000-0000-4000-8000-0000000000a2');
+  if jsonb_array_length(r) <> 0 then raise exception 'FALLO: finalizó un intento sin límite de tiempo'; end if;
+  r := public.svc_finalize_vencidos_context('eb850000-0000-4000-8000-000000000001', 'eb850000-0000-4000-8000-0000000000a1');
+  if jsonb_array_length(r) <> 0 then raise exception 'FALLO: finalizó un intento con tiempo %', r; end if;
+  update public.attempts set started_at = now() - interval '2 hours' where id = (select v::uuid from t where k = 'q1');
+  r := public.svc_finalize_vencidos_context('eb850000-0000-4000-8000-000000000001', 'eb850000-0000-4000-8000-0000000000a1');
+  if jsonb_array_length(r) <> 1 or r -> 0 ->> 'attempt_id' <> (select v from t where k = 'q1') then raise exception 'FALLO: vencidos %', r; end if;
+  begin perform public.svc_finalize_vencidos_context('eb850000-0000-4000-8000-000000000011', 'eb850000-0000-4000-8000-0000000000a1'); raise exception 'FALLO: un estudiante finalizó';
+  exception when insufficient_privilege then null; end;
+  if has_function_privilege('authenticated', 'public.svc_finalize_vencidos_context(uuid, uuid)', 'execute') then raise exception 'FALLO: svc expuesto'; end if;
+  update public.attempts set started_at = now() where id = (select v::uuid from t where k = 'q1');
+end $$;
+set local role authenticated;
 select pg_temp.como('eb850000-0000-4000-8000-000000000011');
 do $$ begin
   perform public.save_response((select v::uuid from t where k = 'q2'), 'eb850000-0000-4000-8000-0000000000e2', '{"selected":[0]}');

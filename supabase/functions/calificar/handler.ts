@@ -222,6 +222,22 @@ export async function handle(body: unknown, userId: string, db: Db): Promise<unk
       }
       return { finalized: done, errors };
     }
+    case 'finalizar_vencidos': {
+      // solo los intentos con el tiempo oficial vencido (migración 85): seguro para llamarlo solo desde el monitor
+      const activity = uuid(b.activity_id, 'activity_id');
+      const open = await call<{ attempt_id: string; user_id: string }[]>(db, 'svc_finalize_vencidos_context', { p_teacher: userId, p_activity: activity });
+      let done = 0;
+      const errors: string[] = [];
+      for (const o of open) {
+        try {
+          await gradeAndRecordSubmission(db, o.user_id, o.attempt_id);
+          done++;
+        } catch (e) {
+          errors.push(e instanceof Error ? e.message : String(e));
+        }
+      }
+      return { finalized: done, errors };
+    }
     case 'asistida':
       return pasoAsistido(b, userId, db);
     case 'adaptativo': {

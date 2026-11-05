@@ -9,6 +9,9 @@ import { EnunciadoEjercicio, EntradaRespuesta, SolucionBox } from '@/components/
 import { Markdown } from '@/components/Markdown';
 import { TarjetaCronologia } from './lieia/Cronologia';
 import { TiemposExamen } from './TiemposExamen';
+import { audioDeRespuesta } from '@/api/audio';
+import { ReproductorAudio } from '@/components/GrabadorAudio';
+import { mmss } from '@/lib/audio';
 
 function Eventos({ responseId }: { responseId: string }) {
   const ev = useAsync(() => responseEvents(responseId), [responseId]);
@@ -30,6 +33,32 @@ function Eventos({ responseId }: { responseId: string }) {
         );
       })}
     </ul>
+  );
+}
+
+/** Respuesta oral (migración 86): todas las grabaciones del estudiante en esta pregunta, con su duración. */
+function GrabacionesRespuesta({ responseId }: { responseId: string }) {
+  const st = useAsync(() => audioDeRespuesta(responseId), [responseId]);
+  if (st.loading) return <Spinner />;
+  if (st.error) return <ErrorBox error={st.error} />;
+  const d = st.data!;
+  return (
+    <div className="mt-2 rounded-lg border border-gray-200 p-3 text-sm dark:border-white/10">
+      <p className="mb-2 font-semibold">Grabaciones ({d.grabaciones.length})</p>
+      {d.grabaciones.length === 0 && <p className="text-gray-500">El estudiante no envió ninguna grabación.</p>}
+      <ol className="space-y-2">
+        {d.grabaciones.map((g, i) => (
+          <li key={g.id}>
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              {i + 1}. {fecha(g.subido)} · {mmss(g.duracion_ms)} · {Math.round(g.bytes / 1024)} KB{g.id === d.vigente && <strong> · la que cuenta</strong>}
+            </p>
+            {g.eliminada ? <p className="text-xs text-gray-500">Archivo eliminado por la política de conservación.</p> : <ReproductorAudio audioId={g.id} />}
+            <p className="mt-1 text-xs text-gray-500">{g.transcripcion ? `Transcripción: ${g.transcripcion}` : 'Transcripción: no disponible (no hay un servicio de voz a texto configurado).'}</p>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-2 text-xs text-gray-500">La fluidez, los silencios o la impresión de lectura no son por sí solos prueba de fraude: califique con la rúbrica.</p>
+    </div>
   );
 }
 
@@ -64,7 +93,8 @@ function ItemRevision({ item, index, attemptId, onSaved }: { item: AttemptItem; 
         {r?.messages?.map((m, i) => <p key={i} className="text-xs text-gray-600 dark:text-gray-400">Motor: {m}</p>)}
       </div>
       {item.solution && <SolucionBox solution={item.solution} options={ex.options} ids={{ attempt: attemptId, exercise: ex.id }} />}
-      {item.solution?.answer.format === 'open' && <div className="mt-2 rounded-lg bg-primario-50 p-3 text-sm dark:bg-white/5"><p className="font-semibold">Rúbrica</p><Markdown>{item.solution.answer.rubric}</Markdown></div>}
+      {(item.solution?.answer.format === 'open' || item.solution?.answer.format === 'audio') && <div className="mt-2 rounded-lg bg-primario-50 p-3 text-sm dark:bg-white/5"><p className="font-semibold">Rúbrica</p><Markdown>{item.solution.answer.rubric}</Markdown></div>}
+      {r && ex.format === 'audio' && <GrabacionesRespuesta responseId={r.id} />}
       {r && (
         <div className="mt-3 grid gap-2 sm:grid-cols-[10rem_1fr]">
           <label className="text-sm">Crédito manual (%)

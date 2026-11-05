@@ -7,6 +7,7 @@
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { loadContent, ROOT } from './cargar-contenido';
 import { cargarBiblioteca } from './biblioteca/cargar';
 
@@ -35,7 +36,8 @@ async function main() {
   const problems: string[] = [];
   const files = walk(dist);
   const texts = files.filter((f) => /\.(js|html|css|json|txt|map)$/.test(f)).map((f) => ({ f, s: readFileSync(f, 'utf8') }));
-  for (const f of files) if (/\.(sql|env)$/.test(f) || f.includes('privado')) problems.push(`Archivo no permitido: ${relative(ROOT, f)}`);
+  // la ruta RELATIVA al proyecto (un repositorio guardado dentro de una carpeta «privado» no debe bloquearlo todo)
+  for (const f of files) if (/\.(sql|env)$/.test(f) || relative(ROOT, f).includes('privado')) problems.push(`Archivo no permitido: ${relative(ROOT, f)}`);
   for (const { f, s } of texts) {
     for (const m of s.matchAll(/eyJ[\w-]{10,}\.eyJ[\w-]{10,}\.[\w-]{10,}/g)) {
       const role = decodeJwtRole(m[0]);
@@ -54,8 +56,17 @@ async function main() {
       claves.push(...b.unidades.flatMap((u) => u.minis.flatMap((m) => m.mini.ejercicios.map((e) => e.clave))));
     }
   }
+  // claves de las actividades privadas (privado/actividades/<nombre>.ts: prácticas y exámenes generados)
+  const dirAct = join(ROOT, 'privado', 'actividades');
+  if (existsSync(dirAct)) {
+    for (const f of readdirSync(dirAct).filter((x) => x.endsWith('.ts'))) {
+      const m = (await import(pathToFileURL(join(dirAct, f)).href)) as { actividad?: { ejercicios: { clave: (typeof claves)[number] }[] } };
+      if (m.actividad) claves.push(...m.actividad.ejercicios.map((e) => e.clave));
+    }
+  }
   const secrets = claves
-    .flatMap((k) => [k.explanation, ...k.hints, k.answer.format === 'open' ? k.answer.rubric : '', k.answer.format === 'truefalse' ? k.answer.modelJustification : ''])
+    .flatMap((k) => [k.explanation, ...k.hints, k.answer.format === 'open' || k.answer.format === 'audio' ? k.answer.rubric : '',
+      k.answer.format === 'truefalse' ? k.answer.modelJustification : ''])
     .filter((s): s is string => !!s && s.length >= 40)
     .map((s) => s.slice(0, 40));
   const bundle = texts.map((t) => t.s).join('\n');

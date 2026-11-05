@@ -10,6 +10,7 @@ import {
   BUCKET_CAPTURAS, destino, eliminarBorrador, MAX_BYTES_CAPTURA, MIME_CAPTURA, quitarCaptura, subirCaptura, verCaptura, type DepsCapturas,
 } from './capturas.ts';
 import { BUCKET_LABORATORIO, MAX_BYTES_CONTROL, MIME_CONTROL, subirControl, verControl } from './controles.ts';
+import { BUCKET_AUDIO, MAX_BYTES_AUDIO, MIME_AUDIO, purgarAudios, subirAudio, verAudio } from './audio.ts';
 import { BUCKET_CLASES, eliminarClase, MAX_BYTES_FOTO_CLASE, MAX_BYTES_MINIATURA, quitarFotoClase, subirFotoClase, verFotosClase } from './clases.ts';
 
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '*').split(',').map((s) => s.trim());
@@ -152,6 +153,33 @@ Deno.serve(async (req) => {
       },
     };
 
+    // Respuestas orales (migración 86): mismo patrón, otro bucket privado
+    const depsAudio: DepsCapturas = {
+      ...depsCapturas,
+      ensureBucket: async () => {
+        const { data } = await admin.storage.getBucket(BUCKET_AUDIO);
+        if (!data) {
+          const { error } = await admin.storage.createBucket(BUCKET_AUDIO, { public: false, fileSizeLimit: MAX_BYTES_AUDIO, allowedMimeTypes: [...MIME_AUDIO] });
+          if (error && !/exist/i.test(error.message)) throw error;
+        }
+      },
+      upload: async (path, bytes, mime) => {
+        const { error } = await admin.storage.from(BUCKET_AUDIO).upload(path, bytes, { contentType: mime, upsert: false });
+        if (!error) return 'nuevo';
+        if (/exist|duplicate/i.test(error.message)) return 'existe';
+        throw error;
+      },
+      remove: async (paths) => {
+        const { error } = await admin.storage.from(BUCKET_AUDIO).remove(paths);
+        if (error) throw error;
+      },
+      signedUrl: async (path, seconds) => {
+        const { data, error } = await admin.storage.from(BUCKET_AUDIO).createSignedUrl(path, seconds);
+        if (error || !data) throw error ?? new Error('Sin enlace');
+        return data.signedUrl;
+      },
+    };
+
     const tipo = req.headers.get('Content-Type') ?? '';
     let out: unknown;
     if (tipo.startsWith('multipart/form-data')) {
@@ -165,6 +193,11 @@ Deno.serve(async (req) => {
         const mini = m instanceof File && m.size <= MAX_BYTES_MINIATURA ? { bytes: new Uint8Array(await m.arrayBuffer()) } : null;
         out = await subirFotoClase({ session_id: form.get('session_id'), posicion: form.get('posicion'), sha_original: form.get('sha_original') },
           foto, mini, userData.user.id, depsClases);
+      } else if (form.get('modulo') === 'audio') {
+        const grabacion = f instanceof File && f.size <= MAX_BYTES_AUDIO ? { bytes: new Uint8Array(await f.arrayBuffer()) } : null;
+        if (f instanceof File && !grabacion) throw new HttpError(413, 'La grabación es demasiado grande');
+        out = await subirAudio({ attempt_id: form.get('attempt_id'), exercise_id: form.get('exercise_id'), duracion_ms: form.get('duracion_ms') },
+          grabacion, userData.user.id, depsAudio);
       } else if (form.get('modulo') === 'laboratorio') {
         const imagen = f instanceof File && f.size <= MAX_BYTES_CONTROL ? { bytes: new Uint8Array(await f.arrayBuffer()) } : null;
         if (f instanceof File && !imagen) throw new HttpError(413, 'La imagen es demasiado grande');
@@ -186,6 +219,8 @@ Deno.serve(async (req) => {
       else if (body?.action === 'captura_ver') out = await verCaptura(body.capture_id, userData.user.id, depsCapturas, destino(body.destino));
       else if (body?.action === 'captura_quitar') out = await quitarCaptura(body.capture_id, userData.user.id, depsCapturas, destino(body.destino));
       else if (body?.action === 'borrador_eliminar') out = await eliminarBorrador(body.declaration_id, userData.user.id, depsCapturas);
+      else if (body?.action === 'audio_ver') out = await verAudio(body.audio_id, userData.user.id, depsAudio);
+      else if (body?.action === 'audio_purgar') out = await purgarAudios(body.dias, userData.user.id, depsAudio);
       else if (body?.action === 'control_ver') out = await verControl(body.file_id, userData.user.id, depsLab);
       else if (body?.action === 'clase_fotos') out = await verFotosClase(body.session_id, userData.user.id, depsClases);
       else if (body?.action === 'clase_foto_quitar') out = await quitarFotoClase(body.image_id, userData.user.id, depsClases);
