@@ -1,4 +1,6 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
+import { lazyConRecarga } from '@/lib/recargaVersion';
+import { ErrorCarga } from '@/components/ErrorCarga';
 import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { Layout, RequireAuth, RequireTeacher } from '@/components/Layout';
@@ -7,65 +9,65 @@ import { supabaseConfigured } from '@/lib/supabase';
 import SinConfigurar from '@/pages/publico/SinConfigurar';
 import Bienvenida from '@/pages/publico/Bienvenida';
 import { Activar, CambiarClave, Ingresar, SinRegistro } from '@/pages/publico/Acceso';
-const Acerca = lazy(() => import('@/pages/publico/Acerca'));
+const Acerca = lazyConRecarga(() => import('@/pages/publico/Acerca'));
 
 // Estudiante
-const Inicio = lazy(() => import('@/pages/estudiante/Inicio'));
-const Unirse = lazy(() => import('@/pages/estudiante/Unirse'));
-const Temario = lazy(() => import('@/pages/estudiante/Temario'));
-const ElegirCurso = lazy(() => import('@/pages/estudiante/ElegirCurso'));
-const Leccion = lazy(() => import('@/pages/estudiante/Leccion'));
-const Actividad = lazy(() => import('@/pages/estudiante/Actividad'));
-const Intento = lazy(() => import('@/pages/estudiante/Intento'));
-const Calificaciones = lazy(() => import('@/pages/estudiante/Calificaciones'));
-const Ayuda = lazy(() => import('@/pages/Ayuda'));
-const Cuenta = lazy(() => import('@/pages/estudiante/Cuenta'));
-const Evaluaciones = lazy(() => import('@/pages/estudiante/Evaluaciones'));
-const PracticaExtraordinaria = lazy(() => import('@/pages/estudiante/PracticaExtraordinaria'));
-const Practicar = lazy(() => import('@/pages/estudiante/Evaluaciones').then((m) => ({ default: m.Practicar })));
-const Progreso = lazy(() => import('@/pages/estudiante/Progreso'));
-const Laboratorio = lazy(() => import('@/pages/estudiante/Laboratorio'));
-const Perfil = lazy(() => import('@/pages/estudiante/Perfil'));
-const Asistencia = lazy(() => import('@/pages/estudiante/Asistencia'));
-const Entregas = lazy(() => import('@/pages/estudiante/Entregas'));
-const Regularizacion = lazy(() => import('@/pages/estudiante/Regularizacion'));
-const Clases = lazy(() => import('@/pages/clases/Clases'));
-const ClaseDetalle = lazy(() => import('@/pages/clases/ClaseDetalle'));
-const RegistrarClase = lazy(() => import('@/pages/clases/RegistrarClase'));
-const ClaseAdmin = lazy(() => import('@/pages/docente/ClaseAdmin'));
+const Inicio = lazyConRecarga(() => import('@/pages/estudiante/Inicio'));
+const Unirse = lazyConRecarga(() => import('@/pages/estudiante/Unirse'));
+const Temario = lazyConRecarga(() => import('@/pages/estudiante/Temario'));
+const ElegirCurso = lazyConRecarga(() => import('@/pages/estudiante/ElegirCurso'));
+const Leccion = lazyConRecarga(() => import('@/pages/estudiante/Leccion'));
+const Actividad = lazyConRecarga(() => import('@/pages/estudiante/Actividad'));
+const Intento = lazyConRecarga(() => import('@/pages/estudiante/Intento'));
+const Calificaciones = lazyConRecarga(() => import('@/pages/estudiante/Calificaciones'));
+const Ayuda = lazyConRecarga(() => import('@/pages/Ayuda'));
+const Cuenta = lazyConRecarga(() => import('@/pages/estudiante/Cuenta'));
+const Evaluaciones = lazyConRecarga(() => import('@/pages/estudiante/Evaluaciones'));
+const PracticaExtraordinaria = lazyConRecarga(() => import('@/pages/estudiante/PracticaExtraordinaria'));
+const Practicar = lazyConRecarga(() => import('@/pages/estudiante/Evaluaciones').then((m) => ({ default: m.Practicar })));
+const Progreso = lazyConRecarga(() => import('@/pages/estudiante/Progreso'));
+const Laboratorio = lazyConRecarga(() => import('@/pages/estudiante/Laboratorio'));
+const Perfil = lazyConRecarga(() => import('@/pages/estudiante/Perfil'));
+const Asistencia = lazyConRecarga(() => import('@/pages/estudiante/Asistencia'));
+const Entregas = lazyConRecarga(() => import('@/pages/estudiante/Entregas'));
+const Regularizacion = lazyConRecarga(() => import('@/pages/estudiante/Regularizacion'));
+const Clases = lazyConRecarga(() => import('@/pages/clases/Clases'));
+const ClaseDetalle = lazyConRecarga(() => import('@/pages/clases/ClaseDetalle'));
+const RegistrarClase = lazyConRecarga(() => import('@/pages/clases/RegistrarClase'));
+const ClaseAdmin = lazyConRecarga(() => import('@/pages/docente/ClaseAdmin'));
 // Docente
-const InicioDocente = lazy(() => import('@/pages/docente/InicioDocente'));
-const Clase = lazy(() => import('@/pages/docente/Clase'));
-const PesEditor = lazy(() => import('@/pages/docente/PesEditor'));
-const PesSimulador = lazy(() => import('@/pages/docente/PesSimulador'));
-const Cursos = lazy(() => import('@/pages/docente/Cursos'));
-const CursoEditor = lazy(() => import('@/pages/docente/CursoEditor'));
-const LeccionEditor = lazy(() => import('@/pages/docente/LeccionEditor'));
-const Banco = lazy(() => import('@/pages/docente/Banco'));
-const GenerarPreguntas = lazy(() => import('@/pages/docente/GenerarPreguntas'));
-const CentroIA = lazy(() => import('@/pages/docente/CentroIA'));
-const EjercicioEditor = lazy(() => import('@/pages/docente/EjercicioEditor'));
-const ActividadEditor = lazy(() => import('@/pages/docente/ActividadEditor'));
-const CrearActividad = lazy(() => import('@/pages/docente/CrearActividad'));
-const VistaPrevia = lazy(() => import('@/pages/docente/VistaPrevia'));
-const VistaPanel = lazy(() => import('@/pages/docente/VistaPanel'));
-const RevisionIntento = lazy(() => import('@/pages/docente/RevisionIntento'));
-const TelemetriaIntento = lazy(() => import('@/pages/docente/TelemetriaIntento'));
-const TelemetriaPanel = lazy(() => import('@/pages/docente/TelemetriaPanel'));
-const RegularizacionDocente = lazy(() => import('@/pages/docente/Regularizacion'));
-const TelemetriaActividad = lazy(() => import('@/pages/docente/TelemetriaActividad'));
-const FichaEstudiante = lazy(() => import('@/pages/docente/FichaEstudiante'));
-const Lieia = lazy(() => import('@/pages/docente/lieia/Lieia'));
-const Cuentas = lazy(() => import('@/pages/docente/Cuentas'));
-const Analitica = lazy(() => import('@/pages/docente/Analitica'));
-const Comunicacion = lazy(() => import('@/pages/docente/Comunicacion'));
-const Seguridad = lazy(() => import('@/pages/docente/Seguridad'));
-const OrbeIaPanel = lazy(() => import('@/pages/docente/OrbeIa'));
-const RegistroCalificaciones = lazy(() => import('@/pages/docente/RegistroCalificaciones'));
-const Secretaria = lazy(() => import('@/pages/estudiante/Secretaria'));
-const Recuperar = lazy(() => import('@/pages/publico/Recuperar'));
-const Passkeys = lazy(() => import('@/pages/estudiante/Passkeys'));
-const GestionAcceso = lazy(() => import('@/pages/docente/GestionAcceso'));
+const InicioDocente = lazyConRecarga(() => import('@/pages/docente/InicioDocente'));
+const Clase = lazyConRecarga(() => import('@/pages/docente/Clase'));
+const PesEditor = lazyConRecarga(() => import('@/pages/docente/PesEditor'));
+const PesSimulador = lazyConRecarga(() => import('@/pages/docente/PesSimulador'));
+const Cursos = lazyConRecarga(() => import('@/pages/docente/Cursos'));
+const CursoEditor = lazyConRecarga(() => import('@/pages/docente/CursoEditor'));
+const LeccionEditor = lazyConRecarga(() => import('@/pages/docente/LeccionEditor'));
+const Banco = lazyConRecarga(() => import('@/pages/docente/Banco'));
+const GenerarPreguntas = lazyConRecarga(() => import('@/pages/docente/GenerarPreguntas'));
+const CentroIA = lazyConRecarga(() => import('@/pages/docente/CentroIA'));
+const EjercicioEditor = lazyConRecarga(() => import('@/pages/docente/EjercicioEditor'));
+const ActividadEditor = lazyConRecarga(() => import('@/pages/docente/ActividadEditor'));
+const CrearActividad = lazyConRecarga(() => import('@/pages/docente/CrearActividad'));
+const VistaPrevia = lazyConRecarga(() => import('@/pages/docente/VistaPrevia'));
+const VistaPanel = lazyConRecarga(() => import('@/pages/docente/VistaPanel'));
+const RevisionIntento = lazyConRecarga(() => import('@/pages/docente/RevisionIntento'));
+const TelemetriaIntento = lazyConRecarga(() => import('@/pages/docente/TelemetriaIntento'));
+const TelemetriaPanel = lazyConRecarga(() => import('@/pages/docente/TelemetriaPanel'));
+const RegularizacionDocente = lazyConRecarga(() => import('@/pages/docente/Regularizacion'));
+const TelemetriaActividad = lazyConRecarga(() => import('@/pages/docente/TelemetriaActividad'));
+const FichaEstudiante = lazyConRecarga(() => import('@/pages/docente/FichaEstudiante'));
+const Lieia = lazyConRecarga(() => import('@/pages/docente/lieia/Lieia'));
+const Cuentas = lazyConRecarga(() => import('@/pages/docente/Cuentas'));
+const Analitica = lazyConRecarga(() => import('@/pages/docente/Analitica'));
+const Comunicacion = lazyConRecarga(() => import('@/pages/docente/Comunicacion'));
+const Seguridad = lazyConRecarga(() => import('@/pages/docente/Seguridad'));
+const OrbeIaPanel = lazyConRecarga(() => import('@/pages/docente/OrbeIa'));
+const RegistroCalificaciones = lazyConRecarga(() => import('@/pages/docente/RegistroCalificaciones'));
+const Secretaria = lazyConRecarga(() => import('@/pages/estudiante/Secretaria'));
+const Recuperar = lazyConRecarga(() => import('@/pages/publico/Recuperar'));
+const Passkeys = lazyConRecarga(() => import('@/pages/estudiante/Passkeys'));
+const GestionAcceso = lazyConRecarga(() => import('@/pages/docente/GestionAcceso'));
 
 function Home() {
   const { session, loading } = useAuth();
@@ -93,6 +95,7 @@ export default function App() {
     <AuthProvider>
       <HashRouter>
         <ForzarCambioClave />
+        <ErrorCarga>
         <Suspense fallback={<div className="p-8"><Spinner /></div>}>
           <Routes>
             <Route element={<Layout />}>
@@ -168,6 +171,7 @@ export default function App() {
             </Route>
           </Routes>
         </Suspense>
+        </ErrorCarga>
       </HashRouter>
     </AuthProvider>
   );
