@@ -84,8 +84,10 @@ async function restaurar(db: pg.Client, dir: string, m: Manifiesto) {
     }
   }
   await db.query(`set session_replication_role = origin`);
-  // secuencias de columnas identidad
-  const seqs = await db.query(`select table_schema, table_name, column_name from information_schema.columns where table_schema='public' and is_identity='YES'`);
+  // secuencias de columnas identidad y serial/bigserial (default nextval): tras cargar filas con su id, el contador debe
+  // quedar por encima del máximo; si no, la primera inserción choca con una fila restaurada (p. ej. exam_integridad_eventos)
+  const seqs = await db.query(`select table_schema, table_name, column_name from information_schema.columns
+    where table_schema='public' and (is_identity='YES' or column_default like 'nextval(%')`);
   for (const s of seqs.rows) {
     await db.query(`select setval(pg_get_serial_sequence($1, $2), greatest(1, (select coalesce(max("${s.column_name}"), 0) from "${s.table_schema}"."${s.table_name}")))`, [
       `${s.table_schema}.${s.table_name}`,
