@@ -8,11 +8,24 @@ export const CATEGORIAS = [
 ] as const;
 export type Categoria = (typeof CATEGORIAS)[number]['id'];
 export type Notas = Partial<Record<Categoria, number | null>>;
+export interface CategoriaNota { id: Categoria; label: string; max: number }
+
+/** Asignaturas de LABORATORIO (courses.laboratorio_controles): sin examen final ni extras (migración 90). */
+export const CATEGORIAS_LABORATORIO: readonly CategoriaNota[] = [
+  { id: 'parcial1', label: 'Primer parcial', max: 20 },
+  { id: 'parcial2', label: 'Segundo parcial', max: 20 },
+  { id: 'parcial3', label: 'Tercer parcial', max: 30 },
+  { id: 'practica', label: 'Práctica', max: 30 },
+];
+/** Apartados del registro de una sección (igual que grade_category_max(p_class, …) en el servidor). */
+export function categoriasPara(laboratorio: boolean): readonly CategoriaNota[] {
+  return laboratorio ? CATEGORIAS_LABORATORIO : CATEGORIAS;
+}
 
 /** null/ausente = pendiente (no es 0). La nota final suma categorías y extras aprobados, con máximo 100. */
-export function calcularNota(notas: Notas, extras: number): { bruto: number; final: number; pendientes: Categoria[] } {
-  const pendientes = CATEGORIAS.filter((c) => notas[c.id] === null || notas[c.id] === undefined).map((c) => c.id);
-  const suma = CATEGORIAS.reduce((s, c) => s + (notas[c.id] ?? 0), 0) + Math.max(0, extras);
+export function calcularNota(notas: Notas, extras: number, cats: readonly CategoriaNota[] = CATEGORIAS): { bruto: number; final: number; pendientes: Categoria[] } {
+  const pendientes = cats.filter((c) => notas[c.id] === null || notas[c.id] === undefined).map((c) => c.id);
+  const suma = cats.reduce((s, c) => s + (notas[c.id] ?? 0), 0) + Math.max(0, extras);
   const bruto = Math.round(suma * 100) / 100;
   return { bruto, final: Math.min(100, bruto), pendientes };
 }
