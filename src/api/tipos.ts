@@ -422,6 +422,8 @@ export interface AttemptView {
     reveal_allowed: boolean;
     /** Migración 80: las preguntas no abiertas llegan como marcador hasta que el servidor las autorice. */
     reservadas?: boolean;
+    /** Migración 89: evaluación con soluciones «nunca» ya entregada: su autor no recibe preguntas ni respuestas. */
+    contenido_oculto?: boolean;
   };
   items: AttemptItem[];
 }
