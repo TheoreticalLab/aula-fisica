@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { CONSUMO, fetchConLimite } from '@/lib/consumo';
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -19,6 +20,9 @@ export const supabase: SupabaseClient = createClient(url ?? 'http://localhost:54
     detectSessionInUrl: true,
     storageKey: 'aula-fisica-sesion',
   },
+  // tiempo máximo por petición (modo de bajo consumo): con la base de datos saturada se muestra un error con
+  // «Reintentar» en lugar de un «Cargando» eterno
+  global: { fetch: fetchConLimite(CONSUMO.peticionTimeoutMs, CONSUMO.funcionTimeoutMs) },
 });
 
 /** URL base de la aplicación (sirve como destino de los enlaces de confirmación por correo). */
@@ -36,6 +40,7 @@ export function errorMessage(e: unknown): string {
     [/User already registered/i, 'Ya existe una cuenta con ese correo.'],
     [/Password should be at least/i, 'La contraseña debe tener al menos 8 caracteres.'],
     [/rate limit/i, 'Demasiados intentos. Espere unos minutos.'],
+    [/tardó demasiado en responder/i, 'El servidor está tardando en responder. Inténtelo de nuevo en unos segundos.'],
     [/Failed to fetch|NetworkError|Load failed/i, 'No hay conexión con el servidor. Compruebe su conexión a internet.'],
     [/JWT expired/i, 'Su sesión caducó. Vuelva a iniciar sesión.'],
     [/permission denied|row-level security/i, 'No tiene permiso para realizar esta acción.'],

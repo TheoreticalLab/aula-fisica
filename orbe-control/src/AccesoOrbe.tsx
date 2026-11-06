@@ -62,7 +62,7 @@ function Lista({ pestana, secciones, alCambiar }: { pestana: Exclude<Pestana, 'h
       setError(null);
     } catch (e) { setError(msg(e)); }
   }, [pestana, f]);
-  useEffect(() => { void cargar(); const t = setInterval(() => void cargar(), 15000); return () => clearInterval(t); }, [cargar]);
+  useEffect(() => { void cargar(); const t = setInterval(() => document.visibilityState === 'visible' && void cargar(), 15000); return () => clearInterval(t); }, [cargar]);
   const actores = useMemo(() => [...new Map((xs ?? []).filter((s) => s.aprobada_por).map((s) => [s.aprobada_por!, `${s.aprobada_por_nombre ?? '—'} (${ROL_TEXTO[s.aprobada_rol ?? ''] ?? ''})`])).entries()], [xs]);
   const terminar = async () => { setAccion(null); await cargar(); await alCambiar(); };
   return (

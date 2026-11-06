@@ -111,7 +111,7 @@ function Monitor({ practica }: { practica: string }) {
   }, [practica]);
   useEffect(() => {
     void cargar();
-    const t = setInterval(() => void cargar(), 20000), r = setInterval(() => setTic((x) => x + 1), 1000);
+    const t = setInterval(() => document.visibilityState === 'visible' && void cargar(), 20000), r = setInterval(() => setTic((x) => x + 1), 1000);
     return () => { clearInterval(t); clearInterval(r); };
   }, [cargar]);
   if (error) return <p className="error">{error}</p>;

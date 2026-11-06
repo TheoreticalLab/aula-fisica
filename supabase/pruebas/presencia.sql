@@ -74,9 +74,10 @@ begin
   if (public.presence_ping(gen_random_uuid(), true) ->> 'tracked')::boolean then raise exception 'FALLO: registró la presencia del profesor'; end if;
 end $$;
 
--- caducidad: sin señal en 75 s el estudiante deja de estar en línea; cerrar la pestaña borra la conexión
+-- caducidad: sin señal en 150 s (migración 87; antes 75 s) el estudiante deja de estar en línea; cerrar la pestaña
+-- borra la conexión
 reset role;
-update public.presence_connections set last_seen = now() - interval '2 minutes' where user_id = 'd2000000-0000-4000-8000-000000000012';
+update public.presence_connections set last_seen = now() - interval '4 minutes' where user_id = 'd2000000-0000-4000-8000-000000000012';
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"d2000000-0000-4000-8000-000000000011","role":"authenticated"}', true);
 select set_config('request.jwt.claim.sub', 'd2000000-0000-4000-8000-000000000011', true);

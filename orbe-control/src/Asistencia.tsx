@@ -72,7 +72,8 @@ export function Asistencia() {
   useEffect(() => {
     if (!activa) return;
     void cargar(activa).catch((e) => setError(e.message));
-    const t = window.setInterval(() => void cargar(activa).catch(() => undefined), 3000);
+    // con el panel oculto no se consulta (bajo consumo); al volver, el siguiente ciclo lo pone al día
+    const t = window.setInterval(() => document.visibilityState === 'visible' && void cargar(activa).catch(() => undefined), 3000);
     const s = window.setInterval(() => setTic((x) => x + 1), 1000);
     return () => { window.clearInterval(t); window.clearInterval(s); };
   }, [activa, cargar]);

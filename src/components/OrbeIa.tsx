@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
 import { supabaseConfigured } from '@/lib/supabase';
+import { CONSUMO } from '@/lib/consumo';
 import { contextoDeRuta } from '@/lib/tiempo';
 import { hayEmergente, suscribirEmergentes, useEmergente } from '@/lib/emergentes';
 import { apartadoVisible, debePreguntar, escribiendoAhora, siguienteIntento, type EventoOrbe } from '@/lib/orbeIa';
@@ -35,7 +36,8 @@ function elementoActivo() {
 export function OrbeIa() {
   const { session, profile } = useAuth();
   const location = useLocation();
-  const activo = supabaseConfigured && !!session && profile?.role === 'student' && profile.active !== false;
+  // bajo consumo: función secundaria apagada (consultas periódicas y llamadas a la IA durante las lecciones)
+  const activo = CONSUMO.orbeIaLecciones && supabaseConfigured && !!session && profile?.role === 'student' && profile.active !== false;
   const [chiste, setChiste] = useState<{ id: string; texto: string } | null>(null);
   // primera consulta tras un minuto en la página: el servidor exige además la actividad mínima configurada
   const st = useRef({ proximo: Date.now() + 60_000, apagadoHasta: 0, ultimaTecla: 0, ultimaReposicion: 0, evento: null as EventoOrbe | null, pidiendo: false });

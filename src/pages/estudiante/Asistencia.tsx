@@ -7,6 +7,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { marcarPresente, misAsistenciasAbiertas, miAsistencia, type AsistenciaAbiertaMia } from '@/api/asistencia';
 import { ubicacionActual } from '@/lib/ubicacion';
+import { CONSUMO, sondeo } from '@/lib/consumo';
 import { useAction, useAsync } from '@/lib/util';
 import { Card, ErrorBox, Notice, PageTitle, Spinner } from '@/components/ui';
 import { AsistenciaQuorum } from '@/components/AsistenciaQuorum';
@@ -22,12 +23,8 @@ export default function Asistencia() {
   const accion = useAction();
   const hist = useAsync(miAsistencia, []);
 
-  useEffect(() => {
-    const cargar = () => void misAsistenciasAbiertas().then(setAbiertas).catch(() => setAbiertas([]));
-    cargar();
-    const t = window.setInterval(cargar, 15_000);
-    return () => window.clearInterval(t);
-  }, []);
+  // con la pestaña visible (y al volver a ella); antes cada 15 s aunque estuviera oculta
+  useEffect(() => sondeo(() => void misAsistenciasAbiertas().then(setAbiertas).catch(() => setAbiertas((a) => a ?? [])), CONSUMO.botonAsistenciaMs, { minimoMs: 2_000 }), []);
   const [deQuorum, setDeQuorum] = useState<Set<string>>(new Set());
   const conCodigo = (abiertas ?? []).filter((a) => !deQuorum.has(a.session_id));
   const pendientes = conCodigo.filter((a) => !a.presente);

@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '@/auth/AuthContext';
 import { rpc, supabase, supabaseConfigured } from '@/lib/supabase';
 import { useEmergente } from '@/lib/emergentes';
+import { CONSUMO } from '@/lib/consumo';
 
 interface Bloqueo { id: string; body: string; sender_name: string; created_at: string; locked_until: string | null }
 
@@ -40,7 +41,9 @@ export function BloqueoPantalla() {
       .channel(`bloqueo-${uid}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'screen_locks', filter: `user_id=eq.${uid}` }, () => void consultar())
       .subscribe((e) => e === 'SUBSCRIBED' && void consultar());
-    const t = window.setInterval(() => void consultar(), 20_000);
+    // respaldo por si el canal Realtime se cae (el bloqueo llega por el canal al instante); con la pestaña oculta no
+    // hace falta: al volver se consulta enseguida
+    const t = window.setInterval(() => document.visibilityState === 'visible' && void consultar(), CONSUMO.bloqueoPantallaMs);
     const vis = () => document.visibilityState === 'visible' && void consultar();
     document.addEventListener('visibilitychange', vis);
     window.addEventListener('online', vis);

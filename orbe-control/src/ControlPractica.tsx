@@ -68,7 +68,7 @@ export function ControlPractica({ classId, attendanceId }: { classId: string; at
   useEffect(() => {
     if (!sesion) { setV(null); return; }
     void cargar(sesion).catch((e) => setError(e.message));
-    const t = window.setInterval(() => void cargar(sesion).catch(() => undefined), 4000);
+    const t = window.setInterval(() => document.visibilityState === 'visible' && void cargar(sesion).catch(() => undefined), 4000);
     const s = window.setInterval(() => setTic((x) => x + 1), 1000);
     return () => { window.clearInterval(t); window.clearInterval(s); };
   }, [sesion, cargar]);

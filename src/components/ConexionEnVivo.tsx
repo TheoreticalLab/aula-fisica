@@ -1,15 +1,17 @@
 /**
  * Latido de CONEXIÓN del estudiante (para Orbe Control y el Centro de Comunicación).
- * Cada pestaña abierta del aula avisa cada 25 s que sigue conectada, esté o no interactuando (eso lo mide aparte
- * el seguimiento de tiempo). Al volver la conexión o la pestaña se avisa de inmediato; al cerrar la pestaña se
- * intenta borrar la conexión. Si el navegador se cierra de golpe, el servidor la da por perdida a los 75 s.
+ * Cada pestaña abierta del aula avisa cada `CONSUMO.presenciaMs` (50 s; antes 25 s) que sigue conectada, esté o no
+ * interactuando (eso lo mide aparte el seguimiento de tiempo). Al volver la conexión o la pestaña se avisa de inmediato;
+ * al cerrar la pestaña se intenta borrar la conexión. Si el navegador se cierra de golpe, el servidor la da por perdida
+ * a los 150 s (migración 87; antes 75 s). El servidor descarta los latidos duplicados (< 5 s).
  * El servidor toma el usuario de la sesión: no se puede registrar la presencia de otra persona.
  */
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/auth/AuthContext';
 import { SUPABASE_ANON_KEY, SUPABASE_URL, supabase, supabaseConfigured } from '@/lib/supabase';
+import { CONSUMO } from '@/lib/consumo';
 
-const INTERVALO_MS = 25_000;
+const INTERVALO_MS = CONSUMO.presenciaMs;
 
 export function ConexionEnVivo() {
   const { session, profile } = useAuth();
@@ -21,9 +23,14 @@ export function ConexionEnVivo() {
   useEffect(() => {
     if (!activo) return;
     let parado = false;
-    const ping = () => {
+    let ultimo = { t: 0, visible: null as boolean | null };
+    const ping = (ev?: Event) => {
       if (parado) return;
-      void supabase.rpc('presence_ping', { p_conn: conn.current, p_visible: document.visibilityState === 'visible' }).then(({ data }) => {
+      const visible = document.visibilityState === 'visible';
+      // un evento (pestaña, red) sin cambio de visibilidad justo después de otro latido no aporta nada
+      if (ev && visible === ultimo.visible && Date.now() - ultimo.t < 5_000) return;
+      ultimo = { t: Date.now(), visible };
+      void supabase.rpc('presence_ping', { p_conn: conn.current, p_visible: visible }).then(({ data }) => {
         if (data && (data as { tracked?: boolean }).tracked === false) parado = true; // no es estudiante
       });
     };
@@ -38,7 +45,7 @@ export function ConexionEnVivo() {
       }).catch(() => undefined);
     };
     ping();
-    const t = window.setInterval(ping, INTERVALO_MS);
+    const t = window.setInterval(() => ping(), INTERVALO_MS);
     document.addEventListener('visibilitychange', ping);
     window.addEventListener('online', ping);
     window.addEventListener('pagehide', salir);

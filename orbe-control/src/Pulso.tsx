@@ -36,7 +36,7 @@ export function Pulso({ secciones }: { secciones: [string, string][] }) {
   useEffect(() => {
     setIa(null);
     void cargar();
-    const t = window.setInterval(() => void cargar(), 20_000);
+    const t = window.setInterval(() => document.visibilityState === 'visible' && void cargar(), 20_000);
     return () => window.clearInterval(t);
   }, [cargar]);
 

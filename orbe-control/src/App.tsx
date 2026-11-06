@@ -8,7 +8,8 @@ import { configurado, ingresar, rpc, supabase } from './supabase';
 import { Asistencia } from './Asistencia';
 import { ControlTab } from './ControlPractica';
 import { ClasesImpartidas } from './ClasesImpartidas';
-import { agrupar, combinarTodos, edadSenal, estadoSync, filtrar, haceTexto, personalizar, primerNombre, unicos, type Alumno, type EnLinea, type Fila } from './logica';
+import { agrupar, aplicarCambioPresencia, combinarTodos, edadSenal, estadoSync, filtrar, haceTexto, personalizar, primerNombre, unicos, type Alumno, type CambioPresencia, type EnLinea, type Fila } from './logica';
+import { CONSUMO, sondeo } from '../../src/lib/consumo';
 import { pedirIA } from './ia';
 import { Pulso } from './Pulso';
 import { Pregunta } from './Pregunta';
@@ -241,13 +242,11 @@ function Panel({ nombre }: { nombre: string }) {
       ])
         .then(([a, b]) => setAlertas([...a, ...b].filter((x) => x.severidad === 'alta' || x.severidad === 'critica')))
         .catch(() => setAlertas([]));
-    void cargarAlertas();
-    const t = window.setInterval(cargarAlertas, 120_000);
-    return () => window.clearInterval(t);
+    // bajo consumo: cada 15 min y solo con el panel a la vista (antes cada 2 min, también de noche con la pestaña oculta)
+    return sondeo(() => void cargarAlertas(), CONSUMO.controlAlertasMs, { minimoMs: 60_000 });
   }, []);
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
   const [ultimas, setUltimas] = useState<Map<string, string | null>>(new Map());
-  const espera = useRef<number | undefined>(undefined);
 
   // todos mis estudiantes y su última señal conocida (para la vista «Todos»)
   const cargarTodos = useCallback(async () => {
@@ -266,9 +265,7 @@ function Panel({ nombre }: { nombre: string }) {
   useEffect(() => { void cargarTodos(); }, [cargarTodos]);
   useEffect(() => {
     if (vista !== 'todos') return;
-    void cargarTodos();
-    const t = window.setInterval(() => void cargarTodos(), 60_000);
-    return () => window.clearInterval(t);
+    return sondeo(() => void cargarTodos(), 60_000, { minimoMs: 5_000 });
   }, [vista, cargarTodos]);
 
   const cargar = useCallback(async () => {
@@ -290,10 +287,22 @@ function Panel({ nombre }: { nombre: string }) {
       /* sin conexión */
     }
   }, []);
-  const pronto = useCallback(() => {
-    window.clearTimeout(espera.current);
-    espera.current = window.setTimeout(() => void cargar(), 600);
-  }, [cargar]);
+  // recargas agrupadas: como mucho una cada `controlAgruparMs` (la primera enseguida, la última al final del intervalo)
+  const agruparRecarga = useCallback((f: () => void, estado: { t: number; pendiente?: number }) => {
+    const ahora = Date.now(), falta = estado.t + CONSUMO.controlAgruparMs - ahora;
+    if (falta <= 0) { estado.t = ahora; f(); return; }
+    if (estado.pendiente === undefined) estado.pendiente = window.setTimeout(() => { estado.pendiente = undefined; estado.t = Date.now(); f(); }, falta);
+  }, []);
+  const recargaLista = useRef<{ t: number; pendiente?: number }>({ t: 0 });
+  const recargaHistorial = useRef<{ t: number; pendiente?: number }>({ t: 0 });
+  const listaRef = useRef<EnLinea[]>([]);
+  listaRef.current = lista;
+  const pronto = useCallback((c: CambioPresencia) => {
+    // un latido sin cambios visibles solo actualiza la «última señal» en memoria; lo demás recarga (agrupado)
+    const r = aplicarCambioPresencia(listaRef.current, c);
+    if (r.lista !== listaRef.current) { listaRef.current = r.lista; setLista(r.lista); }
+    if (r.recargar) agruparRecarga(() => void cargar(), recargaLista.current);
+  }, [agruparRecarga, cargar]);
 
   useEffect(() => {
     void cargar();
@@ -301,28 +310,33 @@ function Panel({ nombre }: { nombre: string }) {
     // Realtime: cada conexión/desconexión de un estudiante (RLS: solo los míos) y cada cambio de estado de un mensaje
     const canal = supabase
       .channel('orbe-control')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'presence_connections' }, pronto)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_message_recipients' }, () => void cargarHistorial())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'presence_connections' }, (p) => pronto(p as unknown as CambioPresencia))
+      // un mensaje a toda la clase produce dos cambios por estudiante (entregado, leído): una recarga agrupada
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_message_recipients' }, () => agruparRecarga(() => void cargarHistorial(), recargaHistorial.current))
       .subscribe((estado) => {
         if (estado === 'SUBSCRIBED') void cargar();
       });
-    const t1 = window.setInterval(() => void cargar(), 10_000); // respaldo si Realtime se interrumpe
+    // respaldos por si Realtime se interrumpe: solo con el panel a la vista (al volver se consulta enseguida)
+    const visible = () => !CONSUMO.pausarOculto || document.visibilityState === 'visible';
+    const t1 = window.setInterval(() => visible() && void cargar(), CONSUMO.controlOnlineMs);
     const t2 = window.setInterval(() => setTic((x) => x + 1), 1_000); // «hace X segundos» y caducidad
-    const t3 = window.setInterval(() => void cargarHistorial(), 20_000);
+    const t3 = window.setInterval(() => visible() && void cargarHistorial(), CONSUMO.controlHistorialMs);
     const on = () => { setRed(true); void cargar(); };
     const off = () => setRed(false);
-    const vis = () => document.visibilityState === 'visible' && void cargar();
+    const vis = () => { if (document.visibilityState === 'visible') { void cargar(); void cargarHistorial(); } };
     window.addEventListener('online', on);
     window.addEventListener('offline', off);
     document.addEventListener('visibilitychange', vis);
+    const pendientes = [recargaLista.current, recargaHistorial.current];
     return () => {
       void supabase.removeChannel(canal);
       [t1, t2, t3].forEach((t) => window.clearInterval(t));
+      pendientes.forEach((e) => { window.clearTimeout(e.pendiente); e.pendiente = undefined; });
       window.removeEventListener('online', on);
       window.removeEventListener('offline', off);
       document.removeEventListener('visibilitychange', vis);
     };
-  }, [cargar, cargarHistorial, pronto]);
+  }, [cargar, cargarHistorial, pronto, agruparRecarga]);
 
   // destinatarios de un mensaje personalizado ({nombre}): los conectados ahora o todos los de la sección
   const destinatarios = useCallback(async (d: Destino) => {

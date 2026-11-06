@@ -109,7 +109,7 @@ export default function Intento() {
   if (usaMotor && apertura.data?.modo === 'una_a_la_vez') {
     const servidor = apertura.data;
     return (
-      <TelemetriaProvider attemptId={attempt.id} activo>
+      <TelemetriaProvider attemptId={attempt.id} activo examen>
         <PageTitle title={activity?.title ?? 'Evaluación'} subtitle={<Badge tone="purple">Evaluación · una pregunta a la vez</Badge>}
           back={activity && !vigilar ? { to: `/actividad/${activity.id}`, label: 'Actividad' } : undefined}
           actions={vigilar && activity ? <BotonSalirExamen attemptId={attempt.id} onAutorizada={() => { setSaliendo(true); navegar(`/actividad/${activity.id}`); }} /> : undefined} />
@@ -152,7 +152,7 @@ export default function Intento() {
   }
 
   return (
-    <TelemetriaProvider attemptId={attempt.id} activo={flags.is_owner && attempt.status === 'in_progress'}>
+    <TelemetriaProvider attemptId={attempt.id} activo={flags.is_owner && attempt.status === 'in_progress'} examen={attempt.mode === 'exam'}>
     <div className="mx-auto max-w-3xl">
       <PageTitle
         title={activity?.title ?? view.lesson?.title ?? 'Intento'}

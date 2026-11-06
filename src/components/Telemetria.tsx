@@ -9,6 +9,7 @@ import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL, supabaseConfigured } from '@
 import { ColaTelemetria, type EventoTelemetria, type ResultadoEnvio } from '@/lib/telemetria/cola';
 import { Rastreador } from '@/lib/telemetria/rastreador';
 import { ColaV2, CONFIG_V2, RastreadorV2, type EventoV2, type ResultadoEnvioV2 } from '@/lib/telemetria/v2/cliente';
+import { CONSUMO } from '@/lib/consumo';
 
 const Ctx = createContext<Rastreador | null>(null);
 export const useTelemetria = () => useContext(Ctx);
@@ -77,16 +78,21 @@ function pestana(): string {
   } catch { return 'desconocida'; }
 }
 
-export function TelemetriaProvider({ attemptId, activo, children }: { attemptId: string; activo: boolean; children: ReactNode }) {
+export function TelemetriaProvider({ attemptId, activo, examen = false, children }: { attemptId: string; activo: boolean; examen?: boolean; children: ReactNode }) {
+  // V2 activa en la asignatura: null mientras no se sabe (lo dice el servidor al sincronizar)
+  const [v2Activa, setV2Activa] = useState<boolean | null>(null);
+  // Bajo consumo: en PRÁCTICAS con V2 activa no se envía también V1 (duplicaba casi todos los eventos y escrituras).
+  // En exámenes V1 sigue siempre. Si la sincronización falla, se usa V1 (lo seguro: no quedarse sin registro).
+  const usarV1 = activo && (examen || CONSUMO.telemetriaV1ConV2EnPracticas || v2Activa === false);
   const ref = useRef<{ cola: ColaTelemetria; r: Rastreador } | null>(null);
   const rastreador = useMemo(() => {
-    if (!activo || !supabaseConfigured) return null;
+    if (!usarV1 || !supabaseConfigured) return null;
     vigilarToken();
     const cola = new ColaTelemetria({ almacen, enviar, monotonico: () => performance.now(), pared: () => Date.now(), uuid: () => crypto.randomUUID() });
     const r = new Rastreador(cola, attemptId);
     ref.current = { cola, r };
     return r;
-  }, [attemptId, activo]);
+  }, [attemptId, usarV1]);
 
   useEffect(() => {
     const x = ref.current;
@@ -111,7 +117,8 @@ export function TelemetriaProvider({ attemptId, activo, children }: { attemptId:
     window.addEventListener('pagehide', salida);
     for (const ev of ['pointerdown', 'keydown', 'scroll', 'touchstart'] as const) window.addEventListener(ev, actividad, { passive: true });
     const t1 = window.setInterval(() => x.r.tick(), 1000);
-    const t2 = window.setInterval(() => vaciar(), 10_000);
+    // lotes cada `telemetriaVaciadoMs` (30 s en bajo consumo; antes 10 s) y siempre al ocultar o cerrar la página
+    const t2 = window.setInterval(() => vaciar(), CONSUMO.telemetriaVaciadoMs);
     vaciar();
     return () => {
       x.r.salida();
@@ -133,11 +140,14 @@ export function TelemetriaProvider({ attemptId, activo, children }: { attemptId:
   useEffect(() => {
     if (!activo || !supabaseConfigured) return;
     let vivo = true;
+    setV2Activa(null);
     void sincronizarV2(attemptId, null, null).then((on) => {
-      if (!vivo || !on) return;
+      if (!vivo) return;
+      setV2Activa(on);
+      if (!on) return;
       const cola = new ColaV2({ almacen, enviar: (l) => enviarV2(l, document.visibilityState === 'hidden'), monotonico: () => performance.now(), pared: () => Date.now(), uuid: () => crypto.randomUUID(), tab: pestanaUuid() });
       setV2({ cola, r: new RastreadorV2(cola, attemptId) });
-    }).catch(() => undefined);
+    }).catch(() => { if (vivo) setV2Activa(false); });
     return () => { vivo = false; };
   }, [attemptId, activo]);
 
@@ -166,7 +176,7 @@ export function TelemetriaProvider({ attemptId, activo, children }: { attemptId:
     window.addEventListener('pageshow', reanudada);
     for (const ev of ['pointerdown', 'keydown', 'scroll', 'touchstart'] as const) window.addEventListener(ev, actividad, { passive: true });
     const t1 = window.setInterval(() => r.tick(), 1000);
-    const t2 = window.setInterval(() => vaciar(), 10_000);
+    const t2 = window.setInterval(() => vaciar(), CONSUMO.telemetriaVaciadoMs);
     const t3 = window.setInterval(() => void sincronizarV2(attemptId, cola, r).catch(() => undefined), CONFIG_V2.sincronizacionMs);
     return () => {
       r.salida();

@@ -24,7 +24,7 @@ export function EnVivo({ id, onCerrada }: { id: string; onCerrada: () => void })
   }
   useEffect(() => {
     void accion.run(cargar);
-    const t = window.setInterval(() => void cargar().catch(() => undefined), 4000);
+    const t = window.setInterval(() => document.visibilityState === 'visible' && void cargar().catch(() => undefined), 4000);
     const s = window.setInterval(() => setTick((x) => x + 1), 1000);
     return () => { window.clearInterval(t); window.clearInterval(s); };
     // eslint-disable-next-line react-hooks/exhaustive-deps

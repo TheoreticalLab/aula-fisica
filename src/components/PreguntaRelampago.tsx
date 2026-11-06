@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/auth/AuthContext';
 import { rpc, SUPABASE_ANON_KEY, SUPABASE_URL, supabase, supabaseConfigured } from '@/lib/supabase';
 import { useEmergente } from '@/lib/emergentes';
+import { CONSUMO } from '@/lib/consumo';
 import { debeBloquearAlSalir, ESPERA_SIN_FOCO_MS, LETRAS, segundosQuedan, type PreguntaAbierta } from '@/lib/pregunta';
 
 const SALIDA = 'aula-pregunta-salida';
@@ -63,7 +64,8 @@ export function PreguntaRelampago() {
       .channel(`pregunta-${uid}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quick_poll_recipients', filter: `user_id=eq.${uid}` }, () => void consultar())
       .subscribe((estado) => { if (estado === 'SUBSCRIBED') void consultar(); });
-    const t = window.setInterval(() => void consultar(), 15_000);
+    // respaldo del canal Realtime (la pregunta llega por el canal al instante); al volver a la pestaña se consulta
+    const t = window.setInterval(() => document.visibilityState === 'visible' && void consultar(), CONSUMO.preguntaRelampagoMs);
     const alVolver = () => {
       if (document.visibilityState !== 'visible') return;
       let salida: string | null = null;

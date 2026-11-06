@@ -1,8 +1,9 @@
 /**
  * Botón «Asistencia» del inicio del estudiante. Gris e inactivo si el profesor no ha abierto la asistencia;
- * resaltado cuando hay una abierta en una de sus secciones. Se actualiza solo cada 20 s.
+ * resaltado cuando hay una abierta en una de sus secciones. Se actualiza solo (`CONSUMO.botonAsistenciaMs`, pestaña visible).
  */
 import { useEffect, useState } from 'react';
+import { CONSUMO, sondeo } from '@/lib/consumo';
 import { Link } from 'react-router-dom';
 import { misAsistenciasAbiertas, type AsistenciaAbiertaMia } from '@/api/asistencia';
 
@@ -10,11 +11,8 @@ export function BotonAsistencia() {
   const [abiertas, setAbiertas] = useState<AsistenciaAbiertaMia[]>([]);
   useEffect(() => {
     let vivo = true;
-    const cargar = () => document.visibilityState === 'visible' && void misAsistenciasAbiertas().then((d) => vivo && setAbiertas(d)).catch(() => undefined);
-    cargar();
-    const t = window.setInterval(cargar, 20_000);
-    document.addEventListener('visibilitychange', cargar);
-    return () => { vivo = false; window.clearInterval(t); document.removeEventListener('visibilitychange', cargar); };
+    const parar = sondeo(() => void misAsistenciasAbiertas().then((d) => vivo && setAbiertas(d)).catch(() => undefined), CONSUMO.botonAsistenciaMs, { minimoMs: 2_000 });
+    return () => { vivo = false; parar(); };
   }, []);
   const pendientes = abiertas.filter((a) => !a.presente);
   const presente = abiertas.length > 0 && pendientes.length === 0;

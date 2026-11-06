@@ -16,7 +16,9 @@ import { PantallaBloqueo, useBloqueoRegularizacion } from '@/components/BloqueoR
 import { AprenderTabs } from '@/components/clases/Componentes';
 import { AVISO_PRIVACIDAD } from '@/lib/tiempo';
 import { useTema } from '@/lib/tema';
-import { Spinner } from './ui';
+import { ErrorBox, Spinner } from './ui';
+import { errorMessage } from '@/lib/supabase';
+import { CONSUMO, hechaHaceMenosDe, marcarHecha } from '@/lib/consumo';
 
 function Logo() {
   return (
@@ -53,7 +55,7 @@ const topLink = ({ isActive }: { isActive: boolean }) =>
   `rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-white/15 text-white' : 'text-primario-100 hover:bg-white/10'}`;
 
 export function Layout() {
-  const { session, profile, isTeacher, isAdmin, signOut, loading, refreshProfile } = useAuth();
+  const { session, profile, profileError, isTeacher, isAdmin, signOut, loading, refreshProfile } = useAuth();
   const navegar = useNavigate();
   // Bienvenida animada: una vez por inicio de sesión (la clave cambia con cada nuevo inicio de sesión)
   const claveIntro = session ? `aula-intro:${session.user.id}:${session.user.last_sign_in_at ?? ''}` : '';
@@ -97,7 +99,13 @@ export function Layout() {
       } else setInactividad(null);
     });
     comprobar();
-    const alVolver = () => { if (document.visibilityState === 'visible') comprobar(); };
+    marcarHecha('cuenta_presencia');
+    // al volver a la pestaña, como mucho una vez cada 5 min (el servidor tampoco escribe más a menudo)
+    const alVolver = () => {
+      if (document.visibilityState !== 'visible' || hechaHaceMenosDe('cuenta_presencia', CONSUMO.cuentaPresenciaMinMs)) return;
+      marcarHecha('cuenta_presencia');
+      comprobar();
+    };
     document.addEventListener('visibilitychange', alVolver);
     return () => document.removeEventListener('visibilitychange', alVolver);
   }, [session, profile?.role, profile?.active]);
@@ -181,7 +189,11 @@ export function Layout() {
         </div>
       </header>
       <main id="contenido" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-5 outline-none md:pb-10">
-        {session && profile && !profile.active ? (
+        {session && !profile && profileError ? (
+          <div className="mx-auto max-w-md">
+            <ErrorBox error={`No se pudo cargar su cuenta: ${errorMessage(profileError)}`} onRetry={() => void refreshProfile()} />
+          </div>
+        ) : session && profile && !profile.active ? (
           <div className="mx-auto max-w-md tarjeta text-center">
             <h1 className="mb-2 font-serif text-xl font-semibold">{inactividad ? 'Cuenta suspendida por inactividad' : 'Cuenta no habilitada'}</h1>
             {inactividad ? (
@@ -277,7 +289,8 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 export function RequireTeacher({ children }: { children: ReactNode }) {
-  const { session, isTeacher, profile, loading } = useAuth();
+  const { session, isTeacher, profile, profileError, loading, refreshProfile } = useAuth();
+  if (session && !profile && profileError) return <ErrorBox error={errorMessage(profileError)} onRetry={() => void refreshProfile()} />;
   if (loading || (session && !profile)) return <Spinner />;
   if (!session) return <Navigate to="/ingresar" replace />;
   if (!isTeacher) return <p className="py-8 text-center">Esta sección es solo para profesores.</p>;

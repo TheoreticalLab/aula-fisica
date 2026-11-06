@@ -29,7 +29,7 @@ export function MonitorPes({ practica }: { practica: string }) {
   const [abierto, setAbierto] = useState<string | null>(null);
   const [, setTic] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => { void m.reload(); }, 20000);
+    const t = setInterval(() => { if (document.visibilityState === 'visible') void m.reload(); }, 20000);
     const r = setInterval(() => setTic((x) => x + 1), 1000);
     return () => { clearInterval(t); clearInterval(r); };
   }, [practica]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -15,8 +15,35 @@ export interface EnLinea {
   activity_title: string | null;
 }
 
-/** Segundos tras los cuales una señal deja de contar (igual que en el servidor). */
-export const EXPIRA_S = 75;
+/** Segundos tras los cuales una señal deja de contar (igual que en el servidor: migración 87, latido cada 50 s). */
+export const EXPIRA_S = 150;
+
+/** Cambio de `presence_connections` recibido por Realtime (solo lo que se usa). */
+export interface CambioPresencia {
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE' | string;
+  new?: { user_id?: string; visible?: boolean; last_seen?: string } | null;
+}
+
+/**
+ * Qué hacer con un cambio de presencia, sin consultar la base de datos cuando no hace falta:
+ *  · un latido (UPDATE) de alguien que ya está en la lista y no cambia su visibilidad → solo se actualiza su «última
+ *    señal» en memoria (antes: una consulta completa de control_online por cada latido de cada estudiante);
+ *  · altas, bajas, estudiantes nuevos y cambios de visibilidad → recargar la lista (agrupado).
+ */
+export function aplicarCambioPresencia(lista: EnLinea[], c: CambioPresencia): { recargar: boolean; lista: EnLinea[] } {
+  const n = c.new ?? {};
+  if (c.eventType !== 'UPDATE' || !n.user_id || typeof n.visible !== 'boolean' || !n.last_seen) return { recargar: true, lista };
+  const i = lista.findIndex((x) => x.user_id === n.user_id);
+  if (i < 0) return { recargar: true, lista };
+  const actual = lista[i];
+  // varias pestañas: la visibilidad agregada es «alguna visible»; si esta conexión pasa a oculta con otras abiertas,
+  // o cambia, se recarga para no adivinar
+  if (n.visible !== actual.visible) return { recargar: true, lista };
+  if (new Date(n.last_seen).getTime() <= new Date(actual.last_seen).getTime()) return { recargar: false, lista };
+  const copia = lista.slice();
+  copia[i] = { ...actual, last_seen: n.last_seen };
+  return { recargar: false, lista: copia };
+}
 
 /** Edad de la última señal en segundos, con el reloj del SERVIDOR (offset = servidor − local). */
 export function edadSenal(lastSeen: string, offsetMs: number, ahoraLocal = Date.now()): number {

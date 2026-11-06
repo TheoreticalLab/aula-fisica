@@ -13,6 +13,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { rpc, supabase, supabaseConfigured } from '@/lib/supabase';
 import { ETIQUETA_TIPO, fusionarCola, porMarcarRecibidos, type MensajeVivo } from '@/lib/mensajes';
 import { useEmergente } from '@/lib/emergentes';
+import { CONSUMO } from '@/lib/consumo';
 import { TarjetaEmergente } from './Emergente';
 import { AvisoConfirmado } from './AvisoConfirmado';
 
@@ -105,7 +106,8 @@ export function ReceptorMensajes() {
     const enLinea = () => void recuperar();
     document.addEventListener('visibilitychange', alVolver);
     window.addEventListener('online', enLinea);
-    const t = window.setInterval(() => void recuperar(), 60_000);
+    // respaldo del canal Realtime; con la pestaña oculta no (al volver se recupera enseguida)
+    const t = window.setInterval(() => document.visibilityState === 'visible' && void recuperar(), CONSUMO.mensajesMs);
     return () => {
       void supabase.removeChannel(canal);
       document.removeEventListener('visibilitychange', alVolver);

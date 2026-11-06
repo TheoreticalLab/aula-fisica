@@ -4,6 +4,7 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import { contextoAcceso } from '../../src/lib/instalacion';
+import { CONSUMO, fetchConLimite } from '../../src/lib/consumo';
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -11,6 +12,8 @@ export const configurado = !!url && !!anon && !url.includes('xxxxxxxx');
 
 export const supabase = createClient(url ?? 'http://localhost:54321', anon ?? 'sin-configurar', {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'orbe-control-sesion' },
+  // tiempo máximo por petición: con la base de datos saturada, error y reintento en vez de esperar sin fin
+  global: { fetch: fetchConLimite(CONSUMO.peticionTimeoutMs, CONSUMO.funcionTimeoutMs) },
 });
 
 export async function rpc<T>(fn: string, args?: Record<string, unknown>): Promise<T> {

@@ -3,9 +3,10 @@
  * anteriores en una sección con el bloqueo activado, el aula muestra solo esta pantalla (salvo la propia regularización
  * y el cambio de contraseña). El servidor ya rechaza todo lo demás (my_account_ok); esto es la explicación visible.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { miBloqueo, type SeccionBloqueo } from '@/api/regularizacion';
+import { CONSUMO } from '@/lib/consumo';
 
 export const EVENTO_REGULARIZACION = 'aula:regularizacion-cambio';
 const PERMITIDAS = /^\/(practicas-anteriores|cambiar-clave)(\/|$)/;
@@ -20,11 +21,18 @@ export function useBloqueoRegularizacion(activo: boolean) {
     window.addEventListener(EVENTO_REGULARIZACION, f);
     return () => window.removeEventListener(EVENTO_REGULARIZACION, f);
   }, []);
+  // modo de bajo consumo: al cambiar de página solo se vuelve a consultar si pasó un rato (el servidor ya impone el
+  // bloqueo en cada petición; esto es la explicación visible). Al terminar una regularización (rev) se consulta siempre.
+  const consulta = useRef({ t: 0, rev: -1, n: 0 });
+  useEffect(() => () => { consulta.current.n++; }, []); // al desmontar se descartan las respuestas pendientes
   useEffect(() => {
-    if (!activo) { setSecciones([]); return; }
-    let vivo = true;
-    miBloqueo().then((s) => vivo && setSecciones(s)).catch(() => undefined);
-    return () => { vivo = false; };
+    if (!activo) { setSecciones([]); consulta.current = { t: 0, rev: -1, n: consulta.current.n + 1 }; return; }
+    const ahora = Date.now();
+    if (consulta.current.rev === rev && ahora - consulta.current.t < CONSUMO.minEntreConsultasRutaMs) return;
+    const n = consulta.current.n + 1;
+    consulta.current = { t: ahora, rev, n };
+    // la respuesta vale mientras no haya otra consulta más nueva (no se descarta por cambiar de página)
+    miBloqueo().then((s) => consulta.current.n === n && setSecciones(s)).catch(() => undefined);
   }, [activo, pathname, rev]);
   return { bloqueado: secciones.length > 0, secciones, permitida: PERMITIDAS.test(pathname) };
 }

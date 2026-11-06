@@ -26,7 +26,7 @@ export function ClasesImpartidas({ secciones }: { secciones: [string, string][] 
       setError(null);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   }, [secciones]);
-  useEffect(() => { void cargar(); const t = window.setInterval(() => void cargar(), 20_000); return () => window.clearInterval(t); }, [cargar]);
+  useEffect(() => { void cargar(); const t = window.setInterval(() => document.visibilityState === 'visible' && void cargar(), 20_000); return () => window.clearInterval(t); }, [cargar]);
   const verFotos = async (id: string) => {
     if (fotos[id]) return setFotos((f) => { const { [id]: _, ...r } = f; return r; });
     try { const r = await funcion<{ fotos: Foto[] }>('entregas', { action: 'clase_fotos', session_id: id }); setFotos((f) => ({ ...f, [id]: r.fotos })); }

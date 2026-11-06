@@ -31,7 +31,7 @@ export default function ClaseAdmin() {
   const procesando = st.data?.generaciones?.some((g) => g.estado === 'procesando' && !sinRespuesta(g.created_at));
   useEffect(() => {
     if (!procesando) return;
-    const t = window.setInterval(() => st.reload(), 4000);
+    const t = window.setInterval(() => document.visibilityState === 'visible' && void st.reload(), 4000);
     return () => window.clearInterval(t);
   }, [procesando]);   // eslint-disable-line react-hooks/exhaustive-deps
   if (st.loading && !st.data) return <Spinner />;

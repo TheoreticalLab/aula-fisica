@@ -42,7 +42,7 @@ export function MonitorExamen({ activityId }: { activityId: string }) {
       catch (e) { if (vivo) setError(e instanceof Error ? e.message : String(e)); }
     };
     void cargar();
-    const t = setInterval(() => void cargar(), 10_000), s = setInterval(() => setTic((x) => x + 1), 1000);
+    const t = setInterval(() => document.visibilityState === 'visible' && void cargar(), 10_000), s = setInterval(() => setTic((x) => x + 1), 1000);
     return () => { vivo = false; clearInterval(t); clearInterval(s); };
   }, [activityId, recarga]);
   if (error) return null;               // sin motor de examen (o migración sin aplicar): no se muestra

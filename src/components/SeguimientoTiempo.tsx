@@ -12,6 +12,7 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
 import { SUPABASE_ANON_KEY, SUPABASE_URL, supabase, supabaseConfigured } from '@/lib/supabase';
 import { CONFIG_TIEMPO, contextoDeRuta, MedidorTiempo, type ConfigTiempo, type ContextoRuta, type Senal } from '@/lib/tiempo';
+import { CONSUMO } from '@/lib/consumo';
 
 const PENDIENTES = 'aula-tiempo-pendientes';
 const SESION = 'aula-tiempo-sesion';
@@ -95,7 +96,7 @@ export function SeguimientoTiempo() {
   const { session, profile } = useAuth();
   const location = useLocation();
   const activo = supabaseConfigured && !!session && profile?.role === 'student' && profile.active !== false;
-  const cfg = useRef<ConfigTiempo & { beatSeconds: number }>({ ...CONFIG_TIEMPO, beatSeconds: 15 });
+  const cfg = useRef<ConfigTiempo & { beatSeconds: number }>({ ...CONFIG_TIEMPO, beatSeconds: Math.max(15, CONSUMO.latidoEstudioMinS) });
   const visita = useRef<Visita | null>(null);
   const offset = useRef(0); // reloj del servidor − reloj local (ms), solo para cortar visitas por hora
   const huboFallo = useRef(false);
@@ -127,7 +128,8 @@ export function SeguimientoTiempo() {
           tailSeconds: d.reading_tail_seconds,
           minVisitSeconds: d.min_visit_seconds,
           weakMaxSeconds: d.weak_max_seconds,
-          beatSeconds: d.beat_seconds,
+          // bajo consumo: como mínimo 45 s (el servidor acredita por reloj real entre latidos; no se pierde tiempo)
+          beatSeconds: Math.max(d.beat_seconds, CONSUMO.latidoEstudioMinS),
         };
       }
     });

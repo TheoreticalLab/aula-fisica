@@ -38,7 +38,10 @@ export default function Inicio() {
     const porCurso = new Map<string, DatosCurso>(
       await Promise.all(
         cursosIds.map(async (id) => {
-          const [units, lecciones, progreso, dominio] = await Promise.all([getUnits(id), getLessonList(id), lessonProgress(id), conceptMastery(id)]);
+          // progreso y dominio son secundarios: si fallan (servidor saturado) el inicio se muestra igual, sin ellos
+          const [units, lecciones, progreso, dominio] = await Promise.all([
+            getUnits(id), getLessonList(id), lessonProgress(id).catch(() => []), conceptMastery(id).catch(() => []),
+          ]);
           return [id, { units, lecciones, progreso, dominio }] as const;
         }),
       ),

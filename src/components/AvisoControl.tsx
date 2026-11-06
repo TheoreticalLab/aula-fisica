@@ -1,9 +1,10 @@
 /**
  * Aviso al estudiante cuando el profesor INICIA una Práctica de Control que le corresponde (migración 62).
- * Consulta cada 10 s con la pestaña visible. Al tocarlo abre (o retoma tras una recarga o desconexión) su intento:
+ * Consulta periódica con la pestaña visible (`CONSUMO.controlPendienteMs`, 20 s en bajo consumo). Al tocarlo abre (o retoma tras una recarga o desconexión) su intento:
  * el reloj oficial lo lleva el servidor, así que volver a entrar no reinicia ni regala tiempo.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { CONSUMO, hechaHaceMenosDe, marcarHecha, sondeo } from '@/lib/consumo';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { miControlPendiente, type ControlPendiente } from '@/api/control';
 import { startActivityAttempt } from '@/api/estudiante';
@@ -15,17 +16,23 @@ export function AvisoControl() {
   const [abriendo, setAbriendo] = useState(false);
   const { pathname } = useLocation();
   const nav = useNavigate();
+  // modo de bajo consumo: un solo sondeo (con la pestaña visible) que no se reinicia al cambiar de página; el cambio de
+  // página solo consulta si la última consulta tiene más de `minEntreConsultasRutaMs`
+  const vivo = useRef(true);
+  const cargar = useCallback(() => {
+    marcarHecha('my_control_pendiente');
+    miControlPendiente().then((d) => vivo.current && setC(d)).catch(() => undefined);
+  }, []);
   useEffect(() => {
-    let vivo = true;
-    const cargar = () => {
-      if (document.visibilityState !== 'visible') return;
-      miControlPendiente().then((d) => vivo && setC(d)).catch(() => undefined);
-    };
-    cargar();
-    const t = window.setInterval(cargar, 10_000);
-    document.addEventListener('visibilitychange', cargar);
-    return () => { vivo = false; window.clearInterval(t); document.removeEventListener('visibilitychange', cargar); };
-  }, [pathname]);
+    vivo.current = true;
+    const parar = sondeo(cargar, CONSUMO.controlPendienteMs, { minimoMs: 2_000 });
+    return () => { vivo.current = false; parar(); };
+  }, [cargar]);
+  const primera = useRef(true);
+  useEffect(() => {
+    if (primera.current) { primera.current = false; return; }
+    if (document.visibilityState === 'visible' && !hechaHaceMenosDe('my_control_pendiente', CONSUMO.minEntreConsultasRutaMs)) cargar();
+  }, [pathname, cargar]);
   const enIntento = !!c?.attempt_id && pathname === `/intento/${c.attempt_id}`;
   const visible = !!c && !enIntento;
   useEmergente('aviso-control', visible);

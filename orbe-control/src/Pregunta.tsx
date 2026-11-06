@@ -223,7 +223,7 @@ function Resultados({ id, codigo, onNueva, onCambio }: { id: string; codigo?: st
   }, [id]);
   useEffect(() => {
     void cargar();
-    const t = window.setInterval(() => void cargar(), 3_000);
+    const t = window.setInterval(() => document.visibilityState === 'visible' && void cargar(), 3_000);
     const s = window.setInterval(() => setTic((x) => x + 1), 1_000);
     return () => { window.clearInterval(t); window.clearInterval(s); };
   }, [cargar]);
