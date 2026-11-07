@@ -164,18 +164,9 @@ begin
   select * into g from public.gradebook_official('d9000000-0000-4000-8000-000000000031') where user_id = 'd9000000-0000-4000-8000-000000000011';
   if g.final is not null or g.parcial1 <> 18 or g.parcial2 <> 20 or g.parcial3 <> 27.5 or g.practica <> 0 then raise exception 'FALLO: notas del registro de laboratorio %', g; end if;
   if g.pendientes <> 0 or g.bruto <> 65.5 then raise exception 'FALLO: pendientes/bruto en laboratorio = %/% (esperado 0/65,5)', g.pendientes, g.bruto; end if;
-  if (select count(*) from public.official_scores('d9000000-0000-4000-8000-000000000031') where category = 'final') <> 0 then
-    raise exception 'FALLO: official_scores devuelve el examen final en laboratorio';
-  end if;
-  if (select count(*) from public.official_scores('d9000000-0000-4000-8000-000000000031')) <> 4 then
-    raise exception 'FALLO: official_scores de laboratorio no tiene 4 apartados';
-  end if;
   -- asignatura normal: 5 apartados y el final cuenta como pendiente
   select * into g from public.gradebook_official('d9000000-0000-4000-8000-000000000032') where user_id = 'd9000000-0000-4000-8000-000000000012';
   if g.parcial1 <> 15 or g.final <> 25 or g.pendientes <> 3 then raise exception 'FALLO: registro de la asignatura normal %', g; end if;
-  if (select count(*) from public.official_scores('d9000000-0000-4000-8000-000000000032')) <> 5 then
-    raise exception 'FALLO: official_scores normal no tiene 5 apartados';
-  end if;
   if (select count(*) from public.class_activity_links('d9000000-0000-4000-8000-000000000031')) <> 1 then
     raise exception 'FALLO: class_activity_links de laboratorio';
   end if;
@@ -207,9 +198,21 @@ begin
   end if;
 end $$;
 
--- ===== puntos perdidos (función interna): laboratorio sin examen final =====
+-- ===== funciones internas (sin permiso para authenticated): apartados y puntos perdidos =====
 reset role;
 do $$ begin
+  if has_function_privilege('authenticated', 'public.official_scores(uuid)', 'execute') then
+    raise exception 'FALLO: official_scores no debe poder llamarse desde la sesión del usuario';
+  end if;
+  if (select count(*) from public.official_scores('d9000000-0000-4000-8000-000000000031') where category = 'final') <> 0 then
+    raise exception 'FALLO: official_scores devuelve el examen final en laboratorio';
+  end if;
+  if (select count(*) from public.official_scores('d9000000-0000-4000-8000-000000000031')) <> 4 then
+    raise exception 'FALLO: official_scores de laboratorio no tiene 4 apartados';
+  end if;
+  if (select count(*) from public.official_scores('d9000000-0000-4000-8000-000000000032')) <> 5 then
+    raise exception 'FALLO: official_scores normal no tiene 5 apartados';
+  end if;
   if exists (select 1 from public.official_lost('d9000000-0000-4000-8000-000000000031') where category = 'final') then
     raise exception 'FALLO: puntos perdidos del examen final en laboratorio';
   end if;
