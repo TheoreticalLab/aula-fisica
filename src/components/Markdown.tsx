@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import katex from 'katex';
+import { FiguraContenido } from './FigurasChoques';
 
 /**
  * Markdown + LaTeX (KaTeX). No se permite HTML crudo (react-markdown lo escapa), así que el contenido
@@ -11,6 +12,12 @@ import katex from 'katex';
  *
  * ```video
  * https://www.youtube.com/watch?v=XXXX
+ * ```
+ *
+ * y las figuras SVG del aula por su nombre (catálogo fijo en FigurasChoques.tsx):
+ *
+ * ```figura
+ * choque-1d
  * ```
  */
 
@@ -61,6 +68,9 @@ const components: Components = {
     const code = node?.children?.[0] as { tagName?: string; properties?: { className?: string[] }; children?: { value?: string }[] } | undefined;
     if (code?.tagName === 'code' && code.properties?.className?.includes('language-video')) {
       return <>{videoEmbed(code.children?.[0]?.value ?? '')}</>;
+    }
+    if (code?.tagName === 'code' && code.properties?.className?.includes('language-figura')) {
+      return <FiguraContenido clave={code.children?.[0]?.value ?? ''} />;
     }
     return <pre className="my-3 overflow-x-auto rounded-lg bg-gray-100 p-3 text-sm dark:bg-white/10">{children}</pre>;
   },

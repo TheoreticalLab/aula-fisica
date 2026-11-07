@@ -19,6 +19,7 @@ import { grade, validateNumericKey } from '../supabase/functions/_shared/calific
 import { validarClaveVariante } from './biblioteca/validar';
 import type { EjercicioBiblioteca } from './biblioteca/tipos';
 import { loadContent, ROOT } from './cargar-contenido';
+import { COURSE } from '../contenido/unidades';
 import { checkMarkdown } from './validar-contenido';
 import { analizarTexto, MAX_SEGUNDOS, MIN_SEGUNDOS, segundosSugeridos } from '../src/lib/lectura';
 
@@ -115,8 +116,11 @@ export async function validarActividad(a: ActividadDef): Promise<string[]> {
     const at = `${e.id}:`;
     if (ids.has(e.id)) p.push(`${at} id repetido`);
     ids.add(e.id);
-    if (e.leccion !== undefined && !lecciones.has(e.leccion)) p.push(`${at} la lección «${e.leccion}» no existe`);
-    for (const c of e.concepts) if (!conceptos.has(c)) p.push(`${at} el concepto «${c}» no existe`);
+    // contenido/ solo describe la asignatura de COURSE; en otras (lecciones de la biblioteca, ya en la base de datos)
+    // la comprobación la hace el propio SQL, que aborta si algún ejercicio queda sin lección
+    const local = a.curso === COURSE.code;
+    if (local && e.leccion !== undefined && !lecciones.has(e.leccion)) p.push(`${at} la lección «${e.leccion}» no existe`);
+    for (const c of e.concepts) if (local && !conceptos.has(c)) p.push(`${at} el concepto «${c}» no existe`);
     if (!e.prompt.trim()) p.push(`${at} enunciado vacío`);
     // fórmulas que KaTeX no pueda dibujar
     checkMarkdown(`${e.id} enunciado`, e.prompt, p);

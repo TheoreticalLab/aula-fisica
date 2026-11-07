@@ -3,6 +3,7 @@
  */
 import katex from 'katex';
 import { getSimulation } from '../src/sims/catalogo';
+import { FIGURAS } from '../src/components/FigurasChoques';
 import { validateNumericKey } from '../supabase/functions/_shared/calificacion/calificar.ts';
 import type { ExerciseDef, LessonDef } from '../contenido/tipos';
 import type { LoadedUnit } from './cargar-contenido';
@@ -34,6 +35,9 @@ export function checkMarkdown(where: string, md: string | undefined, problems: s
   if (!md) return;
   const dollars = (md.replace(/\$\$/g, '').match(/\$/g) || []).length;
   if (dollars % 2 !== 0) problems.push(`${where}: número impar de signos $ (fórmula sin cerrar)`);
+  for (const m of md.matchAll(/```figura\n([^\n]*)\n```/g)) {
+    if (!FIGURAS[m[1].trim()]) problems.push(`${where}: figura desconocida «${m[1].trim()}»`);
+  }
   for (const m of extractMath(md)) {
     const err = katexErrors(m);
     if (err) problems.push(`${where}: LaTeX inválido «${m.slice(0, 60)}»: ${err}`);

@@ -245,7 +245,14 @@ export function EntradaRespuesta({
         <>
           <textarea id={`txt-${ex.id}`} className="campo min-h-[220px]" disabled={disabled} value={answer.text ?? ''} maxLength={5000}
             onChange={(e) => onChange({ text: e.target.value })} placeholder="Escriba su explicación con sus propias palabras." aria-describedby={`pal-${ex.id}`} />
-          <p id={`pal-${ex.id}`} className="mt-1 text-xs text-gray-500" aria-live="polite">{contarPalabras(answer.text ?? '')} palabras (contador orientativo)</p>
+          <p id={`pal-${ex.id}`} className="mt-1 text-xs text-gray-500" aria-live="polite">{contarPalabras(answer.text ?? '')} palabras (contador orientativo) · ecuaciones entre signos de dólar, p. ej. <code>$m_1 u_1$</code></p>
+          {/* vista previa local de las ecuaciones (sin consultas): el profesor la ve igual en la revisión */}
+          {(answer.text ?? '').includes('$') && (
+            <details className="mt-1 rounded border border-gray-200 p-2 text-sm dark:border-white/10">
+              <summary className="cursor-pointer text-xs text-gray-600 dark:text-gray-300">Vista previa con las ecuaciones</summary>
+              <Markdown>{answer.text ?? ''}</Markdown>
+            </details>
+          )}
         </>
       ) : (
         <input id={`txt-${ex.id}`} className="campo" disabled={disabled} value={answer.text ?? ''} maxLength={300} onChange={(e) => onChange({ text: e.target.value })} />
