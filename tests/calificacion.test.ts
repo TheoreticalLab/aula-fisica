@@ -122,6 +122,11 @@ describe('unidades', () => {
     expect(parseUnit('%').factor).toBe(0.01);
     expect(parseUnit('grados').factor).toBeCloseTo(Math.PI / 180);
   });
+  it('el decibel es adimensional: «70 dB» vale lo mismo que «70»', () => {
+    expect(parseUnit('dB').factor).toBe(1);
+    expect(parseUnit('dB').dims).toEqual([0, 0, 0, 0, 0, 0, 0]);
+    expect(grade({ format: 'numeric', value: '70' }, { text: '70 dB' }).status).toBe('correct');
+  });
   it('errores con mensaje', () => {
     expect(() => parseUnit('xyz')).toThrow(/No reconozco/);
     expect(() => parseUnit('m/')).toThrow();

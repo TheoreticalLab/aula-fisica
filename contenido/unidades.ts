@@ -1,6 +1,5 @@
 /**
  * Bloques del curso. Las lecciones de cada bloque se leen de contenido/<carpeta>/NN-slug.ts en orden.
- * Los bloques IV–VI se anuncian en el temario («en preparación») y se redactarán en la segunda etapa.
  */
 export interface UnitMeta {
   slug: string;
@@ -46,10 +45,10 @@ export const UNITS: UnitMeta[] = [
   },
   {
     slug: 'energia-momento',
-    folder: null,
+    folder: 'bloque4',
     title: 'Bloque IV. Energía y cantidad de movimiento',
     summary: 'Trabajo, energía y su conservación; impulso, cantidad de movimiento y colisiones.',
-    comingSoon: true,
+    comingSoon: false,
     plannedTopics: [
       'Trabajo mecánico', 'Energía cinética', 'Energía potencial', 'Conservación de la energía', 'Potencia',
       'Impulso', 'Cantidad de movimiento', 'Colisiones sencillas',
@@ -57,10 +56,10 @@ export const UNITS: UnitMeta[] = [
   },
   {
     slug: 'oscilaciones-ondas',
-    folder: null,
+    folder: 'bloque5',
     title: 'Bloque V. Oscilaciones y ondas',
     summary: 'Movimiento periódico, sistemas masa-resorte y péndulo, ondas mecánicas y sonido.',
-    comingSoon: true,
+    comingSoon: false,
     plannedTopics: [
       'Movimiento periódico', 'Amplitud, período y frecuencia', 'Sistemas masa-resorte', 'Péndulo simple',
       'Movimiento armónico simple', 'Ondas mecánicas', 'Longitud de onda y velocidad de propagación',
@@ -70,10 +69,10 @@ export const UNITS: UnitMeta[] = [
   },
   {
     slug: 'termodinamica',
-    folder: null,
+    folder: 'bloque6',
     title: 'Bloque VI. Temperatura y termodinámica',
     summary: 'Temperatura, calor, cambios de fase, transferencia de calor, gases ideales y leyes de la termodinámica.',
-    comingSoon: true,
+    comingSoon: false,
     plannedTopics: [
       'Temperatura y equilibrio térmico', 'Escalas de temperatura', 'Dilatación térmica', 'Calor y energía interna',
       'Calor específico', 'Calorimetría', 'Cambios de fase', 'Conducción, convección y radiación', 'Gases ideales',

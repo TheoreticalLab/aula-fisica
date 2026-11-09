@@ -10,7 +10,7 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
       'Ocho ejercicios por lección: conjunto de práctica (3 básicos, 1 intermedio, 1 desafiante), 2 de refuerzo y 1 de desarrollo para el banco.',
     ],
     pendiente: [
-      'Bloques IV (Energía y cantidad de movimiento), V (Oscilaciones y ondas) y VI (Termodinámica): anunciados en el temario, sin lecciones todavía.',
+      'Bloques IV (Energía y cantidad de movimiento), V (Oscilaciones y ondas) y VI (Termodinámica): 26 lecciones y 208 ejercicios redactados y verificados; pendientes de cargar en el aula y revisar en navegador y teléfono.',
       'Otras asignaturas: creadas desde el panel; sus lecciones están en preparación.',
       'Física General I · Unidad 9 «Física de los choques» (instalada; pendiente de revisar en navegador y teléfono): 15 lecciones del fenómeno al modelo, laboratorio «choque seguido de fricción» y un banco de 135 ejercicios verificados con el motor físico (42 fáciles, 44 intermedios, 49 difíciles), con problemas por etapas.',
     ],

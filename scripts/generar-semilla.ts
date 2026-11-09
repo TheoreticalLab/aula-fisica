@@ -3,6 +3,10 @@
  *
  *   npm run semilla                 # inserta lo que falte; NO sobrescribe ediciones del profesor
  *   npm run semilla -- --actualizar # sobrescribe con el contenido de los archivos
+ *   npm run semilla -- --bloques energia-momento,termodinamica --datos bloques-nuevos
+ *       # solo esos bloques, como archivo de datos privados (privado/datos/<marca>_<nombre>.sql) para
+ *       # plan/aplicar: sin begin/commit (aplicar abre la transacción), marca los bloques como disponibles
+ *       # y comprueba al final que llegaron todas las lecciones y claves
  *
  * El archivo resultante contiene claves de respuesta: se guarda en privado/ (excluido de git) y se
  * ejecuta una vez en el editor SQL de Supabase. No lo suba a ningún sitio público.
@@ -14,6 +18,12 @@ import { loadContent, ROOT } from './cargar-contenido';
 import { validateContent } from './validar-contenido';
 
 const UPDATE = process.argv.includes('--actualizar');
+const opcion = (n: string) => {
+  const i = process.argv.indexOf(n);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+};
+const BLOQUES = opcion('--bloques')?.split(',');
+const DATOS = opcion('--datos');
 const TAG = '$aula_q7$';
 const PART_MARK = '--@@PARTE@@';
 
@@ -28,8 +38,11 @@ const conflict = (target: string, sets: string[]) =>
   UPDATE ? `on conflict ${target} do update set ${sets.map((c) => `${c} = excluded.${c}`).join(', ')}` : `on conflict ${target} do nothing`;
 
 async function main() {
-  const units = await loadContent();
-  const problems = validateContent(units, { requireKeys: true });
+  const all = await loadContent();
+  const problems = validateContent(all, { requireKeys: true });
+  const units = BLOQUES ? all.filter((u) => BLOQUES.includes(u.meta.slug)) : all;
+  if (BLOQUES && units.length !== BLOQUES.length) throw new Error(`Bloques desconocidos en --bloques: ${BLOQUES.join(', ')}`);
+  if (DATOS && !/^[a-z0-9-]+$/.test(DATOS)) throw new Error('--datos: use un nombre en minúsculas con guiones');
   if (problems.length) {
     console.error('El contenido tiene problemas; corríjalos antes de generar la semilla:\n' + problems.map((p) => ' - ' + p).join('\n'));
     process.exit(1);
@@ -57,6 +70,9 @@ async function main() {
     out.push(
       `insert into public.units (course_id, slug, position, title, summary, coming_soon, planned_topics) values (${C}, ${q(u.meta.slug)}, ${u.position}, ${q(u.meta.title)}, ${q(u.meta.summary)}, ${u.meta.comingSoon}, ${arr(u.meta.plannedTopics)}) ${conflict('(course_id, slug)', ['position', 'title', 'summary', 'coming_soon', 'planned_topics'])};`,
     );
+    if (DATOS && !u.meta.comingSoon && u.lessons.length) {
+      out.push(`update public.units set coming_soon = false, updated_at = now() where course_id = ${C} and slug = ${q(u.meta.slug)} and coming_soon;`);
+    }
     for (const ll of u.lessons) {
       const L = ll.lesson;
       nLessons++;
@@ -90,6 +106,29 @@ ${conflict('(exercise_id)', ['answer', 'hints', 'explanation'])};`,
         }
       });
     }
+  }
+  if (DATOS) {
+    const slugs = units.flatMap((u) => u.lessons.map((l) => l.lesson.slug));
+    const ids = units.flatMap((u) => u.lessons.flatMap((l) => l.lesson.exercises.map((e) => e.id)));
+    const body = out.slice(out.indexOf('begin;') + 1).filter((l) => l !== PART_MARK && !l.startsWith('insert into public.courses'));
+    const check = `do $chk$ begin
+  if (select count(*) from public.lessons where course_id = ${C} and slug = any(${arr(slugs)})) <> ${slugs.length} then
+    raise exception 'Faltan lecciones de los bloques cargados';
+  end if;
+  if (select count(*) from public.exercises e join public.exercise_keys k on k.exercise_id = e.id
+      where e.course_id = ${C} and e.slug = any(${arr(ids)})) <> ${ids.length} then
+    raise exception 'Faltan ejercicios o claves de los bloques cargados';
+  end if;
+end $chk$;`;
+    const marca = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+    const path = join(ROOT, 'privado', 'datos', `${marca}_${DATOS}.sql`);
+    const header = [
+      `-- Bloques ${units.map((u) => u.meta.title).join(' · ')} del curso inicial, generados por scripts/generar-semilla.ts.`,
+      '-- CONTIENE CLAVES DE RESPUESTA: no lo publique. Solo inserta lo que falta (no sobrescribe ediciones del profesor).',
+    ];
+    writeFileSync(path, [...header, ...body, check].join('\n') + '\n', 'utf8');
+    console.log(`Datos escritos en ${path}: ${units.length} bloques, ${nLessons} lecciones, ${nExercises} ejercicios.`);
+    return;
   }
   out.push('\n-- Los administradores forman parte del equipo docente del curso inicial');
   out.push(`insert into public.course_staff (course_id, user_id) select ${C}, p.id from public.profiles p where p.role = 'admin' on conflict do nothing;`);

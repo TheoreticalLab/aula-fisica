@@ -37,7 +37,7 @@ Leyenda: ✅ hecho y probado · 🟡 hecho, verificado solo parcialmente (ver no
 | Banco de preguntas con filtros | ✅ | |
 | Evaluaciones configurables (fechas, intentos, visualización de respuestas, publicación de notas) | ✅ | |
 | Estadísticas por pregunta y por concepto | ✅ | |
-| Bloques IV (Energía y cantidad de movimiento), V (Oscilaciones y ondas) y VI (Termodinámica) | ⬜ | Anunciados en el temario como «en preparación» |
+| Bloques IV (Energía y cantidad de movimiento), V (Oscilaciones y ondas) y VI (Termodinámica) | 🟡 | Redactados y verificados en local (9-nov-2026): 26 lecciones (8 + 9 + 9) y 208 ejercicios con claves, pistas y explicaciones en `privado/claves/bloque4–6`; simuladores trabajo-energía, conservación de la energía, laboratorio de choques, colisiones y masa-resorte; el bloque VI no tiene simulador (sin preguntas «experimento»). Vitest completo, compilación y `probar` sobre la copia de producción pasan. Datos: `privado/datos/20261109212952_bloques-iv-vi.sql` (generado con `npm run semilla -- --bloques … --datos …`: solo inserta lo que falta y quita «en preparación» a los tres bloques). El motor de calificación acepta «dB» como unidad adimensional (redesplegar «calificar»). **Sin aplicar ni publicar**; pendiente revisar en navegador y teléfono |
 | Simuladores masa-resorte, péndulo, ondas, sonido, transferencia de calor y gases ideales | ⬜ | Listados como pendientes en el laboratorio |
 | Límite de tiempo por intento, prórrogas individuales, orden aleatorio | ⬜ | |
 | Revisión por el profesor de las respuestas de desarrollo hechas en la práctica libre de una lección | ⬜ | Hoy el estudiante las compara con la solución modelo; el profesor solo revisa las de actividades asignadas |

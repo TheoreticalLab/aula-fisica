@@ -55,7 +55,7 @@ Cada clave lleva `hints` (2–3 pistas progresivas, de la más general a la más
 
 - Número: `25`, `-4.9`, `3.0e8`, `1.5×10^3` o `6.02e23`.
 - Unidad tras un espacio. Multiplicación con `·` o `*`; división con `/`. **Todo lo que va después de la primera `/` está en el denominador**: `J/kg·K` = J/(kg·K). Se admiten paréntesis. Exponentes con `^2`, `²` o `³`.
-- Unidades reconocidas: m, g, s, min, h, N, J, W, Pa, Hz, L, K, °C, °F, mol, rad, ° (grados), rev, rpm, %, ft, in, mi, mph, lb, atm, cal, mmHg y u (unidad genérica de los vectores del simulador). Se admiten prefijos (k, c, m, µ, n, M, G…): km, cm, mm, kg, ms, kN, kJ, kPa…
+- Unidades reconocidas: m, g, s, min, h, N, J, W, Pa, Hz, L, K, °C, °F, mol, rad, ° (grados), rev, rpm, %, dB (adimensional), ft, in, mi, mph, lb, atm, cal, mmHg y u (unidad genérica de los vectores del simulador). Se admiten prefijos (k, c, m, µ, n, M, G…): km, cm, mm, kg, ms, kN, kJ, kPa…
 - Ejemplos: `9.8 m/s^2`, `72 km/h`, `2.5 kg·m/s`, `1.2e3 kg/m^3`, `35 °`, `0.25` (adimensional).
 - Si la respuesta es adimensional (un coeficiente de fricción, un cociente), escriba solo el número.
 - Para ángulos, use `°`, p. ej. `36.9 °`.

@@ -13,12 +13,11 @@ const units = await loadContent();
 const withKeys = privateKeysPresent();
 
 describe('contenido inicial', () => {
-  it('hay lecciones en los bloques I–III y los IV–VI están anunciados', () => {
+  it('los seis bloques tienen lecciones y ninguno queda «en preparación»', () => {
     expect(units).toHaveLength(6);
-    for (const u of units.slice(0, 3)) expect(u.lessons.length).toBeGreaterThan(0);
-    for (const u of units.slice(3)) {
-      expect(u.meta.comingSoon).toBe(true);
-      expect(u.meta.plannedTopics.length).toBeGreaterThan(0);
+    for (const u of units) {
+      expect(u.lessons.length, u.meta.title).toBeGreaterThan(0);
+      expect(u.meta.comingSoon, u.meta.title).toBe(false);
     }
   });
 
@@ -27,11 +26,13 @@ describe('contenido inicial', () => {
     expect(problems, problems.join('\n')).toEqual([]);
   });
 
-  it('cada bloque con contenido usa las ocho categorías de ejercicios', () => {
+  it('cada bloque con contenido usa las ocho categorías de ejercicios (experimento, si tiene simulador)', () => {
     const all: ExerciseCategory[] = ['seleccion', 'vf_justificacion', 'numerica', 'grafica', 'conceptual', 'error', 'desarrollo', 'experimento'];
     for (const u of units.filter((x) => x.lessons.length >= 7)) {
       const cats = new Set(u.lessons.flatMap((l) => l.lesson.exercises.map((e) => e.category)));
-      expect([...all].filter((c) => !cats.has(c)), u.meta.title).toEqual([]);
+      const conSimulador = u.lessons.some((l) => l.lesson.simulation);
+      const exigidas = conSimulador ? all : all.filter((c) => c !== 'experimento');
+      expect(exigidas.filter((c) => !cats.has(c)), u.meta.title).toEqual([]);
     }
   });
 

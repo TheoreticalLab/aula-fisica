@@ -57,6 +57,7 @@ export const UNITS: Record<string, UnitDef> = {
   rev: { factor: 2 * Math.PI, dims: D(), prefixable: false },
   rpm: { factor: (2 * Math.PI) / 60, dims: D(0, 0, -1), prefixable: false },
   '%': { factor: 0.01, dims: D(), prefixable: false },
+  dB: { factor: 1, dims: D(), prefixable: false }, // nivel sonoro: la clave va sin unidad y «70 dB» equivale a «70»
   u: { factor: 1, dims: D(), prefixable: false }, // unidad genérica de los vectores del simulador
   ft: { factor: 0.3048, dims: D(0, 1), prefixable: false },
   in: { factor: 0.0254, dims: D(0, 1), prefixable: false },
