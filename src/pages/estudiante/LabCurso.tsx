@@ -65,6 +65,16 @@ export default function LabCurso({ course, actividades, avisos, secciones, isTea
                       {c.sinRevisar > 0 && <> · sin revisar: {c.sinRevisar}</>}
                       {c.porCorregir > 0 && <> · <span className="font-semibold text-amber-700 dark:text-amber-300">requieren corrección: {c.porCorregir}</span></>}
                     </p>
+                    {s.controles.some((x) => x.cuenta === false) && (() => {
+                      const cuentan = s.controles.filter((x) => x.cuenta !== false);
+                      const fuera = s.controles.filter((x) => x.cuenta === false).map((x) => x.numero).join(', ');
+                      return (
+                        <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                          Para la nota de Práctica cuentan {cuentan.length} controles (no cuenta: {fuera}); de esos tiene entregados{' '}
+                          {contar(cuentan.map((x) => x.estado)).entregados}.
+                        </p>
+                      );
+                    })()}
                   </div>
                   <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {s.controles.map((x) => (
@@ -127,6 +137,7 @@ function TarjetaControl({ control: x, archivada, onSubir, onVer }: { control: Co
         <h4 className="font-semibold">Control {x.numero}</h4>
         <Badge tone={est.tono}>{est.texto}</Badge>
       </div>
+      {x.cuenta === false && <p className="text-xs text-gray-500">No cuenta para la nota de Práctica.</p>}
       {fechas && <p className="text-xs text-gray-500">{fechas}{x.fecha_individual && ' (fecha personal)'}</p>}
       {ultima && <p className="text-xs text-gray-600 dark:text-gray-400">Enviado el {fecha(ultima.subido)}</p>}
       {x.estado === 'requiere_correccion' && ultima?.nota && (

@@ -1,11 +1,13 @@
 /**
  * Panel docente · «Controles de laboratorio» de una sección (asignaturas con courses.laboratorio_controles, migración 84).
  * Tabla por estudiante con el estado de cada control, entregados y aprobados; filtros; detalle con las imágenes y su
- * historial; aprobar o pedir corrección (con nota); fechas generales o individuales. Nadie califica automáticamente.
+ * historial; aprobar o pedir corrección (con nota); fechas generales o individuales. Las imágenes las revisa el profesor;
+ * la Práctica del Registro se calcula con los controles que cuentan, entregados o aprobados (migración 91).
  */
 import { useMemo, useState } from 'react';
-import { detalleLab, fechasLab, panelLab, revisarControl, type ControlLab, type FilaLab } from '@/api/laboratorio';
-import { contar, cumpleFiltro, ESTADO_CONTROL, FILTROS_LAB, textoFechas, type EstadoControl, type FiltroLab } from '@/lib/laboratorio';
+import { cuentaLab, detalleLab, fechasLab, panelLab, revisarControl, type ControlLab, type FilaLab, type PanelLab } from '@/api/laboratorio';
+import { contar, cumpleFiltro, ESTADO_CONTROL, FILTROS_LAB, practicaPorControles, textoFechas, type EstadoControl, type FiltroLab } from '@/lib/laboratorio';
+import { CATEGORIAS_LABORATORIO } from '@/lib/notas';
 import { aInputFecha, deInputFecha, downloadText, fecha, toCsv, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, Empty, ErrorBox, Modal, Notice, Spinner } from '@/components/ui';
 import { VisorControl } from '@/components/VisorControl';
@@ -17,6 +19,16 @@ const CELDA: Record<EstadoControl, string> = {
   requiere_correccion: 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100',
 };
 const ESTADO_ENTREGA: Record<string, string> = { recibido: 'Sin revisar', aceptado: 'Aprobada', rechazado: 'Requiere corrección' };
+const VALOR_PRACTICA = CATEGORIAS_LABORATORIO.find((c) => c.id === 'practica')?.max ?? 30;
+
+/** Controles que cuentan para la Práctica (antes de la migración 91 no llega el campo: cuentan todos). */
+const cuentaCaja = (b: { cuenta?: boolean }) => b.cuenta !== false;
+/** Práctica por controles de un estudiante: los que cuentan con la entrega vigente entregada o aprobada. */
+function practicaDe(e: FilaLab, p: PanelLab) {
+  const cuentan = p.cajas.filter(cuentaCaja).length;
+  const k = e.en_practica ?? e.estados.filter((s, i) => (s === 'entregado' || s === 'aprobado') && cuentaCaja(p.cajas[i] ?? {})).length;
+  return { k, cuentan, calculo: practicaPorControles(k, cuentan, VALOR_PRACTICA) };
+}
 
 export function TabControlesLab({ classId }: { classId: string }) {
   const { data, loading, error, reload } = useAsync(() => panelLab(classId), [classId]);
@@ -39,8 +51,9 @@ export function TabControlesLab({ classId }: { classId: string }) {
   const porCorregir = p.estudiantes.filter((e) => e.por_corregir > 0).length;
 
   const exportar = () => downloadText(`controles-${p.seccion}.csv`, toCsv([
-    ['Nombre', 'Matrícula', 'Sección', ...Array.from({ length: n }, (_, i) => `Control ${i + 1}`), 'Entregados', 'Aprobados'],
-    ...p.estudiantes.map((e) => [e.nombre, e.matricula ?? e.login ?? '', p.seccion, ...e.estados.map((s) => ESTADO_CONTROL[s].texto), e.entregados, e.aprobados]),
+    ['Nombre', 'Matrícula', 'Sección', ...Array.from({ length: n }, (_, i) => `Control ${i + 1}`), 'Entregados', 'Aprobados', `Práctica por controles (de ${VALOR_PRACTICA})`],
+    ...p.estudiantes.map((e) => [e.nombre, e.matricula ?? e.login ?? '', p.seccion, ...e.estados.map((s) => ESTADO_CONTROL[s].texto), e.entregados, e.aprobados,
+      practicaDe(e, p).calculo?.nota ?? '']),
   ]));
 
   return (
@@ -69,9 +82,12 @@ export function TabControlesLab({ classId }: { classId: string }) {
                   <th className="py-2 pr-3">Estudiante</th>
                   <th className="py-2 pr-3">Matrícula</th>
                   <th className="py-2 pr-3">Sección</th>
-                  {Array.from({ length: n }, (_, i) => <th key={i} className="px-0.5 py-2 text-center">C{i + 1}</th>)}
+                  {Array.from({ length: n }, (_, i) => cuentaCaja(p.cajas[i] ?? {})
+                    ? <th key={i} className="px-0.5 py-2 text-center">C{i + 1}</th>
+                    : <th key={i} className="px-0.5 py-2 text-center text-gray-400 line-through" title={`Control ${i + 1}: no cuenta para la Práctica`}>C{i + 1}</th>)}
                   <th className="py-2 pl-3 text-right">Entregados</th>
                   <th className="py-2 pl-3 text-right">Aprobados</th>
+                  <th className="py-2 pl-3 text-right" title="Lo que dan los controles que cuentan. En el Registro manda una nota escrita a mano.">Práctica</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-white/10">
@@ -89,6 +105,7 @@ export function TabControlesLab({ classId }: { classId: string }) {
                     ))}
                     <td className="py-2 pl-3 text-right tabular-nums">{e.entregados}/{n}</td>
                     <td className="py-2 pl-3 text-right tabular-nums">{e.aprobados}/{n}</td>
+                    <td className="py-2 pl-3 text-right tabular-nums">{practicaDe(e, p).calculo?.nota ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -100,6 +117,8 @@ export function TabControlesLab({ classId }: { classId: string }) {
         )}
       </Card>
 
+      <ControlesQueCuentan classId={classId} cajas={p.cajas} onCambio={reload} />
+
       <FechasGenerales classId={classId} cajas={p.cajas} onCambio={reload} />
 
       {abierto && (
@@ -108,6 +127,37 @@ export function TabControlesLab({ classId }: { classId: string }) {
         </Modal>
       )}
     </div>
+  );
+}
+
+function ControlesQueCuentan({ classId, cajas, onCambio }: { classId: string; cajas: PanelLab['cajas']; onCambio: () => void }) {
+  const accion = useAction();
+  const cuentan = cajas.filter(cuentaCaja).length;
+  const valor = practicaPorControles(cuentan, cuentan, VALOR_PRACTICA);
+  const cambiar = (numero: number, cuenta: boolean) => accion.run(async () => {
+    if (cuenta === false && cuentan <= 1 && !window.confirm('Si ningún control cuenta, la Práctica deja de calcularse con los controles. ¿Continuar?')) return;
+    await cuentaLab(classId, numero, cuenta);
+    onCambio();
+  });
+  return (
+    <Card title="Práctica: controles que cuentan">
+      <p className="mb-2 text-sm text-gray-600 dark:text-gray-400">
+        La Práctica del Registro de Calificaciones ({VALOR_PRACTICA} puntos) se calcula con los controles marcados:
+        {valor ? <> cada uno vale <strong>{VALOR_PRACTICA}/{cuentan} = {valor.porControl}</strong> puntos</> : ' ninguno está marcado'}.
+        Suma si está entregado o aprobado; «Requiere corrección» no suma hasta que lo vuelva a subir. Un control desmarcado no suma
+        aunque esté entregado. Si vincula otras actividades a la Práctica, se reparten los {VALOR_PRACTICA} puntos con ellas; una nota
+        escrita a mano en el Registro manda sobre lo calculado.
+      </p>
+      <div className="flex flex-wrap gap-x-4 gap-y-2">
+        {cajas.map((b) => (
+          <label key={b.numero} className="flex items-center gap-1.5 text-sm">
+            <input type="checkbox" checked={cuentaCaja(b)} disabled={accion.busy} onChange={(e) => void cambiar(b.numero, e.target.checked)} />
+            Control {b.numero}
+          </label>
+        ))}
+      </div>
+      {accion.error && <p className="mt-2 text-sm text-red-700 dark:text-red-400">{accion.error}</p>}
+    </Card>
   );
 }
 

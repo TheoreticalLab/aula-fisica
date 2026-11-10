@@ -13,7 +13,9 @@ interface ActividadV { activity_id: string; title: string; mode: string; closes_
   control?: { resultado: number; factor: number; ajustada: number } | null }
 interface CategoriaV { category: Categoria; max: number; score: number | null; source: 'manual' | 'actividades' | null; pendientes: number | null; actividades: ActividadV[];
   /** Parte escrita a mano por el profesor dentro del apartado (migración 69), p. ej. «Prácticas anteriores» 15 de 30. */
-  parte?: { label: string; max: number; score: number | null } | null }
+  parte?: { label: string; max: number; score: number | null } | null;
+  /** Laboratorio (migración 91): controles que cuentan para la Práctica, cuántos tiene entregados o aprobados y cuánto valen. */
+  controles?: { cuentan: number; entregados: number; peso: number } | null }
 interface Seccion { class_id: string; class_name: string; course_title: string; published: boolean; categorias: CategoriaV[]; extras: { points: number; reason: string; created_at: string }[] }
 
 const ETIQUETA = Object.fromEntries(CATEGORIAS.map((c) => [c.id, c.label])) as Record<Categoria, string>;
@@ -21,7 +23,7 @@ const ETIQUETA = Object.fromEntries(CATEGORIAS.map((c) => [c.id, c.label])) as R
 function Apartado({ c, publicado }: { c: CategoriaV; publicado: boolean }) {
   const [abierto, setAbierto] = useState(false);
   const calificado = publicado && c.score !== null;
-  const hayActs = c.actividades.length > 0 || !!c.parte;
+  const hayActs = c.actividades.length > 0 || !!c.parte || !!c.controles;
   return (
     <li className="py-2">
       <div className="flex items-center justify-between gap-2">
@@ -30,7 +32,8 @@ function Apartado({ c, publicado }: { c: CategoriaV; publicado: boolean }) {
           <p className="text-xs text-gray-500">
             {!publicado ? 'Notas aún no publicadas'
               : c.source === 'manual' ? 'Calificado por el profesor'
-              : c.source === 'actividades' ? `Calculado con ${c.actividades.length} actividad(es)${c.parte ? ` y «${c.parte.label}»` : ''}${c.pendientes ? ` · ${c.pendientes} pendiente(s)` : ''}`
+              : c.source === 'actividades' && c.controles && !c.actividades.length ? `Calculado con los controles entregados${c.parte ? ` y «${c.parte.label}»` : ''}`
+              : c.source === 'actividades' ? `Calculado con ${c.actividades.length} actividad(es)${c.controles ? ' y los controles' : ''}${c.parte ? ` y «${c.parte.label}»` : ''}${c.pendientes ? ` · ${c.pendientes} pendiente(s)` : ''}`
               : hayActs ? 'Se calculará con las actividades indicadas' : 'Pendiente de calificar'}
           </p>
         </div>
@@ -41,6 +44,12 @@ function Apartado({ c, publicado }: { c: CategoriaV; publicado: boolean }) {
       </div>
       {abierto && (
         <ul className="mt-2 space-y-1 rounded-lg bg-gray-50 p-2 text-sm dark:bg-white/5">
+          {c.controles && (
+            <li className="flex flex-wrap items-center justify-between gap-2">
+              <span>Controles de laboratorio<span className="text-xs text-gray-500"> · {c.controles.cuentan} cuentan · vale {Number(c.controles.peso)} pts (entregado o aprobado suma)</span></span>
+              <span className="text-xs"><strong>{c.controles.entregados}</strong> / {c.controles.cuentan} entregados</span>
+            </li>
+          )}
           {c.parte && (
             <li className="flex flex-wrap items-center justify-between gap-2">
               <span>{c.parte.label}<span className="text-xs text-gray-500"> · calificada por el profesor · vale {Number(c.parte.max)} pts</span></span>

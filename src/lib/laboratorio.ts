@@ -30,7 +30,17 @@ export function contar(estados: EstadoControl[]) {
   };
 }
 
-export type FiltroLab = 'todos' | 'completos' | 'pendientes' | 'correccion' | 'sin_revisar';
+/**
+ * Práctica por controles (migración 91; la nota la calcula official_scores en el servidor): cada control que cuenta
+ * vale lo mismo y suma si está entregado o aprobado. Con la Práctica entera para los controles: 30/7 ≈ 4,29 cada uno.
+ */
+export function practicaPorControles(enPractica: number, cuentan: number, valor = 30): { porControl: number; nota: number } | null {
+  if (cuentan <= 0) return null;
+  const k = Math.max(0, Math.min(enPractica, cuentan));
+  return { porControl: Math.round((valor / cuentan) * 100) / 100, nota: Math.round(((valor * k) / cuentan) * 100) / 100 };
+}
+
+export type FiltroLab ='todos' | 'completos' | 'pendientes' | 'correccion' | 'sin_revisar';
 export const FILTROS_LAB: { id: FiltroLab; texto: string }[] = [
   { id: 'todos', texto: 'Todos' },
   { id: 'completos', texto: 'Con todos entregados' },

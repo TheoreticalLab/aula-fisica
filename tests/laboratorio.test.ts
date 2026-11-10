@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { HttpError } from '../supabase/functions/entregas/handler';
 import type { DepsCapturas } from '../supabase/functions/entregas/capturas';
 import { MAX_BYTES_CONTROL, rutaControl, subirControl, verControl } from '../supabase/functions/entregas/controles';
-import { contar, cumpleFiltro, motivoArchivo, textoFechas, MAX_BYTES_ENVIO, type EstadoControl } from '../src/lib/laboratorio';
+import { contar, cumpleFiltro, motivoArchivo, practicaPorControles, textoFechas, MAX_BYTES_ENVIO, type EstadoControl } from '../src/lib/laboratorio';
 
 const BOX = 'a8400000-0000-4000-8000-0000000000b1';
 const USER = 'b8400000-0000-4000-8000-000000000001';
@@ -139,6 +139,14 @@ describe('reglas de los controles (src/lib/laboratorio.ts)', () => {
     expect(motivoArchivo('foto.jpg', 'image/jpeg', 0)).toMatch(/vacío/);
     expect(motivoArchivo('IMG_1.JPG', 'image/jpeg', 3_000_000)).toBeNull();
     expect(MAX_BYTES_ENVIO).toBeLessThan(MAX_BYTES_CONTROL);
+  });
+  it('Práctica por controles (migración 91): 30 entre los que cuentan; sin controles que cuenten, no hay cálculo', () => {
+    expect(practicaPorControles(7, 7)).toEqual({ porControl: 4.29, nota: 30 });
+    expect(practicaPorControles(4, 7)).toEqual({ porControl: 4.29, nota: 17.14 });
+    expect(practicaPorControles(0, 7)?.nota).toBe(0);
+    expect(practicaPorControles(5, 8)?.nota).toBe(18.75);
+    expect(practicaPorControles(9, 7)?.nota).toBe(30);   // nunca más que el apartado
+    expect(practicaPorControles(3, 0)).toBeNull();
   });
   it('fechas: sin fechas por defecto', () => {
     const f = (s: string) => s.slice(0, 10);

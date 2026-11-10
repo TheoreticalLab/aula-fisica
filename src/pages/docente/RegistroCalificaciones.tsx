@@ -182,6 +182,12 @@ export default function RegistroCalificaciones() {
 
       <Card title={`Estudiantes (${filas.data?.length ?? 0})`}>
         <p className="mb-2 text-xs text-gray-500">Escriba la nota y pulse Enter o salga de la celda para guardarla. Vacío = pendiente; 0 es una nota. Cada cambio queda en el historial.</p>
+        {laboratorio && (
+          <p className="mb-2 text-xs text-gray-500">
+            Laboratorio: la Práctica se calcula con los controles entregados o aprobados que cuentan (se eligen en la pestaña «Controles de laboratorio»).
+            Una nota escrita a mano en la Práctica manda sobre lo calculado; bórrela para volver al cálculo.
+          </p>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-b border-gray-200 text-left text-xs dark:border-white/10">
