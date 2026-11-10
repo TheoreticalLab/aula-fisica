@@ -20,7 +20,21 @@ describe('métrica de asistencia', () => {
     expect(textoAsistencia(0, 0)).toBe('sin clases registradas');
   });
 });
-import { calcularNota, CATEGORIAS, leerCelda } from '../src/lib/notas';
+import { calcularNota, CATEGORIAS, CATEGORIAS_LABORATORIO, categoriasPara, leerCelda } from '../src/lib/notas';
+
+describe('registro de las asignaturas de laboratorio (migración 90)', () => {
+  it('20 + 20 + 30 + 30 = 100, sin examen final', () => {
+    expect(CATEGORIAS_LABORATORIO.map((c) => c.max)).toEqual([20, 20, 30, 30]);
+    expect(CATEGORIAS_LABORATORIO.some((c) => c.id === 'final')).toBe(false);
+    expect(categoriasPara(true)).toBe(CATEGORIAS_LABORATORIO);
+    expect(categoriasPara(false)).toBe(CATEGORIAS);
+  });
+  it('el examen final no queda pendiente ni suma', () => {
+    const r = calcularNota({ parcial1: 18, parcial2: 20, parcial3: 27, practica: 30, final: 25 }, 0, CATEGORIAS_LABORATORIO);
+    expect(r).toEqual({ bruto: 95, final: 95, pendientes: [] });
+    expect(calcularNota({ parcial1: 18 }, 0, CATEGORIAS_LABORATORIO).pendientes).toEqual(['parcial2', 'parcial3', 'practica']);
+  });
+});
 
 describe('registro de calificaciones', () => {
   it('la distribución suma 100', () => {

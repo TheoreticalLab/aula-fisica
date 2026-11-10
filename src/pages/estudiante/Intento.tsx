@@ -184,6 +184,9 @@ export default function Intento() {
           {!flags.correctness_visible && <p className="mt-1 text-xs text-gray-500">{activity ? REVEAL_TEXT[activity.reveal_policy] : ''}</p>}
         </div>
       )}
+      {flags.contenido_oculto && (
+        <Notice>Esta evaluación ya está entregada. Por decisión del profesor, sus preguntas y sus respuestas no se pueden volver a ver; la calificación aparecerá aquí cuando el profesor la publique.</Notice>
+      )}
       {attempt.status === 'in_progress' && vencido && flags.is_owner && (
         <Notice tone="warn">El plazo terminó. Ya no puede cambiar respuestas, pero puede entregar lo que guardó a tiempo para que se califique.</Notice>
       )}

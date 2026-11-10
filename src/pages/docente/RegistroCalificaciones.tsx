@@ -5,10 +5,11 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getClass } from '@/api/docente';
+import { getCourse } from '@/api/estudiante';
 import { rpc } from '@/lib/supabase';
 import { Card, ErrorBox, Modal, Notice, PageTitle, Spinner } from '@/components/ui';
 import { useAction, useAsync } from '@/lib/util';
-import { CATEGORIAS, leerCelda, type Categoria } from '@/lib/notas';
+import { CATEGORIAS, categoriasPara, leerCelda, type Categoria } from '@/lib/notas';
 import { aCsv } from '@/lib/tiempo';
 
 interface Fila { user_id: string; full_name: string; student_code: string | null; parcial1: number | null; parcial2: number | null; parcial3: number | null; practica: number | null; final: number | null; extras: number; extras_pendientes: number; bruto: number; nota_final: number; pendientes: number; es_monitor: boolean }
@@ -57,6 +58,10 @@ function Celda({ valor, max, onGuardar }: { valor: number | null; max: number; o
 export default function RegistroCalificaciones() {
   const { classId = '' } = useParams();
   const cls = useAsync(() => getClass(classId), [classId]);
+  // asignatura de laboratorio (migración 90): 20 + 20 + 30 + 30, sin examen final ni extras
+  const curso = useAsync(async () => (cls.data ? getCourse(cls.data.course_id) : null), [cls.data?.course_id]);
+  const laboratorio = !!curso.data?.laboratorio_controles;
+  const cats = categoriasPara(laboratorio);
   const filas = useAsync(async () => (await rpc<Fila[]>('gradebook_official', { p_class: classId })).map((f) => ({
     ...f, ...Object.fromEntries(CATEGORIAS.map((c) => [c.id, n(f[c.id])])), extras: Number(f.extras), extras_pendientes: Number(f.extras_pendientes), bruto: Number(f.bruto), nota_final: Number(f.nota_final),
   })) as Fila[], [classId]);
@@ -142,8 +147,8 @@ export default function RegistroCalificaciones() {
     if (r) { setExtraPara(null); setExtraForm({ puntos: '1', motivo: '' }); void extras.reload(); void filas.reload(); }
   }
   function exportar() {
-    const enc = ['Estudiante', 'Matrícula', ...CATEGORIAS.map((c) => `${c.label} (${c.max})`), 'Extras aprobados', 'Total bruto', 'Nota final (máx. 100)', 'Categorías pendientes'];
-    const datos = (filas.data ?? []).map((f) => [f.full_name, f.student_code, ...CATEGORIAS.map((c) => f[c.id] ?? 'Pendiente'), f.extras, f.bruto, f.nota_final, f.pendientes]);
+    const enc = ['Estudiante', 'Matrícula', ...cats.map((c) => `${c.label} (${c.max})`), 'Extras aprobados', 'Total bruto', 'Nota final (máx. 100)', 'Categorías pendientes'];
+    const datos = (filas.data ?? []).map((f) => [f.full_name, f.student_code, ...cats.map((c) => f[c.id] ?? 'Pendiente'), f.extras, f.bruto, f.nota_final, f.pendientes]);
     const url = URL.createObjectURL(new Blob([aCsv([enc, ...datos])], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
@@ -152,7 +157,7 @@ export default function RegistroCalificaciones() {
     URL.revokeObjectURL(url);
   }
 
-  if (cls.loading || filas.loading && !filas.data) return <Spinner />;
+  if (cls.loading || cls.data && curso.data?.id !== cls.data.course_id && !curso.error || filas.loading && !filas.data) return <Spinner />;
   const a = ajustes.data;
   const pendientesExtra = (extras.data ?? []).filter((e) => e.status === 'pendiente');
   return (
@@ -181,7 +186,7 @@ export default function RegistroCalificaciones() {
           <table className="w-full text-sm">
             <thead><tr className="border-b border-gray-200 text-left text-xs dark:border-white/10">
               <th className="px-1 py-1">Estudiante</th>
-              {CATEGORIAS.map((c) => {
+              {cats.map((c) => {
                 const p = partePor.get(c.id);
                 return [
                   p && <th key={`${c.id}-parte`} className="px-1 py-1 text-right" title={`Parte de ${c.label} escrita a mano`}>{p.label}<br /><span className="text-gray-500">/{p.max}</span></th>,
@@ -197,7 +202,7 @@ export default function RegistroCalificaciones() {
                 <tr key={f.user_id} className="border-b border-gray-100 dark:border-white/5">
                   <td className="px-1 py-1"><Link className="enlace" to={`/docente/clases/${classId}/estudiantes/${f.user_id}`} title="Ficha completa del estudiante">{f.full_name || '—'}</Link> {f.es_monitor && <span className="ml-1 rounded bg-amber-100 px-1 text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">monitor</span>}
                     <span className="block text-xs text-gray-500">{f.student_code}</span></td>
-                  {CATEGORIAS.map((c) => {
+                  {cats.map((c) => {
                     const o = origenes.data?.get(`${f.user_id}:${c.id}`);
                     const p = partePor.get(c.id);
                     const vp = notaParte.get(`${f.user_id}:${c.id}`) ?? null;
@@ -228,7 +233,7 @@ export default function RegistroCalificaciones() {
                     );
                   })()}
                   <td className="whitespace-nowrap px-1 py-1 text-right text-xs">
-                    <button className="enlace mr-2" onClick={() => setExtraPara(f)}>+ extra</button>
+                    {!laboratorio && <button className="enlace mr-2" onClick={() => setExtraPara(f)}>+ extra</button>}
                     <button className="enlace mr-2" onClick={() => void verHistorial(f)}>historial</button>
                     <button className="enlace" onClick={() => void monitor(f)}>{f.es_monitor ? 'revocar monitor' : 'nombrar monitor'}</button>
                   </td>
@@ -274,14 +279,14 @@ export default function RegistroCalificaciones() {
             <thead><tr className="border-b border-gray-200 text-left text-xs dark:border-white/10"><th className="py-1">Actividad</th><th className="py-1">Apartado</th><th className="py-1">Valor</th><th className="py-1 text-right">Vale</th></tr></thead>
             <tbody>
               {(vinculos.data ?? []).map((v) => {
-                const max = CATEGORIAS.find((c) => c.id === v.category)?.max ?? 0;
+                const max = cats.find((c) => c.id === v.category)?.max ?? 0;
                 return (
                   <tr key={v.activity_id} className="border-b border-gray-100 dark:border-white/5">
                     <td className="py-1">{v.title} <span className="text-xs text-gray-500">({v.mode === 'exam' ? 'examen' : 'práctica'})</span></td>
                     <td className="py-1">
                       <select className="campo !py-0.5 text-xs" value={v.category ?? ''} onChange={(e) => void vincular(v, (e.target.value || null) as Categoria | null, null)}>
                         <option value="">No cuenta</option>
-                        {CATEGORIAS.map((c) => <option key={c.id} value={c.id}>{c.label} ({c.max})</option>)}
+                        {cats.map((c) => <option key={c.id} value={c.id}>{c.label} ({c.max})</option>)}
                       </select>
                     </td>
                     <td className="py-1">
@@ -315,14 +320,14 @@ export default function RegistroCalificaciones() {
             Divide un apartado en una parte que usted califica a mano (p. ej. «Prácticas anteriores», 15) y otra que calculan las actividades
             vinculadas (el resto, p. ej. 15 de los 30 de Práctica). La parte aparece como columna propia en la tabla de estudiantes.
           </p>
-          {[...partePor.values()].map((p) => <p key={p.category} className="text-sm">{ETIQUETA[p.category]}: «{p.label}» vale {p.max}; las actividades reparten {(CATEGORIAS.find((c) => c.id === p.category)?.max ?? 0) - p.max}.</p>)}
+          {[...partePor.values()].map((p) => <p key={p.category} className="text-sm">{ETIQUETA[p.category]}: «{p.label}» vale {p.max}; las actividades reparten {(cats.find((c) => c.id === p.category)?.max ?? 0) - p.max}.</p>)}
           <div className="mt-2 flex flex-wrap items-end gap-2 text-sm">
             <label><span className="etiqueta">Apartado</span>
               <select className="campo !py-1" value={formParte.category} onChange={(e) => {
                 const cat = e.target.value as Categoria, p = partePor.get(cat);
                 setFormParte({ category: cat, label: p?.label ?? formParte.label, max: String(p?.max ?? formParte.max) });
               }}>
-                {CATEGORIAS.map((c) => <option key={c.id} value={c.id}>{c.label} ({c.max})</option>)}
+                {cats.map((c) => <option key={c.id} value={c.id}>{c.label} ({c.max})</option>)}
               </select></label>
             <label><span className="etiqueta">Nombre de la parte</span>
               <input className="campo !py-1" maxLength={80} value={formParte.label} onChange={(e) => setFormParte({ ...formParte, label: e.target.value })} /></label>

@@ -14,9 +14,9 @@ import { estadoActividad, ExamenesEstudiante, type Actividad } from './ExamenesE
 import { porcentajeAsistencia, textoAsistencia, tonoAsistencia, UMBRAL_ASISTENCIA } from '@/lib/asistencia';
 import { useDark } from '@/lib/tema';
 import { etiquetaSeccion, formatoDuracion } from '@/lib/tiempo';
-import { CATEGORIAS, calcularNota, type Notas } from '@/lib/notas';
+import { CATEGORIAS, calcularNota, categoriasPara, type Notas } from '@/lib/notas';
 import { nombreCodigo } from '@/lib/codigos';
-import { conceptMastery, getLessonList, getUnits, lessonProgress } from '@/api/estudiante';
+import { conceptMastery, getCourse, getLessonList, getUnits, lessonProgress } from '@/api/estudiante';
 import { Badge, Card, ErrorBox, PageTitle, Spinner, Tabs } from '@/components/ui';
 import { COMO_SE_CALCULA, VistaDominio } from '../estudiante/Progreso';
 import { MapaTutoriaTab } from './MapaTutoria';
@@ -412,13 +412,20 @@ function Respuestas({ f }: { f: Ficha }) {
 }
 
 function Calificaciones({ f }: { f: Ficha }) {
+  // secciones de asignaturas de laboratorio (migración 90): 20 + 20 + 30 + 30, sin examen final ni extras
+  const ids = [...new Set(f.clases.map((c) => c.course_id))];
+  const labs = useAsync(async () => new Set((await Promise.all(ids.map(getCourse))).filter((k) => k.laboratorio_controles).map((k) => k.id)), [ids.join()]);
   if (!f.calificaciones.length) return <p className="text-sm text-gray-500">Sin secciones a su cargo.</p>;
+  if (!labs.data && !labs.error) return <Spinner />;
   return (
     <div className="space-y-4">
       {f.calificaciones.map((c) => {
+        const curso = f.clases.find((k) => k.class_id === c.class_id)?.course_id;
+        const laboratorio = !!curso && !!labs.data?.has(curso);
+        const cats = categoriasPara(laboratorio);
         const notas: Notas = Object.fromEntries(c.categorias.map((x) => [x.categoria, x.nota]));
         const extras = c.extras.filter((x) => x.estado === 'aprobado').reduce((s, x) => s + Number(x.puntos), 0);
-        const n = calcularNota(notas, extras);
+        const n = calcularNota(notas, extras, cats);
         return (
           <Card key={c.class_id} title={`${c.clase} · nota ${n.final}/100${n.pendientes.length ? ` (${n.pendientes.length} apartado(s) pendiente(s))` : ''}`}
             actions={<Link className="btn-secundario !py-1 text-xs" to={`/docente/clases/${c.class_id}/registro`}>Abrir el registro</Link>}>
@@ -426,7 +433,7 @@ function Calificaciones({ f }: { f: Ficha }) {
             <table className="w-full text-sm">
               <thead><tr className="border-b text-left text-xs dark:border-white/10"><th className="py-1">Apartado</th><th className="text-right">Nota</th><th className="text-right">Máximo</th><th>Origen</th></tr></thead>
               <tbody>
-                {CATEGORIAS.map((cat) => {
+                {cats.map((cat) => {
                   const x = c.categorias.find((y) => y.categoria === cat.id);
                   return (
                     <tr key={cat.id} className="border-b border-gray-100 dark:border-white/5">
@@ -437,7 +444,7 @@ function Calificaciones({ f }: { f: Ficha }) {
                     </tr>
                   );
                 })}
-                <tr className="border-b border-gray-100 dark:border-white/5"><td className="py-1">Puntos extra aprobados</td><td className="text-right tabular-nums">{extras}</td><td /><td /></tr>
+                {(!laboratorio || extras > 0) && <tr className="border-b border-gray-100 dark:border-white/5"><td className="py-1">Puntos extra aprobados</td><td className="text-right tabular-nums">{extras}</td><td /><td /></tr>}
                 <tr className="font-semibold"><td className="py-1">Nota final</td><td className="text-right tabular-nums">{n.final}</td><td className="text-right text-gray-500">100</td><td className="text-xs font-normal">{n.bruto > 100 ? `(suma ${n.bruto}, máximo 100)` : ''}</td></tr>
               </tbody>
             </table>

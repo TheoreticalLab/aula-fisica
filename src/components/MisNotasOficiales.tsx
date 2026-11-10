@@ -78,14 +78,17 @@ export function MisNotasOficiales() {
       {data.map((s) => {
         const notas = Object.fromEntries(s.categorias.map((c) => [c.category, c.score === null ? null : Number(c.score)])) as Notas;
         const extras = s.extras.reduce((t, x) => t + Number(x.points), 0);
-        const t = calcularNota(notas, extras);
+        // los apartados y sus máximos vienen del servidor (laboratorio, migración 90: 20 + 20 + 30 + 30, sin examen final ni extras)
+        const cats = s.categorias.map((c) => ({ id: c.category, label: ETIQUETA[c.category], max: Number(c.max) }));
+        const laboratorio = !s.categorias.some((c) => c.category === 'final');
+        const t = calcularNota(notas, extras, cats);
         return (
           <section key={s.class_id} className="tarjeta mb-4">
             <h2 className="text-lg font-semibold">Registro de calificaciones · {s.course_title}</h2>
-            <p className="text-xs text-gray-500">{s.class_name} · distribución: 15 + 15 + 15 + 30 + 25 = 100 puntos, más extras</p>
+            <p className="text-xs text-gray-500">{s.class_name} · distribución: {cats.map((c) => c.max).join(' + ')} = {cats.reduce((x, c) => x + c.max, 0)} puntos{laboratorio ? '' : ', más extras'}</p>
             <ul className="divide-y divide-gray-100 dark:divide-white/10">
               {s.categorias.map((c) => <Apartado key={c.category} c={c} publicado={s.published} />)}
-              {s.published && (
+              {s.published && (!laboratorio || s.extras.length > 0) && (
                 <li className="flex justify-between py-2">
                   <span>Puntos extras {s.extras.length > 0 && <span className="block text-xs text-gray-500">{s.extras.map((x) => `+${Number(x.points)} ${x.reason}`).join(' · ')}</span>}</span>
                   <span className="tabular-nums">{extras ? `+${extras}` : '0'}</span>
