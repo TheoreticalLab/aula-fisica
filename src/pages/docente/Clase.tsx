@@ -41,8 +41,16 @@ import { TabPrograma } from './ProgramaTab';
 import { CopiarActividad } from './CopiarActividad';
 import { TabPes } from './PesTab';
 import { TabControlesLab } from './LabControles';
+import { GRUPOS_SECCION, grupoDePestana } from '@/lib/tablero';
 
 type Tab = 'estudiantes' | 'controles' | 'asistencia' | 'clases' | 'programa' | 'avisos' | 'actividades' | 'pes' | 'seguimiento' | 'entregas' | 'regularizacion' | 'coincidencias' | 'calificaciones' | 'revision' | 'estadisticas';
+
+const ETIQUETAS: Record<Tab, string> = {
+  estudiantes: 'Estudiantes y grupos', asistencia: 'Asistencia', seguimiento: 'Seguimiento', avisos: 'Avisos',
+  clases: 'Clases impartidas', programa: 'Programa impartido',
+  actividades: 'Actividades', pes: 'Prácticas extraordinarias', revision: 'Revisión manual', calificaciones: 'Calificaciones', estadisticas: 'Estadísticas',
+  controles: 'Controles de laboratorio', entregas: 'Entregas en PDF', regularizacion: 'Prácticas anteriores', coincidencias: 'Coincidencias de archivos',
+};
 
 export default function Clase() {
   const { classId = '' } = useParams();
@@ -57,12 +65,14 @@ export default function Clase() {
   if (cls.loading) return <Spinner />;
   if (cls.error) return <ErrorBox error={cls.error} />;
   const { c, course, secciones } = cls.data!;
+  const disponible = (t: Tab) => (t === 'controles' ? !!course.laboratorio_controles : t === 'programa' ? !!course.programa : true);
+  const grupos = GRUPOS_SECCION.map((g) => ({ ...g, pestanas: (g.pestanas as readonly Tab[]).filter(disponible) }));
+  const grupo = grupoDePestana(tab);
   return (
     <div>
       <PageTitle title={c.name} subtitle={<>{c.term} · {course.title} {c.archived && <Badge tone="amber">Archivada</Badge>}</>} back={{ to: '/docente', label: 'Panel docente' }}
         actions={<>
           <Link to={`/docente/clases/${classId}/vista-estudiante`} className="btn-secundario">👁 Ver como estudiante</Link>
-          <Link to={`/docente/clases/${classId}/registro`} className="btn-secundario">📒 Registro de calificaciones</Link>
           {secciones.length > 1 && (
             <select className="campo w-auto" value={classId} aria-label="Cambiar de sección"
               onChange={(e) => nav(`/docente/clases/${e.target.value}${tab !== 'estudiantes' ? `?t=${tab}` : ''}`)}>
@@ -72,27 +82,25 @@ export default function Clase() {
             </select>
           )}
         </>} />
+      {/* Cuatro grupos y, dentro, las pestañas de siempre (los enlaces ?t=… no cambian) */}
+      <div className="mb-3 grid grid-cols-4 gap-1.5" role="tablist" aria-label="Áreas de la sección">
+        {grupos.map((g) => (
+          <button key={g.id} role="tab" aria-selected={g.id === grupo} onClick={() => setParams({ t: g.pestanas[0] }, { replace: true })}
+            className={`min-h-[44px] rounded-lg border px-1 py-1.5 text-sm font-semibold leading-tight transition ${g.id === grupo
+              ? 'border-primario-700 bg-primario-800 text-white dark:border-acento-500 dark:bg-acento-500/20'
+              : 'border-gray-200 text-gray-600 hover:border-primario-400 dark:border-white/15 dark:text-gray-300'}`}>
+            <span className="block sm:inline" aria-hidden>{g.icono}</span> {g.label}
+          </button>
+        ))}
+      </div>
       <Tabs<Tab>
         value={tab}
         onChange={(t) => setParams({ t }, { replace: true })}
-        tabs={[
-          { id: 'estudiantes', label: 'Estudiantes y grupos' },
-          ...(course.laboratorio_controles ? [{ id: 'controles' as Tab, label: 'Controles de laboratorio' }] : []),
-          { id: 'asistencia', label: 'Asistencia' },
-          { id: 'clases', label: 'Clases impartidas' },
-          ...(course.programa ? [{ id: 'programa' as Tab, label: 'Programa impartido' }] : []),
-          { id: 'avisos', label: 'Avisos' },
-          { id: 'actividades', label: 'Actividades' },
-          { id: 'pes', label: 'Prácticas extraordinarias' },
-          { id: 'seguimiento', label: 'Seguimiento' },
-          { id: 'entregas', label: 'Entregas en PDF' },
-          { id: 'regularizacion', label: 'Prácticas anteriores' },
-          { id: 'coincidencias', label: 'Coincidencias de archivos' },
-          { id: 'calificaciones', label: 'Calificaciones' },
-          { id: 'revision', label: 'Revisión manual' },
-          { id: 'estadisticas', label: 'Estadísticas' },
-        ]}
+        tabs={(grupos.find((g) => g.id === grupo)?.pestanas ?? []).map((id) => ({ id, label: ETIQUETAS[id] }))}
       />
+      {grupo === 'evaluacion' && (
+        <p className="-mt-2 mb-4 text-sm"><Link to={`/docente/clases/${classId}/registro`} className="enlace">📒 Registro de calificaciones</Link> <span className="text-gray-500">— la hoja oficial de notas de la sección.</span></p>
+      )}
       {tab === 'estudiantes' && <TabEstudiantes c={c} onChange={(nc) => cls.setData({ c: nc, course, secciones })} />}
       {tab === 'controles' && !!course.laboratorio_controles &&<TabControlesLab classId={c.id} />}
       {tab === 'asistencia' && <TabAsistencia classId={c.id} nombre={c.name} />}
@@ -518,7 +526,7 @@ function TabRevision({ c }: { c: ClassRow }) {
           <span className="font-medium">{r.student}</span>
           <span className="text-sm text-gray-500">{r.activity_title} · {r.exercise_slug}</span>
           <span className="w-full text-sm text-gray-600 dark:text-gray-400">{r.prompt}</span>
-          <Link className="btn-secundario ml-auto text-sm" to={`/docente/intentos/${r.attempt_id}#r-${r.response_id}`}>Calificar</Link>
+          <Link className="btn-secundario ml-auto text-sm" to={`/docente/intentos/${r.attempt_id}?cola=${c.id}#r-${r.response_id}`}>Calificar</Link>
         </li>
       ))}
     </ul>

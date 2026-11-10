@@ -171,7 +171,8 @@ describe('integración (estática)', () => {
   });
   it('la asignatura de laboratorio sustituye el programa de lecciones solo cuando tiene controles', () => {
     expect(temario).toMatch(/if \(course\.laboratorio_controles\)/);
-    expect(clase).toMatch(/course\.laboratorio_controles \? \[\{ id: 'controles'/);
+    // la pestaña «Controles de laboratorio» solo existe si la asignatura tiene controles (pestañas agrupadas, migración 92)
+    expect(clase).toMatch(/t === 'controles' \? !!course\.laboratorio_controles/);
   });
   it('prueba 8: el Módulo B usa las actividades del motor existente (my_activities), sin una vía nueva para enunciados', () => {
     expect(lab).toMatch(/\/actividad\/\$\{a\.id\}/);

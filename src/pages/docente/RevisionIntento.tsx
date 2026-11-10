@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { getAttempt } from '@/api/estudiante';
-import { gradeResponse, responseEvents } from '@/api/docente';
+import { gradeResponse, responseEvents, reviewQueue } from '@/api/docente';
+import { siguientePorRevisar } from '@/lib/tablero';
 import type { AttemptItem } from '@/api/tipos';
 import { CATEGORIA, DIFICULTAD, fecha, porcentaje, puntaje, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, ErrorBox, PageTitle, Spinner, StatusBadge } from '@/components/ui';
@@ -123,17 +124,33 @@ function ItemRevision({ item, index, attemptId, onSaved }: { item: AttemptItem; 
 
 export default function RevisionIntento() {
   const { attemptId = '' } = useParams();
+  // «Revisar la siguiente» (centro de mando): con ?cola=<sección> se ofrece pasar a la siguiente respuesta pendiente
+  const [params] = useSearchParams();
+  const cola = params.get('cola') ?? '';
   const st = useAsync(() => getAttempt(attemptId), [attemptId]);
+  const pendientes = useAsync(() => (cola ? reviewQueue(cola) : Promise.resolve(null)), [cola, attemptId]);
   if (st.loading && !st.data) return <Spinner />;
   if (st.error) return <ErrorBox error={st.error} />;
   const v = st.data!;
   if (!v.flags.is_reviewer) return <ErrorBox error="No puede revisar este intento." />;
+  const aqui = pendientes.data?.filter((r) => r.attempt_id === attemptId).length ?? 0;
+  const sig = pendientes.data ? siguientePorRevisar(pendientes.data, attemptId) : null;
   return (
     <div className="mx-auto max-w-4xl">
       <PageTitle title={`Revisión: ${v.student?.full_name ?? ''}`}
         subtitle={<>{v.activity?.title ?? `Práctica libre: ${v.lesson?.title}`} · intento {v.attempt.attempt_number} · {v.attempt.status === 'submitted' ? `entregado ${fecha(v.attempt.submitted_at)}` : 'en curso'}</>}
-        back={v.activity ? { to: `/docente/actividades/${v.activity.id}`, label: 'Actividad' } : undefined} />
-      <CuerpoRevision v={v} attemptId={attemptId} onSaved={st.reload} conCronologia />
+        back={cola ? { to: '/docente', label: 'Centro de mando' } : v.activity ? { to: `/docente/actividades/${v.activity.id}`, label: 'Actividad' } : undefined} />
+      <CuerpoRevision v={v} attemptId={attemptId} onSaved={() => { st.reload(); pendientes.reload(); }} conCronologia />
+      {cola && pendientes.data && (
+        <div className="sticky bottom-16 z-20 mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white/95 p-3 text-sm shadow-lg backdrop-blur dark:border-white/10 dark:bg-primario-950/95 md:bottom-3">
+          <span className="min-w-0 flex-1">
+            {aqui > 0 ? `En este intento ${aqui === 1 ? 'queda 1 respuesta' : `quedan ${aqui} respuestas`} por revisar.` : 'Este intento ya no tiene respuestas por revisar. ✓'}
+            {' '}{pendientes.data.length - aqui > 0 ? `Después: ${pendientes.data.length - aqui} más en la sección.` : 'No hay más en la sección.'}
+          </span>
+          {sig ? <Link className={aqui > 0 ? 'btn-secundario' : 'btn-primario'} to={`/docente/intentos/${sig.attempt_id}?cola=${cola}#r-${sig.response_id}`}>Siguiente por revisar →</Link>
+            : <Link className={aqui > 0 ? 'btn-secundario' : 'btn-primario'} to="/docente">Volver al centro de mando</Link>}
+        </div>
+      )}
     </div>
   );
 }

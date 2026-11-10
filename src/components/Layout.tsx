@@ -19,6 +19,8 @@ import { useTema } from '@/lib/tema';
 import { ErrorBox, Spinner } from './ui';
 import { errorMessage } from '@/lib/supabase';
 import { CONSUMO, hechaHaceMenosDe, marcarHecha } from '@/lib/consumo';
+import { ABRIR_BUSCADOR, BuscadorEstudiante } from '@/components/BuscadorEstudiante';
+import { herramientasPorGrupo } from '@/lib/herramientasDocente';
 
 function Logo() {
   return (
@@ -110,7 +112,29 @@ export function Layout() {
     return () => document.removeEventListener('visibilitychange', alVolver);
   }, [session, profile?.role, profile?.active]);
   const [menu, setMenu] = useState(false);
+  const [herramientas, setHerramientas] = useState(false);
   const loc = useLocation();
+  // los menús desplegables se cierran al pulsar fuera, con Escape o al cambiar de página
+  const refMenu = useRef<HTMLDivElement>(null);
+  const refHerramientas = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menu && !herramientas) return;
+    const fuera = (e: MouseEvent | TouchEvent) => {
+      const t = e.target as Node;
+      if (menu && !refMenu.current?.contains(t)) setMenu(false);
+      if (herramientas && !refHerramientas.current?.contains(t)) setHerramientas(false);
+    };
+    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape') { setMenu(false); setHerramientas(false); } };
+    document.addEventListener('mousedown', fuera);
+    document.addEventListener('touchstart', fuera);
+    document.addEventListener('keydown', tecla);
+    return () => {
+      document.removeEventListener('mousedown', fuera);
+      document.removeEventListener('touchstart', fuera);
+      document.removeEventListener('keydown', tecla);
+    };
+  }, [menu, herramientas]);
+  useEffect(() => { setMenu(false); setHerramientas(false); }, [loc.pathname]);
   // regularización obligatoria pendiente: el aula queda reducida a la regularización (el servidor ya lo impone)
   const bloqueo = useBloqueoRegularizacion(!!session && !isTeacher && profile?.role === 'student' && !!profile?.active);
   const bloqueado = bloqueo.bloqueado;
@@ -135,8 +159,21 @@ export function Layout() {
                     <NavLink to="/docente/cursos" className={topLink}>Contenido</NavLink>
                     <NavLink to="/docente/ejercicios" className={topLink}>Banco</NavLink>
                     <NavLink to="/docente/comunicacion" className={topLink}>Comunicación</NavLink>
-                    <NavLink to="/" end className={topLink}>Vista de estudiante</NavLink>
-                    {isAdmin && <NavLink to="/docente/cuentas" className={topLink}>Cuentas</NavLink>}
+                    <div className="relative" ref={refHerramientas}>
+                      <button onClick={() => setHerramientas((h) => !h)} className={topLink({ isActive: herramientas })} aria-expanded={herramientas} aria-haspopup="menu">Herramientas ▾</button>
+                      {herramientas && (
+                        <div role="menu" className="absolute right-0 mt-1 max-h-[80vh] w-72 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-white/10 dark:bg-primario-950">
+                          {herramientasPorGrupo(isAdmin).map((g) => (
+                            <div key={g.grupo}>
+                              <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{g.grupo}</p>
+                              {g.items.map((h) => h.externa
+                                ? <a key={h.to} role="menuitem" href={`${import.meta.env.BASE_URL}${h.to}`} className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10"><span aria-hidden>{h.icono}</span> {h.titulo}</a>
+                                : <Link key={h.to} role="menuitem" to={h.to} className="block px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10"><span aria-hidden>{h.icono}</span> {h.titulo}</Link>)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </>
                 ) : (
                   <>
@@ -152,9 +189,15 @@ export function Layout() {
             )}
           </nav>
           <div className="ml-auto flex items-center md:ml-2">
+            {session && isTeacher && (
+              <button onClick={() => window.dispatchEvent(new Event(ABRIR_BUSCADOR))} className="flex h-10 w-10 items-center justify-center rounded-lg text-primario-100 hover:bg-white/10"
+                aria-label="Buscar un estudiante" title="Buscar un estudiante (tecla / o Ctrl+K)">
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+              </button>
+            )}
             <ThemeButton />
             {session ? (
-              <div className="relative">
+              <div className="relative" ref={refMenu}>
                 <button onClick={() => setMenu((m) => !m)} className="ml-1 flex h-10 items-center gap-2 rounded-lg px-2 text-sm text-white hover:bg-white/10" aria-expanded={menu} aria-haspopup="menu">
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-acento-500 font-semibold text-primario-950">
                     {(profile?.full_name || profile?.login_id || '?').trim().charAt(0).toUpperCase()}
@@ -236,6 +279,7 @@ export function Layout() {
       {session && !isTeacher && !bloqueado && <OrbeIa />}
       {session && !isTeacher && !bloqueado && <PreguntaRelampago />}
       {session && !isTeacher && profile?.active && !bloqueado && <RecordatorioRegularizacion pausado={introVisible} />}
+      {session && isTeacher && profile?.active && <BuscadorEstudiante />}
       {session && <BottomNav docente={docente && isTeacher} />}
     </div>
   );
@@ -263,7 +307,8 @@ function BottomNav({ docente }: { docente: boolean }) {
         <>
           <NavLink to="/docente" end className={item}>{icon(<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />)}Panel</NavLink>
           <NavLink to="/docente/cursos" className={item}>{icon(<path d="M4 5h11a3 3 0 0 1 3 3v12H7a3 3 0 0 1-3-3zM18 8h2v12" />)}Contenido</NavLink>
-          <NavLink to="/docente/ejercicios" className={item}>{icon(<path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9" />)}Ejercicios</NavLink>
+          <NavLink to="/docente/ejercicios" className={item}>{icon(<path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9" />)}Banco</NavLink>
+          <NavLink to="/docente/comunicacion" className={item}>{icon(<path d="M4 5h16v11H9l-5 4z" />)}Mensajes</NavLink>
           <NavLink to="/" end className={item}>{icon(<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0" />)}Estudiante</NavLink>
         </>
       ) : (

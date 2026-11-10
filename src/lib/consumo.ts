@@ -58,6 +58,8 @@ export interface PerfilConsumo {
   controlAlertasMs: number;
   /** Orbe Control: recargas por Realtime agrupadas como máximo una cada… */
   controlAgruparMs: number;
+  /** Centro de mando del profesor (`tablero_docente`): una sola consulta de lectura con todo el tablero. */
+  tableroDocenteMs: number;
   /** Los paneles docentes no consultan con la pestaña oculta (al volver, consultan al momento). */
   pausarOculto: boolean;
 }
@@ -83,6 +85,7 @@ export const NORMAL: PerfilConsumo = {
   controlHistorialMs: 20_000,
   controlAlertasMs: 120_000,
   controlAgruparMs: 600,
+  tableroDocenteMs: 30_000,
   pausarOculto: false,
 };
 
@@ -107,6 +110,7 @@ export const BAJO_CONSUMO: PerfilConsumo = {
   controlHistorialMs: 45_000,
   controlAlertasMs: 15 * 60_000,
   controlAgruparMs: 2_000,
+  tableroDocenteMs: 60_000,
   pausarOculto: true,
 };
 
