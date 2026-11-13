@@ -9,5 +9,6 @@ privado/
 supabase/.temp
 supabase/.branches
 pruebas/.perfil_chrome*
+pruebas/.perfil_calculadora
 pruebas/capturas/*.png
 .DS_Store

@@ -17,6 +17,7 @@ import { ACCIONES_SERVIDOR, Ejercicio } from '@/components/Ejercicio';
 import { Badge, ErrorBox, Modal, Notice } from '@/components/ui';
 import { useTelemetria } from '@/components/Telemetria';
 import { useModoConcentracion } from '@/components/Layout';
+import { BotonCalculadora } from '@/components/Calculadora';
 
 const INACTIVIDAD_MS = 60_000, LATIDO_MS = 5_000, PING_MS = 20_000, DIARIO_MS = 15_000;
 const DEFINITIVO = /terminó|entregado|no se puede modificar|no pertenece|inválid|Sin permiso|no encontrado/i;
@@ -311,6 +312,7 @@ export function ExamenUnaALaVez({ view, servidor, onEntregado, onItems, recargar
           {resumen === 'guardado' ? 'Guardado ✓' : resumen === 'enviando' || resumen === 'pendiente' ? 'Guardando…' : resumen === 'sin_conexion' ? 'Sin conexión: guardado en este dispositivo' : 'No se pudo guardar'}
         </span>
         <span className="flex-1" />
+        <BotonCalculadora />
         {cfg.pausas.permitidas && motor.fase !== 'en_pausa' && (
           <button className="btn-secundario min-h-[40px] text-sm" onClick={() => void doPausa()} disabled={ocupado || !!puedePausar(motor, cfg)}
             title={puedePausar(motor, cfg) ?? `Pausas: ${motor.pausas.n}/${cfg.pausas.max_numero}`}>⏸ Pausar</button>

@@ -86,3 +86,17 @@ export const submitAttempt = (attemptId: string) => calificar<{ state: { status:
 export async function updateMyProfile(id: string, patch: { full_name?: string; student_code?: string | null }) {
   await q(supabase.from('profiles').update(patch).eq('id', id).select('id'));
 }
+
+/**
+ * ¿La actividad permite la calculadora científica integrada? (migración 93). Una lectura por intento abierto.
+ * Ante cualquier error, incluida una base de datos sin la migración, responde «no»: la calculadora queda oculta.
+ */
+export async function calculadoraPermitida(activityId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from('activities').select('calculadora').eq('id', activityId).maybeSingle();
+    if (error) return false;
+    return (data as { calculadora?: boolean } | null)?.calculadora === true;
+  } catch {
+    return false;
+  }
+}

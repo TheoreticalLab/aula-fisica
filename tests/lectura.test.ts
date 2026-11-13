@@ -81,4 +81,30 @@ describe('generador de actividades con lectura', () => {
   it('sin lectura no toca las columnas nuevas (funciona antes de la migración 10)', () => {
     expect(sqlActividad({ ...act, lectura: undefined })).not.toMatch(/reading_/);
   });
+
+  it('sin lección asociada ni unidad que publicar, no toca lesson_id ni units', () => {
+    const sql = sqlActividad(act);
+    expect(sql).not.toMatch(/lesson_id\)/);
+    expect(sql).not.toMatch(/update public\.units/);
+  });
+
+  it('asocia la actividad a una lección y lo comprueba', () => {
+    const sql = sqlActividad({ ...act, leccionActividad: 'u9c-impulso' });
+    expect(sql).toMatch(/reading_text, reading_min_seconds, lesson_id\)/);
+    expect(sql).toMatch(/l\.slug = \$aula_a9\$u9c-impulso\$aula_a9\$\)\)\s*\non conflict \(id\) do nothing/);
+    expect(sql).toMatch(/quedó sin lección asociada/);
+  });
+
+  it('publica solo la unidad indicada, nunca una archivada u oculta, y comprueba el resultado', () => {
+    const sql = sqlActividad({ ...act, leccionActividad: 'u9c-impulso', publicarUnidad: 'fisica-choques' });
+    const bloque = sql.slice(sql.indexOf('do $uni$'), sql.indexOf('end $uni$'));
+    expect(bloque).toMatch(/update public\.units set status = 'publicado' where id = v_u\.id/);
+    expect(bloque).toMatch(/v_u\.status = 'archivado' then raise exception/);
+    expect(bloque).toMatch(/v_u\.hidden then raise exception/);
+    expect(bloque).toMatch(/no pertenece a la unidad/);
+    expect(sql.match(/update public\.units/g)).toHaveLength(1);
+    expect(sql).toMatch(/no quedó publicada/);
+    // la unidad se publica antes de crear la actividad (misma transacción del archivo de datos)
+    expect(sql.indexOf('do $uni$')).toBeLessThan(sql.indexOf('insert into public.activities'));
+  });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { getAttempt, submitAttempt } from '@/api/estudiante';
+import { calculadoraPermitida, getAttempt, submitAttempt } from '@/api/estudiante';
+import { BotonCalculadora, CalculadoraProvider } from '@/components/Calculadora';
 import type { AttemptItem } from '@/api/tipos';
 import { fecha, puntaje, relativo, useAction, useAsync } from '@/lib/util';
 import { Badge, ErrorBox, Notice, PageTitle, Spinner } from '@/components/ui';
@@ -89,6 +90,10 @@ export default function Intento() {
   // en la interfaz clásica la entrada se registra aquí («una pregunta a la vez» la registra exam_open)
   const clasica = apertura.data?.modo === 'clasico';
   useEffect(() => { if (vigilar && clasica) void examEntrada(attemptId).catch(() => undefined); }, [vigilar, clasica, attemptId]);
+  // calculadora integrada (migración 93): solo en intentos propios en curso de una actividad que la permita
+  const actividadCalc = st.data?.flags.is_owner && st.data.attempt.status === 'in_progress' ? st.data.attempt.activity_id : null;
+  const calc = useAsync(() => (actividadCalc ? calculadoraPermitida(actividadCalc) : Promise.resolve(false)), [actividadCalc]);
+  const conCalculadora = !!calc.data && !justSubmitted;
   if ((st.loading && !st.data) || (usaMotor && apertura.loading && !apertura.data) || (posibleAsistida && asistida.loading && asistida.data === undefined)) return <Spinner />;
   if (st.error) return <ErrorBox error={st.error} onRetry={st.reload} />;
   const view = st.data!;
@@ -110,6 +115,7 @@ export default function Intento() {
     const servidor = apertura.data;
     return (
       <TelemetriaProvider attemptId={attempt.id} activo examen>
+      <CalculadoraProvider permitida={conCalculadora}>
         <PageTitle title={activity?.title ?? 'Evaluación'} subtitle={<Badge tone="purple">Evaluación · una pregunta a la vez</Badge>}
           back={activity && !vigilar ? { to: `/actividad/${activity.id}`, label: 'Actividad' } : undefined}
           actions={vigilar && activity ? <BotonSalirExamen attemptId={attempt.id} onAutorizada={() => { setSaliendo(true); navegar(`/actividad/${activity.id}`); }} /> : undefined} />
@@ -121,6 +127,7 @@ export default function Intento() {
             recargar={async () => { const v = await getAttempt(attemptId); st.setData(v); return v; }}
             onEntregado={() => { setJustSubmitted(true); void st.reload(); }} />
         </BarreraCopiado>
+      </CalculadoraProvider>
       </TelemetriaProvider>
     );
   }
@@ -153,6 +160,7 @@ export default function Intento() {
 
   return (
     <TelemetriaProvider attemptId={attempt.id} activo={flags.is_owner && attempt.status === 'in_progress'} examen={attempt.mode === 'exam'}>
+    <CalculadoraProvider permitida={conCalculadora}>
     <div className="mx-auto max-w-3xl">
       <PageTitle
         title={activity?.title ?? view.lesson?.title ?? 'Intento'}
@@ -208,12 +216,15 @@ export default function Intento() {
       {attempt.status === 'in_progress' && flags.is_owner && activity && (
         <div className="sticky bottom-20 z-30 mt-6 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-white/10 dark:bg-primario-950/95 md:bottom-4">
           <span className="text-sm">{sinResponder ? `${sinResponder} sin responder` : 'Todo respondido'}</span>
+          <span className="flex-1" />
+          <BotonCalculadora />
           <BotonEntregar entregar={(tel) => void entregar(tel)} ocupado={action.busy}
             bloqueo={puedeEntregar(tiempo) ? null : duracion(Math.max(0, (tiempo?.minimo_s ?? 0) - (tiempo?.segundos ?? 0)))} />
         </div>
       )}
       {flags.is_owner && attempt.status === 'in_progress' && <div className="mt-3"><AvisoTelemetria /></div>}
     </div>
+    </CalculadoraProvider>
     </TelemetriaProvider>
   );
 }

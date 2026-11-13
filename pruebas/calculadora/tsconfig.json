@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.app.json",
+  "compilerOptions": { "baseUrl": "../..", "noEmit": true, "composite": false, "incremental": false },
+  "include": ["../../src", "../../supabase/functions/_shared", "./main.tsx", "./auth-falso.tsx"]
+}

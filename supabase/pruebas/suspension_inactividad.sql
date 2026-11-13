@@ -27,6 +27,9 @@ insert into public.cuenta_actividad (user_id, ultimo_uso) values
 insert into auth.sessions (id, user_id, created_at) values
   ('de790000-0000-4000-8000-0000000002a1', 'de790000-0000-4000-8000-000000000002', now()),
   ('de790000-0000-4000-8000-0000000001a1', 'de790000-0000-4000-8000-000000000001', now());
+-- Punto de partida fijo: la regla apagada, como tras la migración 79. npm run probar restaura los datos de producción,
+-- donde el administrador puede tenerla activada; sin esto la prueba dependería de esa decisión. Se deshace al final.
+update public.inactividad_config set activo = false, dias = 10, activado_at = null where id = 1;
 
 create function pg_temp.como(p_user text) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_user, 'role', 'authenticated', 'session_id',

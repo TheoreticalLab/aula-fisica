@@ -66,10 +66,24 @@ export interface ActividadDef {
     /** Bloquear al salir: el código fijo se genera al azar y nadie lo conoce; el profesor usa códigos temporales. */
     bloquearAlSalir: boolean; impedirCopiar: boolean;
   };
+  /** Apertura y cierre programados (ISO 8601 con desfase explícito, p. ej. '2026-11-13T18:00:00-04:00').
+   *  El servidor no entrega preguntas ni deja empezar antes de la apertura, y el reloj del examen no pasa del cierre. */
+  apertura?: string;
+  cierre?: string;
+  /** Calculadora científica integrada permitida (migración 93). Sin indicar: no (y no se toca la columna). */
+  calculadora?: boolean;
   /** Puntuación total esperada (se comprueba). */
   puntosTotales?: number;
   /** Lectura cronometrada antes de los ejercicios (requiere la migración 10). Sin minSegundos, se calcula del texto. */
   lectura?: { texto: string; minSegundos?: number };
+  /** Solo con una sección concreta: slug de la lección del curso a la que se asocia la actividad (activities.lesson_id). */
+  leccionActividad?: string;
+  /**
+   * Solo con una sección concreta: slug de una unidad del curso que debe quedar PUBLICADA para los estudiantes, en la
+   * misma transacción que la actividad. Pasa de «borrador»/«preparado» a «publicado»; si está archivada u oculta, aborta
+   * (eso lo decide el profesor). Si la actividad tiene leccionActividad, esa lección debe pertenecer a esta unidad.
+   */
+  publicarUnidad?: string;
   ejercicios: EjercicioActividad[];
 }
 
@@ -102,11 +116,23 @@ export async function validarActividad(a: ActividadDef): Promise<string[]> {
     const seg = tiempoLectura(a);
     if (seg < MIN_SEGUNDOS || seg > MAX_SEGUNDOS) p.push(`tiempo de lectura fuera de rango: ${seg} s`);
   }
+  if (a.seccion === '*' && (a.leccionActividad || a.publicarUnidad)) p.push('leccionActividad y publicarUnidad solo se admiten con una sección concreta');
+  for (const [k, v] of [['leccionActividad', a.leccionActividad], ['publicarUnidad', a.publicarUnidad]] as const) {
+    if (v !== undefined && !/^[a-z0-9-]+$/.test(v)) p.push(`${k} inválido: ${v}`);
+  }
   if (a.ajustes.modo === 'exam' && (a.ajustes.revelar === 'immediate' || a.ajustes.pistas)) p.push('en evaluación no puede haber pistas ni retroalimentación inmediata');
   if (a.examen && a.ajustes.modo !== 'exam') p.push('el motor de examen solo se aplica a evaluaciones');
   if (a.examen && (a.examen.duracionMin < 1 || a.examen.duracionMin > 360)) p.push('duración del examen fuera de 1–360 min');
   if (a.examen?.sinSaltos && a.examen.navegacion !== 'solo_adelante') p.push('«sin saltos» requiere navegación solo hacia adelante');
   if (a.ajustes.maxIntentos !== undefined && (a.ajustes.maxIntentos < 1 || a.ajustes.maxIntentos > 50)) p.push('intentos por estudiante fuera de 1–50');
+  for (const [k, v] of [['apertura', a.apertura], ['cierre', a.cierre]] as const) {
+    if (v !== undefined && (!/(Z|[+-]\d{2}:\d{2})$/.test(v) || Number.isNaN(Date.parse(v)))) p.push(`${k} inválida (ISO 8601 con desfase explícito): ${v}`);
+  }
+  if (a.seccion === '*' && (a.apertura || a.cierre || a.calculadora)) p.push('apertura, cierre y calculadora solo se admiten con una sección concreta');
+  if (a.apertura && a.cierre && Date.parse(a.apertura) >= Date.parse(a.cierre)) p.push('la apertura debe ser anterior al cierre');
+  if (a.examen && a.apertura && a.cierre && a.examen.duracionMin * 60_000 > Date.parse(a.cierre) - Date.parse(a.apertura)) {
+    p.push('la duración del examen supera la ventana entre apertura y cierre');
+  }
   if (a.puntosTotales !== undefined) {
     const suma = a.ejercicios.reduce((s, e) => s + (e.points ?? 1), 0);
     if (suma !== a.puntosTotales) p.push(`los puntos suman ${suma}, no ${a.puntosTotales}`);
@@ -270,11 +296,34 @@ on conflict (exercise_id) do nothing;`);
   });
   const s = a.ajustes;
   const lec = a.lectura ? { texto: a.lectura.texto, seg: tiempoLectura(a) } : null;
-  out.push(`\n-- la actividad (sin publicar: el profesor la abre desde su panel)${lec ? ` · lectura cronometrada de ${lec.seg} s` : ''}`);
-  out.push(`insert into public.activities (id, class_id, title, instructions, mode, max_tries_per_item, reveal_policy, hints_enabled, published, created_by${lec ? ', reading_text, reading_min_seconds' : ''})
-values ('${actId}', ${clase}, ${q(a.titulo)}, ${q(a.instrucciones)}, ${q(s.modo)}::public.activity_mode, ${s.intentosPorEjercicio},
-  ${q(s.revelar)}::public.reveal_policy, ${s.pistas}, ${s.publicada}, (select id from public.profiles where role = 'admin' order by created_at limit 1)${lec ? `, ${q(lec.texto)}, ${lec.seg}` : ''})
+  const leccionAct = a.leccionActividad ? `(select l.id from public.lessons l where l.course_id = ${curso} and l.slug = ${q(a.leccionActividad)})` : null;
+  if (a.publicarUnidad) {
+    out.push(`\n-- la unidad «${a.publicarUnidad}» queda publicada para los estudiantes (no toca otras unidades; idempotente)`);
+    out.push(`do $uni$ declare v_u record; begin
+  select u.id, u.status, u.hidden into v_u from public.units u where u.course_id = ${curso} and u.slug = ${q(a.publicarUnidad)};
+  if not found then raise exception 'No existe la unidad % en la asignatura %', ${q(a.publicarUnidad)}, ${q(a.curso)}; end if;
+  if v_u.status = 'archivado' then raise exception 'La unidad % está archivada: no se publica automáticamente', ${q(a.publicarUnidad)}; end if;
+  if v_u.hidden then raise exception 'La unidad % está oculta: no se publica automáticamente', ${q(a.publicarUnidad)}; end if;
+  if v_u.status <> 'publicado' then update public.units set status = 'publicado' where id = v_u.id; end if;${a.leccionActividad ? `
+  if not exists (select 1 from public.lessons l where l.unit_id = v_u.id and l.slug = ${q(a.leccionActividad)}) then
+    raise exception 'La lección % no pertenece a la unidad %', ${q(a.leccionActividad)}, ${q(a.publicarUnidad)};
+  end if;` : ''}
+end $uni$;`);
+  }
+  out.push(`\n-- la actividad (${s.publicada ? 'publicada' : 'sin publicar: el profesor la abre desde su panel'})${lec ? ` · lectura cronometrada de ${lec.seg} s` : ''}`);
+  const ts = (v: string | undefined) => (v ? `${q(v)}::timestamptz` : 'null');
+  out.push(`insert into public.activities (id, class_id, title, instructions, mode, max_tries_per_item, max_attempts, opens_at, closes_at, ${a.calculadora ? 'calculadora, ' : ''}reveal_policy, hints_enabled, published, created_by${lec ? ', reading_text, reading_min_seconds' : ''}${leccionAct ? ', lesson_id' : ''})
+values ('${actId}', ${clase}, ${q(a.titulo)}, ${q(a.instrucciones)}, ${q(s.modo)}::public.activity_mode, ${s.intentosPorEjercicio}, ${s.maxIntentos ?? 'null'},
+  ${ts(a.apertura)}, ${ts(a.cierre)},${a.calculadora ? ' true,' : ''}
+  ${q(s.revelar)}::public.reveal_policy, ${s.pistas}, ${s.publicada}, (select id from public.profiles where role = 'admin' order by created_at limit 1)${lec ? `, ${q(lec.texto)}, ${lec.seg}` : ''}${leccionAct ? `, ${leccionAct}` : ''})
 on conflict (id) do nothing;`);
+  const x = a.examen;
+  if (x) {
+    out.push(`insert into public.exam_settings (activity_id, presentacion, navegacion, duracion_s, pausas_permitidas, sin_saltos, bloquear_al_salir, impedir_copiar, codigo_salida_hash)
+values ('${actId}', 'una_a_la_vez', ${q(x.navegacion)}, ${x.duracionMin * 60}, false, ${x.sinSaltos}, ${x.bloquearAlSalir}, ${x.impedirCopiar},
+  ${x.bloquearAlSalir ? `extensions.crypt(encode(extensions.gen_random_bytes(24), 'base64'), extensions.gen_salt('bf'))` : 'null'})
+on conflict (activity_id) do nothing;`);
+  }
   out.push(`insert into public.activity_items (activity_id, exercise_id, position)
 select '${actId}', e.id, x.pos from unnest(${arr(a.ejercicios.map((e) => e.id))}) with ordinality as x(slug, pos)
 join public.exercises e on e.course_id = ${curso} and e.slug = x.slug
@@ -286,7 +335,22 @@ on conflict (activity_id, exercise_id) do nothing;`);
   end if;
   if exists (select 1 from public.activity_items i join public.exercises e on e.id = i.exercise_id where i.activity_id = '${actId}' and e.lesson_id is null) then
     raise exception 'Algún ejercicio quedó sin lección';
-  end if;
+  end if;${a.puntosTotales !== undefined ? `
+  if (select sum(coalesce(i.points, e.points)) from public.activity_items i join public.exercises e on e.id = i.exercise_id where i.activity_id = '${actId}') <> ${a.puntosTotales} then
+    raise exception 'La actividad no suma ${a.puntosTotales} puntos';
+  end if;` : ''}${x ? `
+  if not exists (select 1 from public.exam_settings where activity_id = '${actId}' and presentacion = 'una_a_la_vez' and navegacion = ${q(x.navegacion)}
+                 and duracion_s = ${x.duracionMin * 60} and bloquear_al_salir = ${x.bloquearAlSalir} and sin_saltos = ${x.sinSaltos}) then
+    raise exception 'La configuración del examen no quedó como se pidió';
+  end if;` : ''}${a.apertura ? `
+  if (select opens_at from public.activities where id = '${actId}') is distinct from ${ts(a.apertura)}
+     or (select closes_at from public.activities where id = '${actId}') is distinct from ${ts(a.cierre)} then
+    raise exception 'La apertura o el cierre no quedaron como se pidió';
+  end if;` : ''}${leccionAct ? `
+  if (select lesson_id from public.activities where id = '${actId}') is null then raise exception 'La actividad quedó sin lección asociada'; end if;` : ''}${a.publicarUnidad ? `
+  if not exists (select 1 from public.units where course_id = ${curso} and slug = ${q(a.publicarUnidad)} and status = 'publicado' and not hidden) then
+    raise exception 'La unidad % no quedó publicada', ${q(a.publicarUnidad)};
+  end if;` : ''}
 end $chk$;`);
   return out.join('\n') + '\n';
 }

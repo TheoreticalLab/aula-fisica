@@ -255,6 +255,8 @@ export interface Activity {
   created_at: string;
   /** Orden aleatorio de las opciones de selección (solo presentación; migración 50). */
   shuffle_options?: boolean;
+  /** Calculadora científica integrada permitida durante la actividad (migración 93; por defecto no). */
+  calculadora?: boolean;
   /** Lectura cronometrada previa a los ejercicios (Markdown) y su tiempo mínimo en segundos. */
   reading_text?: string | null;
   reading_min_seconds?: number | null;

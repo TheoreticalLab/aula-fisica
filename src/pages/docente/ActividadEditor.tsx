@@ -107,9 +107,11 @@ export default function ActividadEditor() {
       : {};
     // igual que la lectura: la columna de opciones aleatorias solo se envía si se usa (migración 50)
     const barajar = d.shuffle_options || act.shuffle_options ? { shuffle_options: !!d.shuffle_options } : {};
+    // igual con la calculadora integrada (migración 93): sin usarla, la columna no se envía
+    const calculadora = d.calculadora || act.calculadora ? { calculadora: !!d.calculadora } : {};
     const r = await action.run(() => updateActivity(activityId, {
       title, instructions, mode, opens_at, closes_at, max_attempts, max_tries_per_item, reveal_policy,
-      hints_enabled: mode === 'exam' ? false : hints_enabled, published, grades_published, group_id, lesson_id, ...lectura, ...barajar,
+      hints_enabled: mode === 'exam' ? false : hints_enabled, published, grades_published, group_id, lesson_id, ...lectura, ...barajar, ...calculadora,
     }));
     if (r) { setSaved(true); st.setData({ ...st.data!, act: r }); }
   }
@@ -183,6 +185,11 @@ export default function ActividadEditor() {
             <input type="checkbox" className="mt-1" checked={!!draft.shuffle_options} onChange={(e) => set({ shuffle_options: e.target.checked })} />
             <span>Orden aleatorio de las opciones en las preguntas de selección
               <span className="block text-xs text-gray-500">Cada estudiante ve las opciones en otro orden (siempre el mismo al recargar); cada opción conserva su letra, así que las claves y la calificación no cambian. No se barajan las preguntas con «todas las anteriores», «a y b», etc.</span></span>
+          </label>
+          <label className="mb-2 flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={!!draft.calculadora} onChange={(e) => set({ calculadora: e.target.checked })} />
+            <span>Permitir la calculadora científica integrada
+              <span className="block text-xs text-gray-500">El estudiante ve el botón «🧮 Calculadora» mientras responde. Funciona dentro de la página: no interrumpe el reloj ni la protección del examen y no guarda nada en el servidor.</span></span>
           </label>
           {draft.mode === 'practice' && draft.reveal_policy !== 'immediate' && (
             <Notice>Sin retroalimentación inmediata, la práctica funciona como una tarea: el estudiante guarda y entrega, y se califica al entregar.</Notice>
