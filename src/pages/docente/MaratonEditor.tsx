@@ -34,13 +34,18 @@ export default function MaratonEditor() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 pb-24">
       <PageTitle title={m.titulo} subtitle={<span className="flex flex-wrap items-center gap-2"><Badge tone={est.tono}>{est.t}</Badge>{m.seccion} · {faseTexto({ hoy: m.hoy, jornadas: m.config.programacion.jornadas })} · {m.participantes} participante(s)</span>}
-        back={{ to: `/docente/clases/${m.class_id}?t=maraton`, label: m.seccion }} />
-      {m.estado === 'borrador' && <Notice tone="warn"><strong>BORRADOR:</strong> ningún estudiante puede verlo ni acceder. Se publica en «Revisión y publicación».</Notice>}
+        back={{ to: `/docente/clases/${m.class_id}?t=maraton`, label: m.seccion }}
+        actions={m.estado !== 'publicado' && tab !== 'publicacion'
+          ? <button className="btn-primario min-h-[44px]" onClick={() => setParams({ t: 'publicacion' })}>Publicar…</button> : undefined} />
+      {m.estado === 'borrador' && (
+        <Notice tone="warn"><strong>BORRADOR:</strong> ningún estudiante puede verlo ni acceder. Se publica en la pestaña «Revisión y publicación».
+          {m.revision.errores.length > 0 && <> Para poder publicar falta: {m.revision.errores.join(' ')}</>}</Notice>
+      )}
       <Tabs<Pestana> value={tab} onChange={(t) => setParams({ t })} tabs={[
         { id: 'config', label: 'Configuración' }, { id: 'contenido', label: 'Contenido' },
         { id: 'publicacion', label: 'Revisión y publicación' }, { id: 'informe', label: 'Informe' },
       ]} />
-      {tab === 'config' && <Configuracion m={m} onGuardado={st.setData} />}
+      {tab === 'config' && <Configuracion m={m} onGuardado={st.setData} onPublicar={() => setParams({ t: 'publicacion' })} />}
       {tab === 'contenido' && <Contenido m={m} onGuardado={st.setData} />}
       {tab === 'publicacion' && <Publicacion m={m} onCambio={st.setData} />}
       {tab === 'informe' && <MaratonInforme m={m} />}
@@ -64,7 +69,7 @@ function Check({ label, value, onChange, disabled }: { label: string; value: boo
   return <label className="flex min-h-[40px] items-center gap-2 text-sm"><input type="checkbox" checked={value} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />{label}</label>;
 }
 
-function Configuracion({ m, onGuardado }: { m: MaratonDocente; onGuardado: (x: MaratonDocente) => void }) {
+function Configuracion({ m, onGuardado, onPublicar }: { m: MaratonDocente; onGuardado: (x: MaratonDocente) => void; onPublicar: () => void }) {
   const { profile } = useAuth();
   const [titulo, setTitulo] = useState(m.titulo);
   const [descripcion, setDescripcion] = useState(m.descripcion);
@@ -234,6 +239,7 @@ function Configuracion({ m, onGuardado }: { m: MaratonDocente; onGuardado: (x: M
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 px-3 py-2 backdrop-blur dark:border-white/10 dark:bg-primario-950/95">
         <div className="mx-auto flex max-w-5xl items-center gap-2">
           <span className="flex-1 text-xs text-gray-500">Guardar no publica: el maratón sigue en su estado actual.</span>
+          {m.estado !== 'publicado' && <button className="btn-secundario min-h-[44px]" onClick={onPublicar}>Revisar y publicar →</button>}
           <button className="btn-primario min-h-[44px]" disabled={act.busy || errores.length > 0 || !titulo.trim()} onClick={() => void guardar()}>{act.busy ? 'Guardando…' : 'Guardar cambios'}</button>
         </div>
       </div>
@@ -389,6 +395,10 @@ function Publicacion({ m, onCambio }: { m: MaratonDocente; onCambio: (x: Maraton
         <p className="mb-3 text-sm">Estado actual: <Badge tone={ESTADO_MARATON[m.estado].tono}>{ESTADO_MARATON[m.estado].t}</Badge>{m.publicado_at ? ` · publicado el ${fecha(m.publicado_at)}` : ''}</p>
         <div className="flex flex-wrap gap-2">
           {m.estado !== 'publicado' && <button className="btn-primario min-h-[44px]" disabled={act.busy || r.errores.length > 0} onClick={() => setConfirmar(true)}>Publicar para los estudiantes…</button>}
+          {m.estado !== 'publicado' && r.errores.length > 0 && (
+            <div className="w-full text-sm text-red-700 dark:text-red-400"><strong>El botón se habilita cuando corrija esto (pestaña Configuración):</strong>
+              <ul className="list-disc pl-5">{r.errores.map((x) => <li key={x}>{x}</li>)}</ul></div>
+          )}
           {m.estado === 'publicado' && m.participantes === 0 && <button className="btn-secundario min-h-[44px]" disabled={act.busy} onClick={() => void estado('borrador')}>Volver a borrador</button>}
           {m.estado !== 'archivado' && <button className="btn-secundario min-h-[44px]" disabled={act.busy} onClick={() => void estado('archivado')}>Archivar</button>}
           {m.estado === 'archivado' && m.participantes === 0 && <button className="btn-secundario min-h-[44px]" disabled={act.busy} onClick={() => void estado('borrador')}>Recuperar como borrador</button>}
