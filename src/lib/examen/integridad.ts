@@ -34,6 +34,17 @@ export function blurEsSalida(elementoActivo: { tagName?: string } | null | undef
   return (elementoActivo?.tagName ?? '').toUpperCase() !== 'IFRAME';
 }
 
+/**
+ * ¿Se registra la entrada de la interfaz CLÁSICA (exam_entrada)? Solo cuando exam_open ya respondió para este intento
+ * con el motor activo y dijo «clasico». Defecto corregido (examen FG1 del 13-nov-2026): useAsync conserva el dato
+ * anterior mientras recarga, así que el «clasico» calculado con usaMotor = false seguía visible mientras exam_open
+ * (motor) se repetía; si exam_integridad respondía antes, se registraba una entrada clásica DESPUÉS de la del motor y el
+ * servidor la contaba como reingreso: bloqueo a los 1–3 s de empezar, sin que el estudiante saliera.
+ */
+export function registrarEntradaClasica(p: { vigilar: boolean; usaMotor: boolean; aperturaCargando: boolean; modo: string | undefined }): boolean {
+  return p.vigilar && p.usaMotor && !p.aperturaCargando && p.modo === 'clasico';
+}
+
 /** Evita una ráfaga de avisos iguales (p. ej. varios «pegar» seguidos): uno por tipo cada `ms`. */
 export function crearLimitador(ms = 2000) {
   const ultimo = new Map<string, number>();

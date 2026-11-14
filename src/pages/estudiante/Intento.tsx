@@ -11,7 +11,7 @@ import { REVEAL_TEXT } from './Actividad';
 import { AvisoTelemetria, TelemetriaProvider, useTelemetria } from '@/components/Telemetria';
 import { examEntrada, examIntegridad, examOpen, funcionAusente, type AperturaExamen } from '@/api/examen';
 import { BarreraCopiado, BotonSalirExamen, useVigilanciaSalida } from '@/components/IntegridadExamen';
-import { confirmarSinSalida, SIN_INTEGRIDAD } from '@/lib/examen/integridad';
+import { confirmarSinSalida, registrarEntradaClasica, SIN_INTEGRIDAD } from '@/lib/examen/integridad';
 import { asistidaEstado } from '@/api/asistida';
 import { PracticaAsistida } from './PracticaAsistida';
 import { estaRespondida, ExamenUnaALaVez } from './ExamenUnaALaVez';
@@ -87,9 +87,10 @@ export default function Intento() {
   const vigilar = usaMotor && !justSubmitted && !saliendo && !!integ.data?.bloquear_al_salir;
   const sinCopiar = usaMotor && !justSubmitted && !!integ.data?.impedir_copiar;
   useVigilanciaSalida(attemptId, vigilar);
-  // en la interfaz clásica la entrada se registra aquí («una pregunta a la vez» la registra exam_open)
-  const clasica = apertura.data?.modo === 'clasico';
-  useEffect(() => { if (vigilar && clasica) void examEntrada(attemptId).catch(() => undefined); }, [vigilar, clasica, attemptId]);
+  // en la interfaz clásica la entrada se registra aquí («una pregunta a la vez» la registra exam_open). Solo con la
+  // respuesta VIGENTE de exam_open: la anterior (calculada sin el motor) provocaba un reingreso falso y un bloqueo
+  const entradaClasica = registrarEntradaClasica({ vigilar, usaMotor, aperturaCargando: apertura.loading, modo: apertura.data?.modo });
+  useEffect(() => { if (entradaClasica) void examEntrada(attemptId).catch(() => undefined); }, [entradaClasica, attemptId]);
   // calculadora integrada (migración 93): solo en intentos propios en curso de una actividad que la permita
   const actividadCalc = st.data?.flags.is_owner && st.data.attempt.status === 'in_progress' ? st.data.attempt.activity_id : null;
   const calc = useAsync(() => (actividadCalc ? calculadoraPermitida(actividadCalc) : Promise.resolve(false)), [actividadCalc]);
