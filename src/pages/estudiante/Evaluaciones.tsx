@@ -6,6 +6,7 @@ import { useAsync } from '@/lib/util';
 import { ErrorBox, PageTitle, Spinner } from '@/components/ui';
 import { ListaActividades } from '@/components/ListaActividades';
 import { ListaPes } from '@/components/ListaPes';
+import { ListaMaratones } from '@/components/ListaMaratones';
 
 export function PaginaActividades({ modo }: { modo: 'exam' | 'practice' }) {
   const st = useAsync(() => myActivities(), []);
@@ -25,6 +26,7 @@ export function PaginaActividades({ modo }: { modo: 'exam' | 'practice' }) {
         <ListaActividades actividades={pendientes} vacio={exam ? 'No tiene evaluaciones pendientes.' : 'No tiene prácticas pendientes.'} />
       </section>
       {exam && <ListaPes />}
+      {exam && <ListaMaratones />}
       {!exam && (
         <section className="tarjeta flex flex-wrap items-center gap-3">
           <span className="text-2xl" aria-hidden>📖</span>

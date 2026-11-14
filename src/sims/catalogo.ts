@@ -271,6 +271,70 @@ export const SIMULATIONS: SimInfo[] = [
       { name: 'R', label: 'Radio de cada disco', unit: 'm', min: 0.05, max: 0.3, step: 0.01, default: 0.2 },
     ],
   },
+  {
+    key: 'rodadura',
+    title: 'Rodadura por un plano inclinado',
+    block: 'Rotación',
+    description:
+      'Un cuerpo rueda sin deslizar desde el reposo por un plano de longitud L e inclinación θ. Se elige la forma (aro, cilindro macizo, esfera maciza, esfera hueca o un bloque que desliza sin fricción) o se comparan todas en una carrera. Muestra la aceleración, el tiempo de llegada, la rapidez final, el reparto de la energía entre traslación y rotación y la fricción estática necesaria.',
+    model: String.raw`Con $\beta = I_{cm}/(MR^2)$ y $v = \omega R$ (sin deslizar): $a = \dfrac{g\sin\theta}{1+\beta}$, $\;v_f = \sqrt{\dfrac{2gh}{1+\beta}}$, $\;\dfrac{K_{rot}}{K} = \dfrac{\beta}{1+\beta}$, $\;f_s = \beta M a$, $\;\mu_{s,\min} = \dfrac{\beta\tan\theta}{1+\beta}$. Formas: aro $\beta=1$, cilindro $\tfrac12$, esfera $\tfrac25$, esfera hueca $\tfrac23$; el bloque desliza sin fricción ($\beta=0$).`,
+    simplifications: [
+      'Cuerpos rígidos homogéneos que ruedan sin deslizar (la fricción estática no hace trabajo); sin resistencia de rodadura ni del aire.',
+      'El resultado no depende de M ni de R (solo de la forma), como muestra la carrera.',
+      'Forma: 0 = aro, 1 = cilindro macizo, 2 = esfera maciza, 3 = esfera hueca, 4 = bloque sin fricción. Comparar = 1 lanza las cinco formas a la vez.',
+    ],
+    params: [
+      { name: 'forma', label: 'Forma (0 aro · 1 cilindro · 2 esfera · 3 esfera hueca · 4 bloque)', unit: '', min: 0, max: 4, step: 1, default: 1 },
+      { name: 'theta', label: 'Inclinación', unit: '°', min: 5, max: 45, step: 1, default: 20 },
+      { name: 'L', label: 'Longitud del plano', unit: 'm', min: 0.5, max: 5, step: 0.1, default: 2 },
+      { name: 'm', label: 'Masa', unit: 'kg', min: 0.1, max: 10, step: 0.1, default: 1 },
+      { name: 'R', label: 'Radio', unit: 'm', min: 0.02, max: 0.5, step: 0.01, default: 0.1 },
+      { name: 'g', label: 'Gravedad', unit: 'm/s²', min: 1, max: 20, step: 0.1, default: 9.8 },
+      { name: 'comparar', label: 'Carrera de las cinco formas (0 no · 1 sí)', unit: '', min: 0, max: 1, step: 1, default: 0 },
+    ],
+  },
+  {
+    key: 'momento-angular',
+    title: 'Plataforma giratoria y conservación del momento angular',
+    block: 'Rotación',
+    description:
+      'Una plataforma que gira libremente lleva dos masas iguales a la misma distancia del eje. Al pulsar «Mover masas», se desplazan de r₁ a r₂ durante el tiempo indicado. Muestra en cada instante el momento de inercia, la velocidad angular, el momento angular (constante) y la energía cinética de rotación (que sí cambia: el trabajo lo hacen las fuerzas internas).',
+    model: String.raw`$I = I_p + 2mr^2$; sin torque externo, $L = I\omega = $ constante, de modo que $\omega_2 = \dfrac{I_1}{I_2}\,\omega_1$. La energía $K = \tfrac12 I\omega^2 = \dfrac{L^2}{2I}$ aumenta al acercar las masas (W interno $> 0$) y disminuye al alejarlas.`,
+    simplifications: [
+      'Eje sin fricción y vertical: el peso y la reacción del eje no hacen torque sobre el eje de giro.',
+      'Las masas son puntuales y se mueven radialmente (las fuerzas que las mueven son internas al sistema).',
+      'El radio cambia linealmente con el tiempo; el resultado final no depende de cómo se mueven.',
+    ],
+    params: [
+      { name: 'Ip', label: 'Momento de inercia de la plataforma', unit: 'kg·m²', min: 0.1, max: 5, step: 0.1, default: 0.5 },
+      { name: 'm', label: 'Masa de cada carga', unit: 'kg', min: 0, max: 5, step: 0.1, default: 1 },
+      { name: 'r1', label: 'Distancia inicial al eje', unit: 'm', min: 0.1, max: 1, step: 0.05, default: 0.8 },
+      { name: 'r2', label: 'Distancia final al eje', unit: 'm', min: 0.1, max: 1, step: 0.05, default: 0.2 },
+      { name: 'w0', label: 'Velocidad angular inicial', unit: 'rad/s', min: 0.5, max: 10, step: 0.1, default: 2 },
+      { name: 'tc', label: 'Duración del desplazamiento', unit: 's', min: 0.5, max: 5, step: 0.1, default: 2 },
+    ],
+  },
+  {
+    key: 'polea-masiva',
+    title: 'Máquina de Atwood con polea de masa',
+    block: 'Rotación',
+    description:
+      'Dos bloques cuelgan de una cuerda que pasa por una polea con masa (disco o aro) sin deslizar. Muestra la aceleración, la aceleración angular de la polea, las dos tensiones (distintas si la polea tiene masa) y el torque neto sobre la polea; con M = 0 reproduce la máquina de Atwood ideal.',
+    model: String.raw`Con $m_2 > m_1$ (m₂ baja): $a = \dfrac{(m_2-m_1)g}{m_1+m_2+I/R^2}$, $\;\alpha = a/R$, $\;T_1 = m_1(g+a)$, $\;T_2 = m_2(g-a)$, $\;(T_2-T_1)R = I\alpha$. Disco: $I = \tfrac12MR^2$; aro: $I = MR^2$.`,
+    simplifications: [
+      'Cuerda inextensible y de masa despreciable, que no desliza sobre la polea.',
+      'Eje de la polea sin fricción.',
+      'Forma de la polea: 0 = disco, 1 = aro.',
+    ],
+    params: [
+      { name: 'm1', label: 'Masa del bloque 1', unit: 'kg', min: 0.1, max: 10, step: 0.1, default: 2 },
+      { name: 'm2', label: 'Masa del bloque 2', unit: 'kg', min: 0.1, max: 10, step: 0.1, default: 3 },
+      { name: 'M', label: 'Masa de la polea', unit: 'kg', min: 0, max: 10, step: 0.1, default: 2 },
+      { name: 'R', label: 'Radio de la polea', unit: 'm', min: 0.05, max: 0.5, step: 0.01, default: 0.15 },
+      { name: 'formaPolea', label: 'Polea (0 disco · 1 aro)', unit: '', min: 0, max: 1, step: 1, default: 0 },
+      { name: 'g', label: 'Gravedad', unit: 'm/s²', min: 1, max: 20, step: 0.1, default: 9.8 },
+    ],
+  },
 ];
 
 export function getSimulation(key: string): SimInfo | undefined {

@@ -8,6 +8,7 @@ import { getClass, listExercises } from '@/api/docente';
 import { getLessonList } from '@/api/estudiante';
 import { crearDesdeBorrador } from '@/api/crearActividad';
 import { pesCrear } from '@/api/pes';
+import { maratonCrear } from '@/api/maraton';
 import type { Exercise } from '@/api/tipos';
 import { borradorDesde, PLANTILLAS, plantilla, resumen, revisar, type Borrador, type IdPlantilla } from '@/lib/plantillas';
 import { CATEGORIA, DIFICULTAD, useAction, useAsync } from '@/lib/util';
@@ -26,6 +27,7 @@ export default function CrearActividad() {
   const [paso, setPaso] = useState(0);
   const [b, setB] = useState<Borrador | null>(null);
   const [extra, setExtra] = useState<{ titulo: string; cierre: string } | null>(null);     // práctica extraordinaria
+  const [maraton, setMaraton] = useState<{ titulo: string } | null>(null);                  // maratón adaptativo
   const action = useAction();
   useModoConcentracion();
   if (clase.loading) return <Spinner />;
@@ -51,6 +53,13 @@ export default function CrearActividad() {
     if (id) nav(`/docente/pes/${id}?t=contenido`);
   }
 
+  // Maratón adaptativo: se crea SIEMPRE como borrador sin fecha; se configura y publica en su propio configurador
+  async function crearMaraton() {
+    if (!maraton?.titulo.trim()) return;
+    const id = await action.run(() => maratonCrear(c.id, { titulo: maraton.titulo.trim() }));
+    if (id) nav(`/docente/maraton/${id}`);
+  }
+
   return (
     <div className="mx-auto max-w-3xl pb-24">
       <PageTitle title="Crear actividad" subtitle={c.name} back={{ to: `/docente/clases/${c.id}?t=actividades`, label: c.name }} />
@@ -66,8 +75,23 @@ export default function CrearActividad() {
         ))}
       </ol>
 
-      {paso === 0 && !extra && <PasoTipo elegida={b?.plantilla ?? null} onElegir={(id) => { setB((x) => ({ ...borradorDesde(id, new Date()), titulo: x?.titulo ?? '' })); setPaso(1); }}
-        onExtraordinaria={() => { setB(null); setExtra({ titulo: '', cierre: '' }); }} />}
+      {paso === 0 && !extra && !maraton && <PasoTipo elegida={b?.plantilla ?? null} onElegir={(id) => { setB((x) => ({ ...borradorDesde(id, new Date()), titulo: x?.titulo ?? '' })); setPaso(1); }}
+        onExtraordinaria={() => { setB(null); setExtra({ titulo: '', cierre: '' }); }}
+        onMaraton={() => { setB(null); setMaraton({ titulo: '' }); }} />}
+      {paso === 0 && maraton && (
+        <form className="tarjeta space-y-3" onSubmit={(e) => { e.preventDefault(); void crearMaraton(); }}>
+          <h2 className="text-lg font-semibold">🏃 Maratón adaptativo</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Varias jornadas consecutivas de problemas del banco de la asignatura con dificultad adaptativa (seis niveles ocultos),
+            cuota interna de trabajo por jornada, comodines e informes descriptivos. Nunca asigna calificaciones. Se crea como <strong>borrador sin fecha</strong>:
+            después lo configura, lo prueba y lo publica desde su configurador.</p>
+          <label className="block"><span className="etiqueta">Nombre del maratón</span>
+            <input className="campo" value={maraton.titulo} onChange={(e) => setMaraton({ titulo: e.target.value })} maxLength={160} required autoFocus /></label>
+          <div className="flex gap-2">
+            <button type="button" className="btn-secundario min-h-[44px]" onClick={() => setMaraton(null)} disabled={action.busy}>← Atrás</button>
+            <button className="btn-primario min-h-[44px]" disabled={action.busy || !maraton.titulo.trim()}>{action.busy ? 'Creando…' : 'Crear borrador y configurar →'}</button>
+          </div>
+        </form>
+      )}
       {paso === 0 && extra && (
         <form className="tarjeta space-y-3" onSubmit={(e) => { e.preventDefault(); void crearExtraordinaria(); }}>
           <h2 className="text-lg font-semibold">🧩 Práctica extraordinaria secuencial</h2>
@@ -119,7 +143,7 @@ export default function CrearActividad() {
   );
 }
 
-function PasoTipo({ elegida, onElegir, onExtraordinaria }: { elegida: IdPlantilla | null; onElegir: (id: IdPlantilla) => void; onExtraordinaria: () => void }) {
+function PasoTipo({ elegida, onElegir, onExtraordinaria, onMaraton }: { elegida: IdPlantilla | null; onElegir: (id: IdPlantilla) => void; onExtraordinaria: () => void; onMaraton: () => void }) {
   const grupos: { titulo: string; ids: IdPlantilla[] }[] = [
     { titulo: 'Para practicar', ids: ['practica_libre', 'practica_asistida', 'tarea'] },
     { titulo: 'Para evaluar', ids: ['quiz', 'parcial', 'estricto'] },
@@ -150,6 +174,17 @@ function PasoTipo({ elegida, onElegir, onExtraordinaria }: { elegida: IdPlantill
             <span className="text-2xl" aria-hidden>🧩</span>
             <span><span className="block font-semibold">Práctica extraordinaria secuencial</span>
               <span className="block text-sm text-gray-600 dark:text-gray-400">Problemas por apartados, uno a uno y sin volver atrás, con tiempo mínimo por apartado. Puntuación no lineal (máx. 8).</span></span>
+          </button>
+        </div>
+      </section>
+      <section>
+        <h3 className="mb-2 text-sm font-medium text-gray-500">Maratón adaptativo</h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={onMaraton}
+            className="tarjeta flex min-h-[88px] items-start gap-3 text-left transition hover:border-primario-400 hover:shadow">
+            <span className="text-2xl" aria-hidden>🏃</span>
+            <span><span className="block font-semibold">Maratón adaptativo</span>
+              <span className="block text-sm text-gray-600 dark:text-gray-400">Jornadas diarias con dificultad adaptativa, cuota de trabajo oculta, comodines e informes descriptivos. No califica.</span></span>
           </button>
         </div>
       </section>

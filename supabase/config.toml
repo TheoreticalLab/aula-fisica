@@ -16,6 +16,11 @@ verify_jwt = false
 # (svc_acceso_*: solo service_role) y el canje exige el secreto del dispositivo (supabase/functions/recuperar/handler.ts).
 verify_jwt = false
 
+[functions.maraton]
+# Maratón adaptativo: igual que «calificar», verifica la sesión con auth.getUser() (supabase/functions/maraton/index.ts);
+# la autorización y las decisiones del motor las toman svc_maraton_* (solo service_role).
+verify_jwt = false
+
 [functions.orbe-ia]
 # Igual que «calificar»: verifica la sesión con auth.getUser() (supabase/functions/orbe-ia/index.ts).
 verify_jwt = false

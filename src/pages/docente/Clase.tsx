@@ -40,15 +40,16 @@ import { TabSeguimiento } from './SeguimientoTab';
 import { TabPrograma } from './ProgramaTab';
 import { CopiarActividad } from './CopiarActividad';
 import { TabPes } from './PesTab';
+import { TabMaraton } from './MaratonTab';
 import { TabControlesLab } from './LabControles';
 import { GRUPOS_SECCION, grupoDePestana } from '@/lib/tablero';
 
-type Tab = 'estudiantes' | 'controles' | 'asistencia' | 'clases' | 'programa' | 'avisos' | 'actividades' | 'pes' | 'seguimiento' | 'entregas' | 'regularizacion' | 'coincidencias' | 'calificaciones' | 'revision' | 'estadisticas';
+type Tab = 'estudiantes' | 'controles' | 'asistencia' | 'clases' | 'programa' | 'avisos' | 'actividades' | 'pes' | 'maraton' | 'seguimiento' | 'entregas' | 'regularizacion' | 'coincidencias' | 'calificaciones' | 'revision' | 'estadisticas';
 
 const ETIQUETAS: Record<Tab, string> = {
   estudiantes: 'Estudiantes y grupos', asistencia: 'Asistencia', seguimiento: 'Seguimiento', avisos: 'Avisos',
   clases: 'Clases impartidas', programa: 'Programa impartido',
-  actividades: 'Actividades', pes: 'Prácticas extraordinarias', revision: 'Revisión manual', calificaciones: 'Calificaciones', estadisticas: 'Estadísticas',
+  actividades: 'Actividades', pes: 'Prácticas extraordinarias', maraton: 'Maratón adaptativo', revision: 'Revisión manual', calificaciones: 'Calificaciones', estadisticas: 'Estadísticas',
   controles: 'Controles de laboratorio', entregas: 'Entregas en PDF', regularizacion: 'Prácticas anteriores', coincidencias: 'Coincidencias de archivos',
 };
 
@@ -112,6 +113,7 @@ export default function Clase() {
       {tab === 'avisos' && <TabAvisos c={c} />}
       {tab === 'actividades' && <TabActividades c={c} />}
       {tab === 'pes' && <TabPes classId={c.id} />}
+      {tab === 'maraton' && <TabMaraton classId={c.id} />}
       {tab === 'seguimiento' && <TabSeguimiento classId={c.id} />}
       {tab === 'calificaciones' && <TabCalificaciones c={c} />}
       {tab === 'revision' && <TabRevision c={c} />}

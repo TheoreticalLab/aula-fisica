@@ -13,6 +13,7 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
     pendiente: [
       'Otras asignaturas: creadas desde el panel; sus lecciones están en preparación.',
       'Física General I · Unidad 9 «Física de los choques» (instalada; pendiente de revisar en navegador y teléfono): 15 lecciones del fenómeno al modelo, laboratorio «choque seguido de fricción» y un banco de 135 ejercicios verificados con el motor físico (42 fáciles, 44 intermedios, 49 difíciles), con problemas por etapas.',
+      'Física General I · Unidad 10 «Rotación del cuerpo rígido y momento angular» (preparada; pendiente de instalar y publicar): 15 lecciones, de la cinemática de la rotación y el torque al equilibrio estático, la rodadura, la conservación del momento angular, los choques con rotación y la precesión, con 108 ejercicios verificados con el motor físico y tres simuladores nuevos (rodadura, plataforma giratoria y polea con masa).',
     ],
   },
   {
@@ -60,6 +61,7 @@ const ESTADO: { area: string; hecho: string[]; pendiente: string[] }[] = [
       'Seguimiento de estudiantes que pueden necesitar apoyo y recordatorios a quien no ha entregado.',
     ],
     pendiente: [
+      'Maratón académico adaptativo (instalado en el servidor; pendiente de publicar la interfaz y de que el profesor fije la fecha y lo publique): varias jornadas diarias de problemas del banco de la asignatura con dificultad adaptativa oculta, cantidad variable de ejercicios según una cuota interna de trabajo, comodines para cambiar ejercicio y la opción «No puedo resolverlo». Todas las decisiones las toma el servidor; genera informes descriptivos y un historial auditable para el profesor y no asigna calificaciones. Primer borrador: recuperación de Física General 1.',
       'Reserva de enunciados (corrección de seguridad programada y probada; pendiente de aplicar): un estudiante ya no podrá leer por consultas directas los enunciados de una práctica, evaluación o control antes de empezar, ni qué ejercicios la componen; en las evaluaciones de una pregunta a la vez solo recibirá las preguntas que el servidor le haya abierto. Los ejercicios publicados en las lecciones siguen siendo material de estudio: si una evaluación los usa, su contenido no es secreto.',
       'Probar el modo de una pregunta a la vez en teléfonos reales.',
       'Orden aleatorio de opciones por actividad (instalado; pendiente de probar en una actividad real): solo cambia la presentación, cada opción conserva su letra.',

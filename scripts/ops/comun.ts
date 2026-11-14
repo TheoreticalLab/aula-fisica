@@ -126,7 +126,7 @@ export function hashFuncion(nombre: string): string {
 }
 
 export function funcionesLocales(): string[] {
-  return readdirSync(FUNCIONES).filter((f) => !f.startsWith('_') && statSync(join(FUNCIONES, f)).isDirectory()).sort();
+  return readdirSync(FUNCIONES).filter((f) => !f.startsWith('_') && !f.startsWith('.') && statSync(join(FUNCIONES, f)).isDirectory()).sort();
 }
 
 export function asegurarDir(d: string) {
@@ -226,6 +226,13 @@ export const TABLAS_PROTEGIDAS = [
   'fusion_operaciones',
   'fusion_filas',
   'fusion_eventos',
+  // Maratón adaptativo (migración 94): participación e historial de los estudiantes
+  'maraton_actividades',
+  'maraton_inscripciones',
+  'maraton_jornadas',
+  'maraton_presentaciones',
+  'maraton_eventos',
+  'maraton_incidencias',
 ];
 
 export async function contarFilas(db: pg.Client, tablas: string[]): Promise<Record<string, number>> {
