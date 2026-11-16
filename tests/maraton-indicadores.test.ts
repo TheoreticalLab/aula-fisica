@@ -1,7 +1,7 @@
 /** Maratón adaptativo: indicadores descriptivos del informe docente y exportaciones (src/lib/maraton). */
 import { describe, expect, it } from 'vitest';
-import type { PresentacionHistorial, ResumenDocente } from '@/api/maraton';
-import { comportamiento, consistencia, evolucion, rendimiento, trayectoria } from '@/lib/maraton/indicadores';
+import type { FilaExportacion, PresentacionHistorial, ResumenDocente } from '@/api/maraton';
+import { comportamiento, consistencia, evolucion, rendimiento, situacionPorEstudiante, trayectoria } from '@/lib/maraton/indicadores';
 import { csvDetalle, csvEstadisticas, csvResumen, estadisticasSeccion } from '@/lib/maraton/exportar';
 
 let sec = 0;
@@ -99,5 +99,15 @@ describe('exportaciones', () => {
       presentada_at: 'x', cerrada_at: 'y', accion: 'respuesta', resultado: 'correcta', respuesta: ['3 m/s'], segundos: 200.5, anticipada: false, unidades: 1.2, nivel_despues: 3, comodines_despues: 0 }]);
     expect(csv).toContain('3 m/s');
     expect(csv).toContain('200,5');
+  });
+  it('seguimiento en vivo: último ejercicio por estudiante, abierto o cerrado, y conteos', () => {
+    const f = (login: string | null, secuencia: number, accion: FilaExportacion['accion'], resultado: FilaExportacion['resultado'] = null): FilaExportacion => ({
+      login_id: login, nombre: `N-${login ?? 'sin'}`, jornada: 1, fecha: '2026-12-01', secuencia, variante_id: 'v', plantilla_id: 'p', tema: 't', nivel: 2,
+      presentada_at: 'x', cerrada_at: accion ? 'y' : null, accion, resultado, respuesta: null, segundos: null, anticipada: null, unidades: null, nivel_despues: null, comodines_despues: null });
+    const s = situacionPorEstudiante([f('A1', 2, 'respuesta', 'incorrecta'), f('A1', 1, 'respuesta', 'correcta'), f('A1', 3, null), f('B1', 1, 'no_puedo'), f(null, 1, 'respuesta', 'correcta')]);
+    expect(s.get('A1')).toMatchObject({ abierta: true, presentados: 3, correctas: 1, incorrectas: 1 });
+    expect(s.get('A1')!.ultima.secuencia).toBe(3);
+    expect(s.get('B1')).toMatchObject({ abierta: false, presentados: 1, correctas: 0, incorrectas: 0 });
+    expect(s.get('N-sin')).toMatchObject({ correctas: 1 });
   });
 });

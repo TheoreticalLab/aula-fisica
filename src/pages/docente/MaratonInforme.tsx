@@ -1,15 +1,17 @@
 /**
  * Informe docente del Maratón adaptativo: rendimiento, recorrido adaptativo (gráfico inspeccionable), comportamiento
- * ante dificultades, evolución por jornadas, historial forense, indicadores descriptivos de consistencia, incidencias
+ * ante dificultades, evolución por jornadas, historial ejercicio por ejercicio con seguimiento en vivo, indicadores descriptivos de consistencia, incidencias
  * y exportaciones. Solo para el profesorado de la sección (lo comprueba el servidor).
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CartesianGrid, ComposedChart, Legend, Line, LineChart, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-  maratonExportar, maratonHistorial, maratonIncidencia, maratonResumen, type EstudianteResumen, type Historial, type MaratonDocente, type PresentacionHistorial,
+  maratonExportar, maratonHistorial, maratonIncidencia, maratonResumen, type EstudianteResumen, type FilaExportacion, type Historial, type MaratonDocente, type PresentacionHistorial,
 } from '@/api/maraton';
 import { etiquetaNivel } from '@/lib/maraton/config';
-import { AVISO_INTERPRETACION, comportamiento, consistencia, evolucion, evolucionPorTema, rendimiento, tipoPunto, trayectoria, type PuntoTrayectoria } from '@/lib/maraton/indicadores';
+import {
+  AVISO_INTERPRETACION, comportamiento, consistencia, evolucion, evolucionPorTema, rendimiento, situacionPorEstudiante, tipoPunto, trayectoria, type PuntoTrayectoria, type Situacion,
+} from '@/lib/maraton/indicadores';
 import { csvDetalle, csvEstadisticas, csvResumen, descargarBlob, estadisticasSeccion, xlsxMaraton } from '@/lib/maraton/exportar';
 import { downloadText, fecha, useAction, useAsync } from '@/lib/util';
 import { useDark } from '@/lib/tema';
@@ -23,9 +25,53 @@ const COLORES: Record<PuntoTrayectoria['tipo'], string> = { correcta: '#16a34a',
 const NOMBRE_TIPO: Record<PuntoTrayectoria['tipo'], string> = { correcta: 'Correcta', incorrecta: 'Incorrecta', no_puedo: '«No puedo»', cambio: 'Sustitución (comodín)', cierre: 'Cerrada por plazo', abierta: 'Abierta' };
 const ESTADO_J: Record<string, string> = { completada: '✔', en_curso: '…', cerrada_limite: '⚠', incompleta: '✖', justificada: 'J', pendiente: '○' };
 
+const SEG_RECARGA = 20;
+const tipoFila = (f: FilaExportacion) => (f.accion === 'respuesta' ? (f.resultado === 'correcta' ? 'correcta' : 'incorrecta') : f.accion ?? 'abierta') as PuntoTrayectoria['tipo'];
+const tonoTipo = (t: PuntoTrayectoria['tipo']) => (t === 'correcta' ? 'green' : t === 'incorrecta' ? 'red' : t === 'abierta' ? 'blue' : 'gray');
+const haceMin = (iso: string) => Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
+
+/** Recarga periódica (solo con la pestaña visible) mientras `activo`; devuelve la hora de la última recarga. */
+function useRecarga(activo: boolean, recargar: () => void) {
+  const ref = useRef(recargar);
+  ref.current = recargar;
+  const [hora, setHora] = useState(() => new Date());
+  useEffect(() => {
+    if (!activo) return;
+    const t = window.setInterval(() => { if (document.visibilityState === 'visible') { ref.current(); setHora(new Date()); } }, SEG_RECARGA * 1000);
+    return () => window.clearInterval(t);
+  }, [activo]);
+  return { hora, ahora: () => { ref.current(); setHora(new Date()); } };
+}
+
+function ControlRecarga({ auto, setAuto, r }: { auto: boolean; setAuto: (v: boolean) => void; r: ReturnType<typeof useRecarga> }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 text-sm no-print">
+      <label className="flex items-center gap-1"><input type="checkbox" checked={auto} onChange={(ev) => setAuto(ev.target.checked)} /> Actualizar solo cada {SEG_RECARGA} s</label>
+      <button className="enlace" onClick={r.ahora}>Actualizar ahora</button>
+      <span className="text-xs text-gray-500">Última actualización: {r.hora.toLocaleTimeString()}</span>
+    </div>
+  );
+}
+
+/** Celda «Ejercicio actual»: el que está resolviendo (abierto) o el último que cerró, con sus aciertos y fallos. */
+function EjercicioActual({ s }: { s: Situacion | undefined }) {
+  if (!s) return <span className="text-gray-500">sin empezar</span>;
+  const u = s.ultima, t = tipoFila(u);
+  return (
+    <div className="whitespace-nowrap text-xs">
+      <Badge tone={tonoTipo(t)}>{s.abierta ? `Resolviendo #${u.secuencia}` : `#${u.secuencia} ${NOMBRE_TIPO[t] ?? u.accion}`}</Badge>
+      <div className="mt-0.5 text-gray-500">{s.abierta ? `D${u.nivel} · ${u.tema} · hace ${haceMin(u.presentada_at)} min` : `✔ ${s.correctas} · ✖ ${s.incorrectas} de ${s.presentados}`}</div>
+    </div>
+  );
+}
+
 export function MaratonInforme({ m }: { m: MaratonDocente }) {
   const st = useAsync(() => maratonResumen(m.id), [m.id]);
+  const vivo = useAsync(() => maratonExportar(m.id), [m.id]);
   const [sel, setSel] = useState<EstudianteResumen | null>(null);
+  const [auto, setAuto] = useState(true);
+  const recarga = useRecarga(auto && !sel, () => { void st.reload(); void vivo.reload(); });
+  const sit = useMemo(() => situacionPorEstudiante(vivo.data ?? []), [vivo.data]);
   const act = useAction();
   if (st.loading && !st.data) return <Spinner />;
   if (st.error) return <ErrorBox error={st.error} onRetry={st.reload} />;
@@ -46,9 +92,11 @@ export function MaratonInforme({ m }: { m: MaratonDocente }) {
           {exp.includes('xlsx') && <button className="btn-secundario text-sm" disabled={act.busy} onClick={() => void act.run(async () => descargarBlob(`${nombreBase}.xlsx`, await xlsxMaraton(d, await maratonExportar(m.id))))}>Excel</button>}
         </div>}>
         <ErrorBox error={act.error} />
-        <div className="overflow-x-auto">
+        <ControlRecarga auto={auto} setAuto={setAuto} r={recarga} />
+        {vivo.error && <p className="text-xs text-red-600">No se pudo cargar el ejercicio actual: {vivo.error}</p>}
+        <div className="mt-2 overflow-x-auto">
           <table className={TABLA}>
-            <thead><tr><th>Estudiante</th><th>Jornadas (1…{n})</th><th>Compl.</th><th>Rev.</th><th>Válidos</th><th>% aciertos</th><th>No puedo</th><th>Comod.</th><th>Tiempo</th><th>Máx.</th><th>D6 ✔</th><th>Nivel actual</th></tr></thead>
+            <thead><tr><th>Estudiante</th><th>Ejercicio actual</th><th>Jornadas (1…{n})</th><th>Compl.</th><th>Rev.</th><th>Válidos</th><th>% aciertos</th><th>No puedo</th><th>Comod.</th><th>Tiempo</th><th>Máx.</th><th>D6 ✔</th><th>Nivel actual</th></tr></thead>
             <tbody>
               {d.estudiantes.map((e) => {
                 const r = e.resumen;
@@ -56,6 +104,7 @@ export function MaratonInforme({ m }: { m: MaratonDocente }) {
                 return (
                   <tr key={e.user_id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5" onClick={() => setSel(e)}>
                     <td><span className="font-medium">{e.nombre}</span><br /><span className="text-xs text-gray-500">{e.login_id}{!e.matriculado ? ' · ya no está matriculado' : ''}</span></td>
+                    <td><EjercicioActual s={sit.get(e.login_id ?? e.nombre)} /></td>
                     <td className="whitespace-nowrap font-mono text-xs" title="✔ completada · ✖ no completada · ⚠ cerrada por límite · J justificada · … en curso · · sin registro">
                       {Array.from({ length: n }, (_, i) => { const j = porNum.get(i + 1); return j ? ESTADO_J[j.estado] ?? '?' : '·'; }).join('')}</td>
                     <td>{r?.jornadas_completadas ?? 0}</td>
@@ -74,7 +123,7 @@ export function MaratonInforme({ m }: { m: MaratonDocente }) {
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-xs text-gray-500">Pulse una fila para ver el informe individual, el recorrido adaptativo y el historial forense.</p>
+        <p className="mt-2 text-xs text-gray-500">Pulse una fila para ver, ejercicio por ejercicio, qué recibió, qué respondió, si acertó y la clave; además el recorrido adaptativo y el informe individual.</p>
       </Card>
       {est.length > 0 && (
         <Card title="Estadísticas de la sección por jornada">
@@ -109,10 +158,14 @@ function DetalleEstudiante({ m, e, onVolver, onCambio }: { m: MaratonDocente; e:
   const evoTema = useMemo(() => evolucionPorTema(ps), [ps]);
   const obs = useMemo(() => consistencia(ps), [ps]);
   const oscuro = useDark();
+  const [auto, setAuto] = useState(true);
+  const recarga = useRecarga(auto, () => { setH(null); void st.reload(); });
   if (st.loading && !hist) return <Spinner />;
   if (st.error) return <ErrorBox error={st.error} onRetry={st.reload} />;
   if (!hist) return null;
   const jornadas = [...new Set(ps.map((p) => p.jornada))];
+  const abierta = [...ps].reverse().find((p) => p.accion == null) ?? null;
+  const recientes = [...ps].sort((a, b) => b.secuencia - a.secuencia);
   const csvAlumno = () => downloadText(`maraton_${e.login_id ?? e.user_id}.csv`, csvDetalle(ps.map((p) => ({
     login_id: e.login_id, nombre: e.nombre, jornada: p.jornada, fecha: p.presentada_at.slice(0, 10), secuencia: p.secuencia, variante_id: p.variante_id, plantilla_id: p.plantilla_id,
     tema: p.tema, nivel: p.nivel, presentada_at: p.presentada_at, cerrada_at: p.cerrada_at, accion: p.accion, resultado: p.resultado, respuesta: p.respuesta?.partes ?? null,
@@ -127,8 +180,36 @@ function DetalleEstudiante({ m, e, onVolver, onCambio }: { m: MaratonDocente; e:
         {m.config.informes.exportaciones.includes('csv') && <button className="btn-secundario" onClick={csvAlumno}>CSV del estudiante</button>}
       </div>
       <h2 className="text-xl font-semibold">{hist.estudiante.nombre} <span className="text-sm font-normal text-gray-500">{hist.estudiante.login_id} · {m.titulo}</span></h2>
+      <ControlRecarga auto={auto} setAuto={setAuto} r={recarga} />
       {!hist.inscripcion ? <Notice>Este estudiante no ha comenzado el maratón.</Notice> : (
         <>
+          <Card title="Ejercicio por ejercicio (historial no modificable; lo más reciente arriba)">
+            {abierta ? (
+              <div className="mb-3 rounded border border-primario-300 bg-primario-50 p-3 text-sm dark:border-primario-700 dark:bg-primario-900/30">
+                <strong>Está resolviendo ahora el ejercicio #{abierta.secuencia}</strong> · jornada {abierta.jornada} · {etiquetaNivel(abierta.nivel)} · {abierta.tema}
+                {' '}· recibido hace {haceMin(abierta.presentada_at)} min (tiempo mínimo {Math.round(abierta.t_min_s / 60)} min). <button className="enlace" onClick={() => setVer(abierta)}>Ver enunciado y clave</button>
+              </div>
+            ) : <p className="mb-3 text-sm text-gray-500">No tiene ningún ejercicio abierto en este momento.</p>}
+            <div className="max-h-[36rem] overflow-auto">
+              <table className={TABLA}>
+                <thead><tr><th>#</th><th>J</th><th>Recibido</th><th>Nivel</th><th>Tema</th><th>Decisión</th><th>Respuesta del estudiante · clave</th><th>Tiempo</th><th /></tr></thead>
+                <tbody>{recientes.map((p) => { const t = tipoPunto(p); return (
+                  <tr key={p.id}>
+                    <td>{p.secuencia}</td><td>{p.jornada}</td><td className="whitespace-nowrap text-xs">{fecha(p.presentada_at)}</td>
+                    <td className="whitespace-nowrap">D{p.nivel}{p.nivel_despues ? ` → D${p.nivel_despues}` : ''}</td><td className="text-xs">{p.tema}</td>
+                    <td><Badge tone={tonoTipo(t)}>{t === 'abierta' ? 'Resolviendo' : NOMBRE_TIPO[t]}</Badge>{p.anticipada && <Badge tone="amber">anticipada</Badge>}</td>
+                    <td className="text-xs">{p.partes.map((pt, i) => { const ok = p.detalle?.partes[i]?.correcta; return (
+                      <div key={i} title={pt.etiqueta}><span className="text-gray-500">{p.partes.length > 1 ? `${i + 1}) ` : ''}</span>
+                        <span className="font-mono">{p.respuesta?.partes[i] ?? '—'}</span>{ok != null && <span className={ok ? 'text-emerald-600' : 'text-red-600'}> {ok ? '✔' : '✖'}</span>}
+                        <span className="text-gray-500"> · clave <span className="font-mono">{p.clave?.partes[i]?.value ?? '—'}</span>{pt.unidad ? ` ${pt.unidad}` : ''}</span></div>); })}</td>
+                    <td className="text-xs">{p.segundos == null ? '—' : `${Math.round(p.segundos)} s`}</td>
+                    <td><button className="enlace" onClick={() => setVer(p)}>Ver</button></td>
+                  </tr>); })}</tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">«Ver» abre el enunciado tal como lo recibió, cada parte con su respuesta y su clave, el procedimiento escrito, los tiempos y los comodines.</p>
+          </Card>
+
           <Card title="A. Rendimiento general">
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
               {[['Presentados', rend.presentados], ['Intentos válidos', rend.validos], ['Correctas', rend.correctas], ['Incorrectas', rend.incorrectas], ['% aciertos (bruto)', pct(rend.precision)],
@@ -215,23 +296,6 @@ function DetalleEstudiante({ m, e, onVolver, onCambio }: { m: MaratonDocente; e:
             </Card>
           )}
 
-          <Card title="E. Historial forense (no modificable)">
-            <div className="max-h-[32rem] overflow-auto">
-              <table className={TABLA}>
-                <thead><tr><th>#</th><th>J</th><th>Recibido</th><th>Nivel</th><th>Tema</th><th>Decisión</th><th>Respuesta</th><th>Tiempo</th><th>Nivel después</th><th>Comodines</th><th /></tr></thead>
-                <tbody>{ps.map((p) => (
-                  <tr key={p.id}>
-                    <td>{p.secuencia}</td><td>{p.jornada}</td><td className="whitespace-nowrap text-xs">{fecha(p.presentada_at)}</td><td>D{p.nivel}</td><td className="text-xs">{p.tema}</td>
-                    <td><Badge tone={tipoPunto(p) === 'correcta' ? 'green' : tipoPunto(p) === 'incorrecta' ? 'red' : 'gray'}>{NOMBRE_TIPO[tipoPunto(p)]}</Badge>{p.anticipada && <Badge tone="amber">anticipada</Badge>}</td>
-                    <td className="max-w-[12rem] truncate font-mono text-xs">{p.respuesta?.partes.join(' | ') ?? ''}</td>
-                    <td className="text-xs">{p.segundos == null ? '—' : `${Math.round(p.segundos)} s`}</td>
-                    <td>{p.nivel_despues ? `D${p.nivel_despues}` : '—'}</td>
-                    <td className="text-xs">{p.comodines_antes ?? '—'} → {p.comodines_despues ?? '—'}</td>
-                    <td><button className="enlace" onClick={() => setVer(p)}>Ver</button></td>
-                  </tr>))}</tbody>
-              </table>
-            </div>
-          </Card>
         </>
       )}
       <Incidencias m={m} e={e} hist={hist} onHist={(x) => { setH(x); onCambio(); }} />

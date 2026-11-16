@@ -6,7 +6,7 @@
  * oscilación entre niveles es en parte efecto del propio algoritmo (sube al acertar y baja al fallar), no un cambio
  * demostrado de competencia. El profesor contrasta estos datos con otras evaluaciones.
  */
-import type { PresentacionHistorial } from '@/api/maraton';
+import type { FilaExportacion, PresentacionHistorial } from '@/api/maraton';
 
 export interface PuntoTrayectoria {
   x: number; nivel: number; despues: number | null; jornada: number;
@@ -197,3 +197,21 @@ export const AVISO_INTERPRETACION =
   'Observaciones, no inferencias: describen lo registrado. Ninguna es prueba de uso de ayudas externas ni de falta de honestidad. ' +
   'La declaración «No puedo resolverlo» es una autoevaluación del estudiante. La oscilación entre niveles es en parte efecto del algoritmo ' +
   '(sube al acertar y baja al fallar), no un cambio demostrado de competencia. Contraste con otras evaluaciones.';
+
+/** Seguimiento en vivo: último ejercicio de cada estudiante (abierto si aún no lo cerró) y cuántos lleva. */
+export interface Situacion { ultima: FilaExportacion; abierta: boolean; presentados: number; correctas: number; incorrectas: number }
+
+/** Agrupa las filas de la exportación por estudiante (clave: `login_id`, o el nombre si no tiene). */
+export function situacionPorEstudiante(filas: FilaExportacion[]): Map<string, Situacion> {
+  const r = new Map<string, Situacion>();
+  for (const f of filas) {
+    const k = f.login_id ?? f.nombre;
+    const s = r.get(k) ?? { ultima: f, abierta: false, presentados: 0, correctas: 0, incorrectas: 0 };
+    s.presentados += 1;
+    if (f.accion === 'respuesta') { if (f.resultado === 'correcta') s.correctas += 1; else s.incorrectas += 1; }
+    if (f.secuencia >= s.ultima.secuencia) s.ultima = f;
+    s.abierta = s.ultima.accion == null;
+    r.set(k, s);
+  }
+  return r;
+}
