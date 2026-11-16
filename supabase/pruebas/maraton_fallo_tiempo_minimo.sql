@@ -1,6 +1,7 @@
 -- Pruebas: Maratón — respuesta incorrecta con fracción de unidades y tiempo mínimo de jornada (migración 97). Se deshace al final.
 -- Banco sintético (2 temas × 6 niveles, tiempo mínimo 60 s). Profesor T; estudiantes S1, S2, S3 en la sección A.
--- F (predeterminado: incorrecta 0,5; mínimo 30 min) y G (regla anterior: incorrecta 1; sin mínimo).
+-- F (predeterminado: incorrecta 0,5; mínimo 30 min) y G (regla anterior: incorrecta 1; sin mínimo). Ambos sin las
+-- reglas de permanencia de la migración 98 (se prueban en maraton_permanencia.sql).
 begin;
 
 insert into auth.users (id, email, aud, role, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
@@ -69,12 +70,13 @@ do $$ declare v uuid; r jsonb; begin
   exception when invalid_parameter_value then null; end;
   begin perform public.maraton_crear('de970000-0000-4000-8000-000000000031', '{"config":{"carga":{"minutos_minimos":100}}}'); raise exception 'FALLO: aceptó mínimo > límite';
   exception when invalid_parameter_value then null; end;
-  v := public.maraton_crear('de970000-0000-4000-8000-000000000031', '{"titulo":"F"}');
+  v := public.maraton_crear('de970000-0000-4000-8000-000000000031',
+    '{"titulo":"F","config":{"permanencia":{"min_correctas":0,"fuera_por_presentados":false,"fuera_por_continuidad":false,"fuera_rapido_nivel":null}}}');
   insert into ids values ('F', v);
   r := public.maraton_detalle_docente(v);
   if (r -> 'config' -> 'carga' ->> 'fraccion_fallo')::numeric <> 0.5 or (r -> 'config' -> 'carga' ->> 'minutos_minimos')::numeric <> 30 then
     raise exception 'FALLO: valores predeterminados: %', r -> 'config' -> 'carga'; end if;
-  insert into ids values ('G', public.maraton_crear('de970000-0000-4000-8000-000000000031', '{"titulo":"G","config":{"carga":{"fraccion_fallo":1,"minutos_minimos":0}}}'));
+  insert into ids values ('G', public.maraton_crear('de970000-0000-4000-8000-000000000031', '{"titulo":"G","config":{"carga":{"fraccion_fallo":1,"minutos_minimos":0},"permanencia":{"min_correctas":0,"fuera_por_presentados":false,"fuera_por_continuidad":false,"fuera_rapido_nivel":null}}}'));
   for r in select to_jsonb(i) from ids i loop
     perform public.maraton_guardar((r ->> 'id')::uuid, jsonb_build_object('fecha_inicio', pg_temp.hoy()));
     perform public.maraton_cambiar_estado((r ->> 'id')::uuid, 'publicado');

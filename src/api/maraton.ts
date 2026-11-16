@@ -24,6 +24,8 @@ export interface EstadoMaraton {
     id: string; titulo: string; asignatura: string; descripcion: string; instrucciones: string; jornadas: number; fecha_inicio: string | null;
     zona: string; apertura: string; cierre: string; tiempo_orientativo: [number, number]; limite_minutos: number;
     comodines_total: number; comodines_por_jornada: number | null; no_puedo: boolean; estado: string;
+    /** reglas de permanencia que el estudiante debe conocer (migración 98; ausentes antes de aplicarla) */
+    permanencia?: { min_correctas: number; presentados_max: number | null; continuidad: boolean; rapido_segundos: number | null };
   };
   prueba: boolean;
   hoy: HoyMaraton;
@@ -35,7 +37,12 @@ export interface EstadoMaraton {
   aviso: 'ya_procesada' | 'ya_cerrada' | 'jornada_cerrada' | null;
   ultimo: { resultado: 'correcta' | 'incorrecta' } | null;
   informe_disponible: boolean;
+  /** fuera del maratón por una regla de permanencia (sin el detalle, que solo ve el profesor) */
+  fuera?: { tipo: TipoFuera; jornada: number | null; desde: string } | null;
 }
+
+export type TipoFuera = 'aciertos' | 'presentados' | 'continuidad' | 'rapidez';
+export interface FueraDocente { tipo: TipoFuera; motivo: string | null; jornada: number | null; desde: string }
 
 /** Respuesta de la Edge Function cuando el envío no es un intento válido (no se registra nada). */
 export interface RespuestaNoValida { valida: false; mensajes: string[] }
@@ -115,6 +122,9 @@ export interface MuestraVariante {
 export interface EstudianteResumen {
   user_id: string; nombre: string; login_id: string | null; matriculado: boolean; participa: boolean; nivel_actual: number | null;
   comodines_usados: number | null; aceptado_at: string | null; resumen: ResumenInscripcion | null;
+  fuera?: FueraDocente | null;
+  /** primera jornada vencida que incumple la continuidad; se aplica cuando el estudiante vuelve a entrar */
+  continuidad_pendiente?: number | null;
 }
 export interface ResumenDocente {
   maraton: MaratonDocente;
@@ -132,7 +142,7 @@ export interface PresentacionHistorial {
 }
 export interface Historial {
   estudiante: { user_id: string; nombre: string; login_id: string | null };
-  inscripcion: { nivel: number; comodines_usados: number; aceptado_at: string | null; prueba: boolean; resumen: ResumenInscripcion } | null;
+  inscripcion: { nivel: number; comodines_usados: number; aceptado_at: string | null; prueba: boolean; resumen: ResumenInscripcion; fuera?: FueraDocente | null } | null;
   presentaciones: PresentacionHistorial[];
   eventos: { tipo: string; jornada: number | null; datos: Record<string, unknown>; actor: string | null; created_at: string }[];
   incidencias: { id: string; jornada: number; tipo: string; motivo: string; reabierta_hasta: string | null; creado_por: string | null; created_at: string }[];
@@ -165,3 +175,5 @@ export const maratonHistorial = (id: string, userId: string) => rpc<Historial>('
 export const maratonExportar = (id: string) => rpc<FilaExportacion[]>('maraton_exportar', { p_maraton: id });
 export const maratonIncidencia = (id: string, userId: string, jornada: number, tipo: 'reapertura' | 'justificacion' | 'nota', motivo: string, hasta: string | null) =>
   rpc<Historial>('maraton_incidencia', { p_maraton: id, p_user: userId, p_jornada: jornada, p_tipo: tipo, p_motivo: motivo, p_hasta: hasta });
+export const maratonReincorporar = (id: string, userId: string, motivo: string) =>
+  rpc<Historial>('maraton_reincorporar', { p_maraton: id, p_user: userId, p_motivo: motivo });

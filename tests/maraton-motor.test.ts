@@ -68,22 +68,51 @@ describe('unidades de trabajo', () => {
 
 describe('finalización de la jornada', () => {
   it('vía A: cuota de 12 unidades, nunca antes de 30 min de trabajo efectivo', () => {
-    expect(finJornada({ unidades: 11.9, segundos: 2000, validos: 10, presentados: 10 }, C)).toEqual({ fin: false });
-    expect(finJornada({ unidades: 12, segundos: 2000, validos: 10, presentados: 10 }, C)).toEqual({ fin: true, estado: 'completada', via: 'cuota' });
-    expect(finJornada({ unidades: 14, segundos: 1799, validos: 10, presentados: 10 }, C)).toEqual({ fin: false });
-    expect(finJornada({ unidades: 14, segundos: 1800, validos: 10, presentados: 10 }, C)).toEqual({ fin: true, estado: 'completada', via: 'cuota' });
-    expect(finJornada({ unidades: 12, segundos: 600, validos: 10, presentados: 10 }, combinar({ carga: { minutos_minimos: 0 } }))).toMatchObject({ via: 'cuota' });
+    expect(finJornada({ unidades: 11.9, segundos: 2000, validos: 10, presentados: 10, correctas: 6 }, C)).toEqual({ fin: false });
+    expect(finJornada({ unidades: 12, segundos: 2000, validos: 10, presentados: 10, correctas: 6 }, C)).toEqual({ fin: true, estado: 'completada', via: 'cuota' });
+    expect(finJornada({ unidades: 14, segundos: 1799, validos: 10, presentados: 10, correctas: 6 }, C)).toEqual({ fin: false });
+    expect(finJornada({ unidades: 14, segundos: 1800, validos: 10, presentados: 10, correctas: 6 }, C)).toEqual({ fin: true, estado: 'completada', via: 'cuota' });
+    expect(finJornada({ unidades: 12, segundos: 600, validos: 10, presentados: 10, correctas: 6 }, combinar({ carga: { minutos_minimos: 0 } }))).toMatchObject({ via: 'cuota' });
   });
   it('vía B: 60 min efectivos y 8 intentos válidos (ambos)', () => {
-    expect(finJornada({ unidades: 8, segundos: 3600, validos: 7, presentados: 9 }, C).fin).toBe(false);
-    expect(finJornada({ unidades: 8, segundos: 3599, validos: 8, presentados: 9 }, C).fin).toBe(false);
-    expect(finJornada({ unidades: 8, segundos: 3600, validos: 8, presentados: 9 }, C)).toEqual({ fin: true, estado: 'completada', via: 'alternativa' });
+    expect(finJornada({ unidades: 8, segundos: 3600, validos: 7, presentados: 9, correctas: 6 }, C).fin).toBe(false);
+    expect(finJornada({ unidades: 8, segundos: 3599, validos: 8, presentados: 9, correctas: 6 }, C).fin).toBe(false);
+    expect(finJornada({ unidades: 8, segundos: 3600, validos: 8, presentados: 9, correctas: 6 }, C)).toEqual({ fin: true, estado: 'completada', via: 'alternativa' });
   });
-  it('límites de protección: 90 min, 18 intentos, 30 presentados → cierre seguro para revisión', () => {
-    const sinB = combinar({ carga: { alternativa_activa: false } });
-    expect(finJornada({ unidades: 5, segundos: 5400, validos: 5, presentados: 9 }, sinB)).toMatchObject({ estado: 'cerrada_limite', motivo: 'tiempo' });
-    expect(finJornada({ unidades: 5, segundos: 100, validos: 18, presentados: 20 }, C)).toMatchObject({ estado: 'cerrada_limite', motivo: 'intentos' });
-    expect(finJornada({ unidades: 1, segundos: 100, validos: 1, presentados: 30 }, C)).toMatchObject({ estado: 'cerrada_limite', motivo: 'presentados' });
+  it('límites de protección: 90 min, 18 intentos, 30 presentados → cierre seguro para revisión (sin reglas de permanencia)', () => {
+    const libre = { min_correctas: 0, fuera_por_presentados: false, fuera_por_continuidad: false, fuera_rapido_nivel: null };
+    const sinB = combinar({ carga: { alternativa_activa: false }, permanencia: libre }), L = combinar({ permanencia: libre });
+    expect(finJornada({ unidades: 5, segundos: 5400, validos: 5, presentados: 9, correctas: 0 }, sinB)).toMatchObject({ estado: 'cerrada_limite', motivo: 'tiempo' });
+    expect(finJornada({ unidades: 5, segundos: 100, validos: 18, presentados: 20, correctas: 0 }, L)).toMatchObject({ estado: 'cerrada_limite', motivo: 'intentos' });
+    expect(finJornada({ unidades: 1, segundos: 100, validos: 1, presentados: 30, correctas: 0 }, L)).toMatchObject({ estado: 'cerrada_limite', motivo: 'presentados' });
+  });
+});
+
+describe('permanencia (migración 98)', () => {
+  it('el mínimo de 5 aciertos es requisito para completar por cualquiera de las dos vías', () => {
+    expect(finJornada({ unidades: 14, segundos: 2000, validos: 10, presentados: 10, correctas: 4 }, C)).toEqual({ fin: false });
+    expect(finJornada({ unidades: 8, segundos: 3700, validos: 10, presentados: 12, correctas: 4 }, C)).toEqual({ fin: false });
+    expect(finJornada({ unidades: 8, segundos: 3700, validos: 10, presentados: 12, correctas: 5 }, C)).toMatchObject({ estado: 'completada', via: 'alternativa' });
+  });
+  it('queda fuera en cuanto ya no puede llegar al mínimo: 26 presentados sin acierto (máx. 30) o 14 respuestas sin acierto (máx. 18)', () => {
+    expect(finJornada({ unidades: 0, segundos: 600, validos: 0, presentados: 25, correctas: 0 }, C)).toEqual({ fin: false });
+    expect(finJornada({ unidades: 0, segundos: 600, validos: 0, presentados: 26, correctas: 0 }, C)).toEqual({ fin: true, estado: 'fuera', motivo: 'aciertos' });
+    expect(finJornada({ unidades: 6, segundos: 900, validos: 13, presentados: 13, correctas: 0 }, C)).toEqual({ fin: false });
+    expect(finJornada({ unidades: 6, segundos: 900, validos: 14, presentados: 14, correctas: 0 }, C)).toEqual({ fin: true, estado: 'fuera', motivo: 'aciertos' });
+    expect(finJornada({ unidades: 6, segundos: 900, validos: 14, presentados: 14, correctas: 1 }, C)).toEqual({ fin: false });
+  });
+  it('agotar los 30 problemas sin completar deja fuera aunque tenga el mínimo de aciertos', () => {
+    expect(finJornada({ unidades: 6, segundos: 900, validos: 6, presentados: 30, correctas: 5 }, C)).toEqual({ fin: true, estado: 'fuera', motivo: 'presentados' });
+  });
+  it('los límites de 18 intentos y 90 min con el mínimo alcanzable siguen cerrando para revisión', () => {
+    expect(finJornada({ unidades: 9, segundos: 3000, validos: 18, presentados: 20, correctas: 5 }, C)).toMatchObject({ estado: 'cerrada_limite', motivo: 'intentos' });
+    expect(finJornada({ unidades: 9, segundos: 5400, validos: 9, presentados: 15, correctas: 3 }, combinar({ carga: { alternativa_activa: false } })))
+      .toMatchObject({ estado: 'cerrada_limite', motivo: 'tiempo' });
+  });
+  it('validación: el mínimo no puede superar los intentos ni los problemas de la jornada; el nivel de rapidez va de 1 a 6', () => {
+    expect(erroresConfig(combinar({ permanencia: { min_correctas: 19 } })).join(' ')).toMatch(/nadie podría completarla/);
+    expect(erroresConfig(combinar({ permanencia: { fuera_rapido_nivel: 9 } })).join(' ')).toMatch(/rapidez/);
+    expect(erroresConfig(combinar({ permanencia: { fuera_rapido_nivel: null } }))).toEqual([]);
   });
 });
 
@@ -144,17 +173,24 @@ describe('simulación: la ponderación no acorta la jornada de quien resuelve pr
     const d = correr(debil);
     expect(Math.max(...d.map((r) => r.minutos))).toBeLessThanOrEqual(90 + 14);
     expect(Math.max(...d.map((r) => r.presentados))).toBeLessThanOrEqual(30);
-    expect(d.every((r) => r.estado === 'completada' || r.estado === 'cerrada_limite')).toBe(true);
+    expect(d.every((r) => ['completada', 'cerrada_limite', 'fuera'].includes(r.estado))).toBe(true);
+    // con el mínimo de 5 aciertos, el perfil débil (50 % en D1) casi siempre completa
+    expect(d.filter((r) => r.estado === 'fuera').length / d.length).toBeLessThan(0.05);
   });
-  it('fallar a propósito y rápido ya no completa la jornada: termina en el límite de intentos, para revisión docente', () => {
+  it('quien trabaja de verdad (excepcional y medio) nunca queda fuera', () => {
+    expect([...correr(excepcional), ...correr(medio)].some((r) => r.estado === 'fuera')).toBe(false);
+  });
+  it('fallar a propósito y rápido ya no completa la jornada: queda fuera (sin acierto posible); sin permanencia, revisión docente', () => {
     // escribe cualquier cosa y espera justo el tiempo mínimo de cada problema (D1 = 1 min)
     const fallador: Perfil = { nombre: 'fallador', acierto: [0, 0, 0, 0, 0, 0], minutos: [1, 2, 3, 4, 5, 7] };
+    const libre = { min_correctas: 0, fuera_por_presentados: false, fuera_por_continuidad: false, fuera_rapido_nivel: null };
     const az = mulberry32(3);
-    const ahora = simularJornada(fallador, C, 2, az);
+    expect(simularJornada(fallador, C, 2, az)).toMatchObject({ estado: 'fuera', motivo: 'aciertos', validos: 14 });
+    const ahora = simularJornada(fallador, combinar({ permanencia: libre }), 2, az);
     expect(ahora).toMatchObject({ estado: 'cerrada_limite', motivo: 'intentos' });
     expect(ahora.unidades).toBeLessThan(C.carga.cuota);
     // contrafactual con la regla anterior (incorrecta = correcta y sin tiempo mínimo): jornada completada en ~13 min sin un acierto
-    const antes = simularJornada(fallador, combinar({ carga: { fraccion_fallo: 1, minutos_minimos: 0 } }), 2, az);
+    const antes = simularJornada(fallador, combinar({ carga: { fraccion_fallo: 1, minutos_minimos: 0 }, permanencia: libre }), 2, az);
     expect(antes).toMatchObject({ estado: 'completada', via: 'cuota' });
     expect(antes.minutos).toBeLessThanOrEqual(13);
   });

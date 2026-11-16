@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CartesianGrid, ComposedChart, Legend, Line, LineChart, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-  maratonExportar, maratonHistorial, maratonIncidencia, maratonResumen, type EstudianteResumen, type FilaExportacion, type Historial, type MaratonDocente, type PresentacionHistorial,
+  maratonExportar, maratonHistorial, maratonIncidencia, maratonReincorporar, maratonResumen, type EstudianteResumen, type TipoFuera, type FilaExportacion, type Historial, type MaratonDocente, type PresentacionHistorial,
 } from '@/api/maraton';
 import { etiquetaNivel } from '@/lib/maraton/config';
 import {
@@ -25,6 +25,7 @@ const COLORES: Record<PuntoTrayectoria['tipo'], string> = { correcta: '#16a34a',
 const NOMBRE_TIPO: Record<PuntoTrayectoria['tipo'], string> = { correcta: 'Correcta', incorrecta: 'Incorrecta', no_puedo: '«No puedo»', cambio: 'Sustitución (comodín)', cierre: 'Cerrada por plazo', abierta: 'Abierta' };
 const ESTADO_J: Record<string, string> = { completada: '✔', en_curso: '…', cerrada_limite: '⚠', incompleta: '✖', justificada: 'J', pendiente: '○' };
 
+const NOMBRE_FUERA: Record<TipoFuera, string> = { aciertos: 'mínimo de aciertos', presentados: 'máximo de problemas', continuidad: 'continuidad', rapidez: 'resolución demasiado rápida' };
 const SEG_RECARGA = 20;
 const tipoFila = (f: FilaExportacion) => (f.accion === 'respuesta' ? (f.resultado === 'correcta' ? 'correcta' : 'incorrecta') : f.accion ?? 'abierta') as PuntoTrayectoria['tipo'];
 const tonoTipo = (t: PuntoTrayectoria['tipo']) => (t === 'correcta' ? 'green' : t === 'incorrecta' ? 'red' : t === 'abierta' ? 'blue' : 'gray');
@@ -103,7 +104,10 @@ export function MaratonInforme({ m }: { m: MaratonDocente }) {
                 const porNum = new Map((r?.por_jornada ?? []).map((j) => [j.numero, j]));
                 return (
                   <tr key={e.user_id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5" onClick={() => setSel(e)}>
-                    <td><span className="font-medium">{e.nombre}</span><br /><span className="text-xs text-gray-500">{e.login_id}{!e.matriculado ? ' · ya no está matriculado' : ''}</span></td>
+                    <td><span className="font-medium">{e.nombre}</span>
+                      {e.fuera ? <span title={e.fuera.motivo ?? ''}> <Badge tone="red">Fuera · {NOMBRE_FUERA[e.fuera.tipo]}</Badge></span>
+                        : e.continuidad_pendiente ? <span title="Se aplicará cuando vuelva a entrar; puede reincorporarle antes"> <Badge tone="amber">No completó la J{e.continuidad_pendiente}</Badge></span> : null}
+                      <br /><span className="text-xs text-gray-500">{e.login_id}{!e.matriculado ? ' · ya no está matriculado' : ''}</span></td>
                     <td><EjercicioActual s={sit.get(e.login_id ?? e.nombre)} /></td>
                     <td className="whitespace-nowrap font-mono text-xs" title="✔ completada · ✖ no completada · ⚠ cerrada por límite · J justificada · … en curso · · sin registro">
                       {Array.from({ length: n }, (_, i) => { const j = porNum.get(i + 1); return j ? ESTADO_J[j.estado] ?? '?' : '·'; }).join('')}</td>
@@ -181,6 +185,7 @@ function DetalleEstudiante({ m, e, onVolver, onCambio }: { m: MaratonDocente; e:
       </div>
       <h2 className="text-xl font-semibold">{hist.estudiante.nombre} <span className="text-sm font-normal text-gray-500">{hist.estudiante.login_id} · {m.titulo}</span></h2>
       <ControlRecarga auto={auto} setAuto={setAuto} r={recarga} />
+      <AvisoFuera m={m} e={e} hist={hist} onHist={(x) => { setH(x); onCambio(); }} />
       {!hist.inscripcion ? <Notice>Este estudiante no ha comenzado el maratón.</Notice> : (
         <>
           <Card title="Ejercicio por ejercicio (historial no modificable; lo más reciente arriba)">
@@ -330,6 +335,28 @@ function VerPresentacion({ p, siguiente, onClose }: { p: PresentacionHistorial; 
         {p.procedimiento && <div><div className="text-xs text-gray-500">Procedimiento escrito</div><Markdown className="prosa text-sm">{p.procedimiento}</Markdown></div>}
       </div>
     </Modal>
+  );
+}
+
+/** Fuera del maratón por una regla de permanencia (migración 98): motivo detallado y reincorporación con motivo. */
+function AvisoFuera({ m, e, hist, onHist }: { m: MaratonDocente; e: EstudianteResumen; hist: Historial; onHist: (h: Historial) => void }) {
+  const act = useAction();
+  const [hecho, setHecho] = useState(false);   // `e` es la fila del resumen al abrir el detalle: no se refresca sola
+  const f = hist.inscripcion?.fuera ?? null;
+  const pendiente = !f && !hecho && hist.inscripcion ? e.continuidad_pendiente ?? null : null;
+  if (!f && !pendiente) return null;
+  const reincorporar = () => {
+    const motivo = window.prompt('Motivo de la reincorporación (queda en el historial). Se justifican las jornadas que lo dejaron fuera; para que rehaga la de hoy, reábrala después en «Incidencias».');
+    if (motivo === null) return;
+    void act.run(async () => { onHist(await maratonReincorporar(m.id, e.user_id, motivo)); setHecho(true); });
+  };
+  return (
+    <div className="rounded border border-red-300 bg-red-50 p-3 text-sm dark:border-red-700 dark:bg-red-900/20">
+      {f ? <><strong>Fuera del maratón</strong> desde la jornada {f.jornada ?? '—'} ({fecha(f.desde)}) · {NOMBRE_FUERA[f.tipo]}<br />{f.motivo}</>
+        : <><strong>No completó la jornada {pendiente}.</strong> Por la regla de continuidad quedará fuera cuando vuelva a entrar.</>}
+      <div className="mt-2 no-print"><button className="btn-secundario text-sm" disabled={act.busy} onClick={reincorporar}>Reincorporar…</button></div>
+      <ErrorBox error={act.error} />
+    </div>
   );
 }
 

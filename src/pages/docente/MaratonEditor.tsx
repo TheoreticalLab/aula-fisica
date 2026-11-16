@@ -11,7 +11,7 @@ import {
 } from '@/api/maraton';
 import { classTeachers, listGroups, listMyTeachingClasses } from '@/api/docente';
 import { useAuth } from '@/auth/AuthContext';
-import { combinar, describirFinalizacion, erroresConfig, etiquetaNivel, NOMBRE_NIVEL, type ConfigMaraton } from '@/lib/maraton/config';
+import { combinar, describirFinalizacion, erroresConfig, etiquetaNivel, NOMBRE_NIVEL, reglasPermanencia, type ConfigMaraton } from '@/lib/maraton/config';
 import { fecha, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, ErrorBox, Modal, Notice, PageTitle, Spinner, Tabs } from '@/components/ui';
 import { EditorMarkdown } from '@/components/EditorMarkdown';
@@ -96,7 +96,7 @@ function Configuracion({ m, onGuardado, onPublicar }: { m: MaratonDocente; onGua
     const r = await act.run(() => maratonGuardar(m.id, datos));
     if (r) { onGuardado(r); setOk(true); }
   }
-  const p = c.programacion, k = c.carga, d = c.dificultad, w = c.comodines;
+  const p = c.programacion, k = c.carga, d = c.dificultad, w = c.comodines, pe = c.permanencia;
   return (
     <div className="space-y-4">
       {bloqueado && <Notice tone="warn">El maratón ya tiene participantes: para no cambiar las reglas a mitad del recorrido solo se pueden editar los textos y los informes.</Notice>}
@@ -157,6 +157,29 @@ function Configuracion({ m, onGuardado, onPublicar }: { m: MaratonDocente; onGua
           <Num label="Máximo de problemas presentados" value={k.presentados_max} disabled={bloqueado} onChange={(v) => set('carga', { presentados_max: v })} />
         </div>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{describirFinalizacion(c)}</p>
+      </Card>
+
+      <Card title="Permanencia (quién queda fuera del maratón)">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Num label="Mínimo de ejercicios bien resueltos por jornada" value={pe.min_correctas} min={0} disabled={bloqueado} onChange={(v) => set('permanencia', { min_correctas: v })}
+            hint="Requisito para completar; si ya no es alcanzable, queda fuera. 0 = sin mínimo." />
+          <div className="sm:col-span-2 space-y-1 pt-6">
+            <Check label={`Fuera si llega a ${k.presentados_max} problemas presentados sin completar la jornada`} value={pe.fuera_por_presentados} disabled={bloqueado} onChange={(v) => set('permanencia', { fuera_por_presentados: v })} />
+            <Check label="Fuera si una jornada termina sin completarse o no la inicia (continuidad)" value={pe.fuera_por_continuidad} disabled={bloqueado} onChange={(v) => set('permanencia', { fuera_por_continuidad: v })} />
+            <Check label="Fuera si resuelve bien un problema difícil demasiado rápido" value={pe.fuera_rapido_nivel !== null} disabled={bloqueado} onChange={(v) => set('permanencia', { fuera_rapido_nivel: v ? 6 : null })} />
+          </div>
+          {pe.fuera_rapido_nivel !== null && <>
+            <label className="block"><span className="etiqueta">Nivel desde el que se aplica</span>
+              <select className="campo" value={pe.fuera_rapido_nivel} disabled={bloqueado} onChange={(e) => set('permanencia', { fuera_rapido_nivel: Number(e.target.value) })}>
+                {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{etiquetaNivel(n)}</option>)}</select></label>
+            <Num label="Segundos mínimos para resolverlo" value={pe.fuera_rapido_segundos} min={1} disabled={bloqueado} onChange={(v) => set('permanencia', { fuera_rapido_segundos: v })} />
+          </>}
+        </div>
+        <ul className="mt-2 list-disc pl-5 text-sm text-gray-600 dark:text-gray-400">
+          {reglasPermanencia({ min_correctas: pe.min_correctas, presentados_max: pe.fuera_por_presentados ? k.presentados_max : null, continuidad: pe.fuera_por_continuidad,
+            rapido_segundos: pe.fuera_rapido_nivel !== null ? pe.fuera_rapido_segundos : null, rapido_nivel: pe.fuera_rapido_nivel }).map((r) => <li key={r}>{r}</li>)}
+        </ul>
+        <p className="mt-2 text-xs text-gray-500">El estudiante ve estas reglas antes de empezar (sin niveles). Usted puede reincorporar a quien quede fuera, con un motivo, desde el informe.</p>
       </Card>
 
       <Card title="Dificultad">

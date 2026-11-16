@@ -3,8 +3,8 @@
 -- Profesor T (secciones A y B), T2 (solo B), T3 (otra asignatura). Estudiantes S1, S2 (A), S3 (B).
 -- Maratones en A: M (predeterminado), M2 (nivel inicial D6, 2 comodines), M3 (predeterminado), M4 (límite 30 min),
 -- M5 (máx. 3 intentos), M6 (cuota 1, 14 jornadas).
--- Todos fijan la regla de la migración 94 (incorrecta = correcta, sin tiempo mínimo de jornada); la regla de la
--- migración 97 se prueba en supabase/pruebas/maraton_fallo_tiempo_minimo.sql.
+-- Todos fijan la regla de la migración 94 (incorrecta = correcta, sin tiempo mínimo de jornada, sin reglas de
+-- permanencia); las de las migraciones 97 y 98 se prueban en maraton_fallo_tiempo_minimo.sql y maraton_permanencia.sql.
 begin;
 
 insert into auth.users (id, email, aud, role, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
@@ -94,7 +94,7 @@ do $$ declare v uuid; r jsonb; begin
   exception when invalid_parameter_value then null; end;
   begin perform public.maraton_crear('de940000-0000-4000-8000-000000000033', '{}'); raise exception 'FALLO: profesor ajeno creó';
   exception when insufficient_privilege then null; end;
-  v := public.maraton_crear('de940000-0000-4000-8000-000000000031', '{"titulo":"M","config":{"carga":{"fraccion_fallo":1,"minutos_minimos":0}}}');
+  v := public.maraton_crear('de940000-0000-4000-8000-000000000031', '{"titulo":"M","config":{"permanencia":{"min_correctas":0,"fuera_por_presentados":false,"fuera_por_continuidad":false,"fuera_rapido_nivel":null},"carga":{"fraccion_fallo":1,"minutos_minimos":0}}}');
   insert into ids values ('M', v);
   r := public.maraton_detalle_docente(v);
   if r ->> 'estado' <> 'borrador' or r ->> 'fecha_inicio' is not null or (r ->> 'calificacion_automatica')::boolean then raise exception 'FALLO: no nace como borrador sin fecha: %', r; end if;
@@ -104,11 +104,11 @@ do $$ declare v uuid; r jsonb; begin
   if not (r -> 'revision' -> 'errores')::text like '%fecha de inicio%' then raise exception 'FALLO: la revisión no exige la fecha'; end if;
   begin perform public.maraton_cambiar_estado(v, 'publicado'); raise exception 'FALLO: publicó sin fecha';
   exception when raise_exception then if sqlerrm like 'FALLO%' then raise; end if; end;
-  insert into ids values ('M2', public.maraton_crear('de940000-0000-4000-8000-000000000031', '{"titulo":"M2","config":{"carga":{"fraccion_fallo":1,"minutos_minimos":0},"dificultad":{"nivel_inicial":6},"comodines":{"total":2}}}'));
-  insert into ids values ('M3', public.maraton_crear('de940000-0000-4000-8000-000000000031', '{"titulo":"M3","config":{"carga":{"fraccion_fallo":1,"minutos_minimos":0}}}'));
-  insert into ids values ('M4', public.maraton_crear('de940000-0000-4000-8000-000000000031', '{"titulo":"M4","config":{"carga":{"fraccion_fallo":1,"minutos_minimos":0,"limite_minutos":30,"alternativa_activa":false}}}'));
-  insert into ids values ('M5', public.maraton_crear('de940000-0000-4000-8000-000000000031', '{"titulo":"M5","config":{"carga":{"fraccion_fallo":1,"minutos_minimos":0,"intentos_max":3,"presentados_max":3,"alternativa_activa":false}}}'));
-  insert into ids values ('M6', public.maraton_crear('de940000-0000-4000-8000-000000000031', '{"titulo":"M6","config":{"carga":{"fraccion_fallo":1,"minutos_minimos":0,"cuota":1}}}'));
+  insert into ids values ('M2', public.maraton_crear('de940000-0000-4000-8000-000000000031', '{"titulo":"M2","config":{"permanencia":{"min_correctas":0,"fuera_por_presentados":false,"fuera_por_continuidad":false,"fuera_rapido_nivel":null},"carga":{"fraccion_fallo":1,"minutos_minimos":0},"dificultad":{"nivel_inicial":6},"comodines":{"total":2}}}'));
+  insert into ids values ('M3', public.maraton_crear('de940000-0000-4000-8000-000000000031', '{"titulo":"M3","config":{"permanencia":{"min_correctas":0,"fuera_por_presentados":false,"fuera_por_continuidad":false,"fuera_rapido_nivel":null},"carga":{"fraccion_fallo":1,"minutos_minimos":0}}}'));
+  insert into ids values ('M4', public.maraton_crear('de940000-0000-4000-8000-000000000031', '{"titulo":"M4","config":{"permanencia":{"min_correctas":0,"fuera_por_presentados":false,"fuera_por_continuidad":false,"fuera_rapido_nivel":null},"carga":{"fraccion_fallo":1,"minutos_minimos":0,"limite_minutos":30,"alternativa_activa":false}}}'));
+  insert into ids values ('M5', public.maraton_crear('de940000-0000-4000-8000-000000000031', '{"titulo":"M5","config":{"permanencia":{"min_correctas":0,"fuera_por_presentados":false,"fuera_por_continuidad":false,"fuera_rapido_nivel":null},"carga":{"fraccion_fallo":1,"minutos_minimos":0,"intentos_max":3,"presentados_max":3,"alternativa_activa":false}}}'));
+  insert into ids values ('M6', public.maraton_crear('de940000-0000-4000-8000-000000000031', '{"titulo":"M6","config":{"permanencia":{"min_correctas":0,"fuera_por_presentados":false,"fuera_por_continuidad":false,"fuera_rapido_nivel":null},"carga":{"fraccion_fallo":1,"minutos_minimos":0,"cuota":1}}}'));
 end $$;
 select pg_temp.como('de940000-0000-4000-8000-000000000011');
 do $$ begin

@@ -10,7 +10,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { interpretNumeric } from '@calif/calificar.ts';
 import { API_MARATON, esNoValida, type EstadoMaraton, type MiInforme } from '@/api/maraton';
-import { NOMBRE_NIVEL } from '@/lib/maraton/config';
+import { NOMBRE_NIVEL, reglasPermanencia } from '@/lib/maraton/config';
 import { fecha, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, ErrorBox, Modal, Notice, PageTitle, Spinner } from '@/components/ui';
 import { Markdown } from '@/components/Markdown';
@@ -62,6 +62,14 @@ const AVISOS: Record<string, string> = {
   ya_procesada: 'Su acción ya se había registrado.',
   ya_cerrada: 'Ese ejercicio ya estaba cerrado (quizá desde otra pestaña). Se muestra el estado actual.',
   jornada_cerrada: 'El plazo de la jornada terminó: la acción no se registró.',
+};
+
+/** Aviso al estudiante que quedó fuera (sin niveles ni parámetros internos). */
+const MOTIVO_FUERA: Record<string, string> = {
+  aciertos: 'ya no era posible alcanzar el mínimo de ejercicios bien resueltos de la jornada',
+  presentados: 'se llegó al máximo de problemas de la jornada sin completarla',
+  continuidad: 'una jornada terminó sin completarse',
+  rapidez: 'se registró la resolución correcta de un problema de alta dificultad en menos del tiempo mínimo establecido',
 };
 
 const ESTADO_JORNADA: Record<string, { t: string; tono: 'gray' | 'blue' | 'green' | 'amber' | 'red' }> = {
@@ -121,6 +129,12 @@ function Condiciones({ e, onIniciar }: { e: EstadoMaraton; onIniciar: (s: Estado
         <li><strong>Dificultad adaptativa</strong> y <strong>cantidad variable</strong> de ejercicios por jornada.</li>
         <li><strong>Informes, no notas:</strong> el sistema describe su trabajo; la recuperación la decide el profesor.</li>
       </ul>
+      {m.permanencia && reglasPermanencia(m.permanencia).length > 0 && (
+        <div className="mb-4 rounded border border-acento-300 bg-acento-50 p-3 text-sm dark:border-acento-700/60 dark:bg-acento-700/20">
+          <strong>Reglas de permanencia</strong> (incumplirlas termina su participación en el maratón):
+          <ul className="mt-1 list-disc pl-5">{reglasPermanencia(m.permanencia).map((r) => <li key={r}>{r}</li>)}</ul>
+        </div>
+      )}
       {m.instrucciones ? <Markdown className="prosa">{m.instrucciones}</Markdown> : <p className="text-sm text-gray-500">El profesor no ha añadido instrucciones.</p>}
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button className="btn-primario min-h-[44px]" disabled={act.busy || !abierto} onClick={async () => { const s = await act.run(() => API_MARATON.iniciar(m.id)); if (s) onIniciar(s); }}>
@@ -161,7 +175,14 @@ function Jornada({ e, onEstado }: { e: EstadoMaraton; onEstado: (s: EstadoMarato
       {e.aviso && <Notice tone="warn">{AVISOS[e.aviso] ?? e.aviso}</Notice>}
       {e.ultimo && <Notice tone={e.ultimo.resultado === 'correcta' ? 'ok' : 'warn'}>Su respuesta anterior fue {e.ultimo.resultado === 'correcta' ? 'correcta' : 'incorrecta'}.</Notice>}
       {e.problema ? <Problema key={e.problema.presentacion_id} e={e} onEstado={onEstado} />
-        : j?.estado === 'completada' ? (
+        : e.fuera ? (
+          <div className="tarjeta border-red-300 dark:border-red-700">
+            <h2 className="text-lg font-bold">Su participación en el maratón terminó</h2>
+            <p className="mt-1">Según las reglas de permanencia comunicadas al inicio, {MOTIVO_FUERA[e.fuera.tipo] ?? 'se incumplió una regla de permanencia'}
+              {e.fuera.jornada ? ` (jornada ${e.fuera.jornada})` : ''}.</p>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">No puede continuar en las jornadas siguientes. Si cree que hubo un error o una falla técnica, hable con su profesor: puede revisarlo y reincorporarle.</p>
+          </div>
+        ) : j?.estado === 'completada' ? (
           <div className="tarjeta border-green-300 text-center dark:border-green-700">
             <div className="text-3xl" aria-hidden>🏁</div>
             <h2 className="mt-1 text-xl font-bold">JORNADA COMPLETADA</h2>
