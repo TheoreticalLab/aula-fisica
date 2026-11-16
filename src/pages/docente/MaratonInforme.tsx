@@ -206,7 +206,7 @@ function DetalleEstudiante({ m, e, onVolver, onCambio }: { m: MaratonDocente; e:
                     <td className="text-xs">{p.partes.map((pt, i) => { const ok = p.detalle?.partes[i]?.correcta; return (
                       <div key={i} title={pt.etiqueta}><span className="text-gray-500">{p.partes.length > 1 ? `${i + 1}) ` : ''}</span>
                         <span className="font-mono">{p.respuesta?.partes[i] ?? '—'}</span>{ok != null && <span className={ok ? 'text-emerald-600' : 'text-red-600'}> {ok ? '✔' : '✖'}</span>}
-                        <span className="text-gray-500"> · clave <span className="font-mono">{p.clave?.partes[i]?.value ?? '—'}</span>{pt.unidad ? ` ${pt.unidad}` : ''}</span></div>); })}</td>
+                        <span className="text-gray-500"> · clave <span className="font-mono">{p.clave?.partes[i]?.value ?? '—'}</span></span></div>); })}</td>
                     <td className="text-xs">{p.segundos == null ? '—' : `${Math.round(p.segundos)} s`}</td>
                     <td><button className="enlace" onClick={() => setVer(p)}>Ver</button></td>
                   </tr>); })}</tbody>
@@ -225,10 +225,10 @@ function DetalleEstudiante({ m, e, onVolver, onCambio }: { m: MaratonDocente; e:
               ))}
             </div>
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              <table className={TABLA}><thead><tr><th>Nivel</th><th>Pres.</th><th>Válidos</th><th>Correctas</th><th>%</th><th>No puedo</th><th>Cambios</th><th>Tiempo medio</th></tr></thead>
-                <tbody>{rend.porNivel.map((x) => <tr key={x.nivel}><td>{etiquetaNivel(x.nivel)}</td><td>{x.presentados}</td><td>{x.validos}</td><td>{x.correctas}</td><td>{pct(x.precision)}</td><td>{x.noPuedo}</td><td>{x.cambios}</td><td>{x.mediaSegundos == null ? '—' : `${Math.round(x.mediaSegundos / 60 * 10) / 10} min`}</td></tr>)}</tbody></table>
-              <table className={TABLA}><thead><tr><th>Tema</th><th>Pres.</th><th>Válidos</th><th>Correctas</th><th>%</th><th>No puedo</th></tr></thead>
-                <tbody>{rend.porTema.map((x) => <tr key={x.tema}><td>{x.tema}</td><td>{x.presentados}</td><td>{x.validos}</td><td>{x.correctas}</td><td>{pct(x.precision)}</td><td>{x.noPuedo}</td></tr>)}</tbody></table>
+              <div className="overflow-x-auto"><table className={TABLA}><thead><tr><th>Nivel</th><th>Pres.</th><th>Válidos</th><th>Correctas</th><th>%</th><th>No puedo</th><th>Cambios</th><th>Tiempo medio</th></tr></thead>
+                <tbody>{rend.porNivel.map((x) => <tr key={x.nivel}><td>{etiquetaNivel(x.nivel)}</td><td>{x.presentados}</td><td>{x.validos}</td><td>{x.correctas}</td><td>{pct(x.precision)}</td><td>{x.noPuedo}</td><td>{x.cambios}</td><td>{x.mediaSegundos == null ? '—' : `${Math.round(x.mediaSegundos / 60 * 10) / 10} min`}</td></tr>)}</tbody></table></div>
+              <div className="overflow-x-auto"><table className={TABLA}><thead><tr><th>Tema</th><th>Pres.</th><th>Válidos</th><th>Correctas</th><th>%</th><th>No puedo</th></tr></thead>
+                <tbody>{rend.porTema.map((x) => <tr key={x.tema}><td>{x.tema}</td><td>{x.presentados}</td><td>{x.validos}</td><td>{x.correctas}</td><td>{pct(x.precision)}</td><td>{x.noPuedo}</td></tr>)}</tbody></table></div>
             </div>
           </Card>
 
@@ -255,8 +255,8 @@ function DetalleEstudiante({ m, e, onVolver, onCambio }: { m: MaratonDocente; e:
 
           <Card title="C. Comportamiento ante dificultades">
             <div className="grid gap-4 lg:grid-cols-2">
-              <table className={TABLA}><thead><tr><th>Nivel</th><th>«No puedo»</th><th>Frecuencia relativa</th><th>Cambios</th></tr></thead>
-                <tbody>{comp.noPuedoPorNivel.map((x, i) => <tr key={x.nivel}><td>{etiquetaNivel(x.nivel)}</td><td>{x.n}</td><td>{pct(x.frecuencia)}</td><td>{comp.cambiosPorNivel[i].n}</td></tr>)}</tbody></table>
+              <div className="overflow-x-auto"><table className={TABLA}><thead><tr><th>Nivel</th><th>«No puedo»</th><th>Frecuencia relativa</th><th>Cambios</th></tr></thead>
+                <tbody>{comp.noPuedoPorNivel.map((x, i) => <tr key={x.nivel}><td>{etiquetaNivel(x.nivel)}</td><td>{x.n}</td><td>{pct(x.frecuencia)}</td><td>{comp.cambiosPorNivel[i].n}</td></tr>)}</tbody></table></div>
               <dl className="grid grid-cols-2 gap-2 text-sm">
                 {[['Tiempo (mediana) antes de «No puedo»', comp.segundosAntesDeAbandonar == null ? '—' : `${Math.round(comp.segundosAntesDeAbandonar)} s`], ['Racha máx. de aciertos', comp.rachaCorrectas],
                   ['Racha máx. de fallos', comp.rachaIncorrectas], ['Máx. permanencia en D6 (ejercicios seguidos)', comp.maxPermanenciaD6], ['Entradas a D5–D6 desde abajo', comp.entradasAltas],
@@ -313,7 +313,7 @@ function VerPresentacion({ p, siguiente, onClose }: { p: PresentacionHistorial; 
   return (
     <Modal open onClose={onClose} title={`Ejercicio #${p.secuencia} · jornada ${p.jornada} · ${etiquetaNivel(p.nivel)}`}>
       <div className="max-h-[70vh] space-y-2 overflow-y-auto text-sm">
-        <div className="text-xs text-gray-500">{p.plantilla_id} · variante {p.variante_id} · {p.tema} · {p.subtema}</div>
+        <div className="break-all text-xs text-gray-500">{p.plantilla_id} · variante {p.variante_id} · {p.tema} · {p.subtema}</div>
         <Markdown className="prosa text-sm">{p.enunciado}</Markdown>
         <dl className="grid grid-cols-2 gap-2">
           <div><dt className="text-xs text-gray-500">Recibido</dt><dd>{fecha(p.presentada_at)}</dd></div>
@@ -384,8 +384,8 @@ function Incidencias({ m, e, hist, onHist }: { m: MaratonDocente; e: EstudianteR
       <ErrorBox error={act.error} />
       <p className="mt-2 text-xs text-gray-500">Reabrir permite completar una jornada perdida por una falla verificable (hasta 14 días); justificar la marca como justificada sin que el estudiante la haga. Ninguna de las dos borra datos.</p>
       {hist.incidencias.length > 0 && (
-        <table className={`${TABLA} mt-3`}><thead><tr><th>Fecha</th><th>Jornada</th><th>Tipo</th><th>Motivo</th><th>Hasta</th></tr></thead>
-          <tbody>{hist.incidencias.map((i) => <tr key={i.id}><td className="text-xs">{fecha(i.created_at)}</td><td>{i.jornada}</td><td>{i.tipo}</td><td>{i.motivo}</td><td className="text-xs">{fecha(i.reabierta_hasta)}</td></tr>)}</tbody></table>
+        <div className="mt-3 overflow-x-auto"><table className={TABLA}><thead><tr><th>Fecha</th><th>Jornada</th><th>Tipo</th><th>Motivo</th><th>Hasta</th></tr></thead>
+          <tbody>{hist.incidencias.map((i) => <tr key={i.id}><td className="text-xs">{fecha(i.created_at)}</td><td>{i.jornada}</td><td>{i.tipo}</td><td>{i.motivo}</td><td className="text-xs">{fecha(i.reabierta_hasta)}</td></tr>)}</tbody></table></div>
       )}
       {hist.eventos.length > 0 && (
         <details className="mt-3 text-sm"><summary className="cursor-pointer">Registro de eventos ({hist.eventos.length})</summary>
