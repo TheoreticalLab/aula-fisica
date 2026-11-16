@@ -1,7 +1,8 @@
 -- Pruebas: las listas de seguimiento no muestran a los dados de baja ni a las cuentas suspendidas (migración 96).
 -- Tres estudiantes con un intento entregado en la misma actividad: Ana (activa), Beto (dado de baja), Caro (suspendida).
 -- Solo Ana debe aparecer en activity_stats, gradebook (Seguimiento), exam_monitor, exam_integridad_resumen,
--- practica_tiempo_intentos y hist_resumen; los intentos de Beto y Caro siguen guardados. Se deshace al final.
+-- practica_tiempo_intentos, hist_resumen, el registro oficial y la asistencia; al reactivar a Caro vuelve; los
+-- intentos de Beto y Caro siguen guardados. Se deshace al final.
 begin;
 
 insert into auth.users (id, email, aud, role, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
@@ -62,6 +63,16 @@ begin
   select count(*) into n from public.hist_resumen('ba960000-0000-4000-8000-000000000031') h where h.user_id::text in (beto, caro);
   if n <> 0 then raise exception 'FALLO: regularización muestra a la suspendida o al dado de baja'; end if;
   if (select count(*) from public.hist_resumen('ba960000-0000-4000-8000-000000000031')) <> 1 then raise exception 'FALLO: regularización perdió a Ana'; end if;
+  -- registro oficial y asistencia (decisión del profesor: tampoco los suspendidos)
+  if (select array_agg(o.user_id::text) from public.gradebook_official('ba960000-0000-4000-8000-000000000031') o) <> array[ana] then
+    raise exception 'FALLO: el registro oficial muestra a otros además de Ana';
+  end if;
+  select count(*) into n from public.gradebook_sources('ba960000-0000-4000-8000-000000000031') o where o.user_id::text in (beto, caro);
+  if n <> 0 then raise exception 'FALLO: las fuentes del registro muestran a la suspendida o al dado de baja'; end if;
+  i := public.attendance_report('ba960000-0000-4000-8000-000000000031');
+  if jsonb_array_length(i->'estudiantes') <> 1 or i->'estudiantes'->0->>'user_id' <> ana then
+    raise exception 'FALLO: la asistencia muestra a otros además de Ana: %', i->'estudiantes';
+  end if;
 end $$;
 
 -- al reactivar a Caro vuelve a todas las listas
@@ -70,7 +81,9 @@ update public.profiles set active = true, suspended_at = null where id = 'ba9600
 set local role authenticated;
 do $$ begin
   if (public.activity_stats('ba960000-0000-4000-8000-0000000000a1')->'summary'->>'students_submitted')::int <> 2
-     or jsonb_array_length(public.gradebook('ba960000-0000-4000-8000-000000000031')->'students') <> 2 then
+     or jsonb_array_length(public.gradebook('ba960000-0000-4000-8000-000000000031')->'students') <> 2
+     or (select count(*) from public.gradebook_official('ba960000-0000-4000-8000-000000000031')) <> 2
+     or jsonb_array_length(public.attendance_report('ba960000-0000-4000-8000-000000000031')->'estudiantes') <> 2 then
     raise exception 'FALLO: la cuenta reactivada no vuelve a las listas';
   end if;
 end $$;

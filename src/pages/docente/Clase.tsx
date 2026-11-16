@@ -169,12 +169,12 @@ function TabEstudiantes({ c, onChange }: { c: ClassRow; onChange: (c: ClassRow) 
                       </td>
                       <td className="py-2 pr-2">{s.profiles?.student_code}</td>
                       <td className="py-2 pr-2 whitespace-nowrap">
-                        {clasesDadas ? (() => {
+                        {s.profiles?.active === false ? <span className="text-xs text-gray-400" title="Cuenta suspendida: no cuenta en la asistencia">—</span> : clasesDadas ? (() => {
                           const p = presentesDe.get(s.user_id) ?? 0;
                           const pct = porcentajeAsistencia(p, clasesDadas);
                           return <Badge tone={tonoAsistencia(pct)}>{pct} %</Badge>;
                         })() : <span className="text-xs text-gray-400">—</span>}
-                        {clasesDadas > 0 && <span className="block text-xs text-gray-500">{presentesDe.get(s.user_id) ?? 0}/{clasesDadas}</span>}
+                        {clasesDadas > 0 && s.profiles?.active !== false && <span className="block text-xs text-gray-500">{presentesDe.get(s.user_id) ?? 0}/{clasesDadas}</span>}
                       </td>
                       <td className="py-2 pr-2">
                         <select className="campo py-1 text-sm" value={s.group_id ?? ''} aria-label="Grupo"

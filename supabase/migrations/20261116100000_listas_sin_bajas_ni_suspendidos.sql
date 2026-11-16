@@ -8,9 +8,10 @@
 -- El profesor pidió además que las cuentas SUSPENDIDAS tampoco salgan en «quién hizo y quién no».
 --
 -- Criterio único, fuera_de_seccion(sección, estudiante): baja vigente en la sección o cuenta desactivada
--- (profiles.active = false: suspendida o fusionada). Se aplica a las listas de seguimiento de actividades y prácticas.
--- NO se aplica (decisión pendiente del profesor) al registro oficial de calificaciones ni a la asistencia, donde los
--- suspendidos siguen apareciendo; los dados de baja ya no aparecen en ninguno de los dos (migración 95).
+-- (profiles.active = false: suspendida o fusionada). Se aplica a las listas de seguimiento de actividades y prácticas
+-- y, por decisión del profesor (16-nov-2026), también al registro oficial de calificaciones y a la asistencia: una
+-- cuenta suspendida desaparece de la hoja oficial mientras dure la suspensión y vuelve al reactivarla (sus notas no se
+-- tocan). La lista de la pestaña Estudiantes (matrícula) sí la muestra, marcada «suspendida», para poder gestionarla.
 -- NO se toca LIEIA (congelado; filtrar cambiaría la numeración de los seudónimos).
 -- Ningún dato cambia: solo qué filas devuelven estas funciones. Todas son copia de su versión vigente + el filtro.
 -- =============================================================================
@@ -450,8 +451,7 @@ grant execute on function public.activity_stats(uuid), public.gradebook(uuid), p
 
 -- -----------------------------------------------------------------------------
 -- Segunda pasada del barrido (todas las secciones): prácticas extraordinarias, maratón, buzones, controles de
--- laboratorio, delegados de clases impartidas y, del registro, puntos extra y partes de apartado. En lo del registro
--- solo se quita al dado de baja (los suspendidos siguen en el registro, como gradebook_official).
+-- laboratorio, delegados de clases impartidas y, del registro, puntos extra y partes de apartado.
 -- No se filtra clases_seccion: el nombre de quien subió las fotos es autoría de la clase, no una lista de estudiantes.
 -- -----------------------------------------------------------------------------
 
@@ -467,7 +467,7 @@ begin
   select x.id, x.user_id, a.full_name, coalesce(m.full_name, ''), x.assigner_role, x.points, x.reason, x.status, x.created_at,
     x.reviewed_at, x.review_note
   from public.extra_points x join public.profiles a on a.id = x.user_id left join public.profiles m on m.id = x.assigned_by
-  where x.class_id = p_class and not public.baja_vigente(p_class, x.user_id) order by x.created_at desc;
+  where x.class_id = p_class and not public.fuera_de_seccion(p_class, x.user_id) order by x.created_at desc;
 end;
 $$;
 
@@ -482,7 +482,7 @@ begin
                from public.grade_parts p where p.class_id = p_class),
     'notas', (select coalesce(jsonb_agg(jsonb_build_object('user_id', s.user_id, 'category', s.category, 'score', s.score)), '[]'::jsonb)
               from public.grade_part_scores s join public.grade_parts p on p.class_id = s.class_id and p.category = s.category
-              where s.class_id = p_class and not public.baja_vigente(p_class, s.user_id)));
+              where s.class_id = p_class and not public.fuera_de_seccion(p_class, s.user_id)));
 end;
 $$;
 
@@ -678,3 +678,143 @@ revoke all on function public.class_extra_points(uuid), public.class_grade_parts
 grant execute on function public.class_extra_points(uuid), public.class_grade_parts(uuid), public.pes_detalle_docente(uuid), public.pes_monitor(uuid),
   public.pes_respuestas_docente(uuid, boolean), public.clase_permisos(uuid), public.maraton_resumen(uuid), public.upload_box_students(uuid),
   public.lab_controles_seccion(uuid) to authenticated;
+
+-- -----------------------------------------------------------------------------
+-- Registro oficial y asistencia sin cuentas suspendidas (decisión del profesor, 16-nov-2026). Solo cambia qué filas se
+-- devuelven: official_scores, official_lost_total y las notas guardadas no se tocan.
+-- -----------------------------------------------------------------------------
+
+-- gradebook_official (vigente: migración 90)
+create or replace function public.gradebook_official(p_class uuid)
+returns table (user_id uuid, full_name text, student_code text, parcial1 numeric, parcial2 numeric, parcial3 numeric,
+  practica numeric, final numeric, extras numeric, extras_pendientes numeric, bruto numeric, nota_final numeric,
+  pendientes integer, es_monitor boolean)
+language plpgsql stable security definer set search_path = ''
+as $$
+begin
+  perform public.grades_assert_teacher(p_class);
+  return query
+  with alumnos as (
+    select e.user_id, p.full_name, p.student_code from public.enrollments e
+    join public.profiles p on p.id = e.user_id and p.role = 'student' and p.active where e.class_id = p_class
+  ), notas as (
+    select s.user_id,
+      max(s.score) filter (where s.category = 'parcial1') p1, max(s.score) filter (where s.category = 'parcial2') p2,
+      max(s.score) filter (where s.category = 'parcial3') p3, max(s.score) filter (where s.category = 'practica') pr,
+      max(s.score) filter (where s.category = 'final') fi
+    from public.official_scores(p_class) s group by s.user_id
+  ), ext as (
+    select x.user_id, coalesce(sum(x.points) filter (where x.status = 'aprobado'), 0) ap,
+      coalesce(sum(x.points) filter (where x.status = 'pendiente'), 0) pe
+    from public.extra_points x where x.class_id = p_class group by x.user_id
+  )
+  select a.user_id, a.full_name, a.student_code, n.p1, n.p2, n.p3, n.pr, n.fi,
+    coalesce(x.ap, 0), coalesce(x.pe, 0),
+    coalesce(n.p1, 0) + coalesce(n.p2, 0) + coalesce(n.p3, 0) + coalesce(n.pr, 0) + coalesce(n.fi, 0) + coalesce(x.ap, 0),
+    least(100, coalesce(n.p1, 0) + coalesce(n.p2, 0) + coalesce(n.p3, 0) + coalesce(n.pr, 0) + coalesce(n.fi, 0) + coalesce(x.ap, 0)),
+    ((n.p1 is null)::int + (n.p2 is null)::int + (n.p3 is null)::int + (n.pr is null)::int
+     + (n.fi is null and public.grade_category_max(p_class, 'final') is not null)::int),   -- laboratorio: sin examen final
+    exists (select 1 from public.class_monitors m where m.class_id = p_class and m.user_id = a.user_id and m.revoked_at is null)
+  from alumnos a left join notas n on n.user_id = a.user_id left join ext x on x.user_id = a.user_id
+  order by a.full_name;
+end;
+$$;
+
+-- gradebook_lost = puntos perdidos (vigente: migración 70)
+create or replace function public.gradebook_lost(p_class uuid)
+returns table (user_id uuid, perdidos numeric, detalle jsonb, extras numeric, avisos integer, ultimo_aviso timestamptz, ultimo_leido timestamptz)
+language plpgsql stable security definer set search_path = ''
+as $$
+begin
+  perform public.grades_assert_teacher(p_class);
+  return query
+  select o.user_id, o.perdidos, o.detalle, o.extras,
+    (select count(*)::integer from public.lost_alerts la where la.class_id = p_class and la.user_id = o.user_id),
+    (select max(la.created_at) from public.lost_alerts la where la.class_id = p_class and la.user_id = o.user_id),
+    (select max(r.read_at) from public.lost_alerts la join public.live_message_recipients r on r.message_id = la.message_id and r.user_id = la.user_id
+      where la.class_id = p_class and la.user_id = o.user_id)
+  from public.official_lost_total(p_class) o
+  where not public.fuera_de_seccion(p_class, o.user_id);
+end;
+$$;
+
+-- gradebook_sources = de dónde sale cada nota (vigente: migración 16)
+create or replace function public.gradebook_sources(p_class uuid)
+returns table (user_id uuid, category text, score numeric, source text, pendientes integer)
+language plpgsql stable security definer set search_path = ''
+as $$
+begin
+  perform public.grades_assert_teacher(p_class);
+  return query select * from public.official_scores(p_class) s where not public.fuera_de_seccion(p_class, s.user_id);
+end;
+$$;
+
+-- attendance_report (vigente: migración 24)
+create or replace function public.attendance_report(p_class uuid)
+returns jsonb
+language plpgsql stable security definer set search_path = ''
+as $$
+declare r jsonb;
+begin
+  if not public.is_teacher() or not public.is_class_teacher(p_class) then raise exception 'No tiene acceso a esta sección' using errcode = '42501'; end if;
+  select jsonb_build_object(
+    'sesiones', (select coalesce(jsonb_agg(jsonb_build_object('id', s.id, 'opened_at', s.opened_at, 'closed_at', s.closed_at,
+        'presentes', (select count(*) from public.attendance_records r2 where r2.session_id = s.id)) order by s.opened_at desc), '[]')
+      from public.attendance_sessions s where s.class_id = p_class),
+    'estudiantes', (select coalesce(jsonb_agg(jsonb_build_object('user_id', p.id, 'full_name', p.full_name, 'student_code', p.student_code,
+        'presentes', (select count(*) from public.attendance_records r2 join public.attendance_sessions s on s.id = r2.session_id
+                      where s.class_id = p_class and r2.user_id = p.id),
+        'sesiones', (select array_agg(r2.session_id) from public.attendance_records r2 join public.attendance_sessions s on s.id = r2.session_id
+                      where s.class_id = p_class and r2.user_id = p.id)) order by p.full_name), '[]')
+      from public.enrollments e join public.profiles p on p.id = e.user_id and p.role = 'student' and p.active where e.class_id = p_class)
+  ) into r;
+  return r;
+end;
+$$;
+
+-- attendance_live = lista en vivo de una sesión de asistencia (vigente: migración 43)
+create or replace function public.attendance_live(p_session uuid)
+returns jsonb
+language plpgsql stable security definer set search_path = ''
+as $$
+declare v_class uuid := public.attendance_assert_teacher(p_session); r jsonb; v_rot integer; v_win bigint;
+begin
+  select rotate_seconds into v_rot from public.attendance_sessions where id = p_session;
+  v_win := public.attendance_window(v_rot);
+  select jsonb_build_object(
+    'id', s.id, 'class_id', s.class_id, 'clase', c.name, 'asignatura', co.title,
+    'code', public.attendance_code_at(s.id, v_win), 'code_expires_at', s.code_expires_at,
+    'rotate_seconds', s.rotate_seconds,
+    'code_changes_at', case when s.rotate_seconds > 0 then to_timestamp((v_win + 1) * s.rotate_seconds) end,
+    'require_location', s.require_location, 'geo_radius_m', s.geo_radius_m, 'tiene_ubicacion', s.geo_lat is not null,
+    'geo_accuracy', s.geo_accuracy,
+    'opened_at', s.opened_at, 'closed_at', s.closed_at, 'abierta', s.closed_at is null and s.code_expires_at > now(), 'server_now', now(),
+    'activacion', s.activacion, 'franja', s.franja,
+    'quorum', (select coalesce(jsonb_agg(jsonb_build_object('user_id', p.id, 'full_name', p.full_name, 'student_code', p.student_code) order by p.full_name), '[]')
+               from public.profiles p where p.id = any(coalesce(s.quorum_ids, '{}')) and not public.fuera_de_seccion(s.class_id, p.id)),
+    'estudiantes', (select coalesce(jsonb_agg(jsonb_build_object('user_id', p.id, 'full_name', p.full_name, 'student_code', p.student_code,
+        'presente', r2.user_id is not null, 'marked_at', r2.marked_at, 'method', r2.method, 'geo_status', r2.geo_status,
+        'distance_m', r2.distance_m, 'accuracy', round(r2.accuracy::numeric), 'distancia_ref_m', r2.distancia_ref_m,
+        'validado_por', (select v.full_name from public.profiles v where v.id = r2.validado_por)) order by r2.marked_at nulls last, p.full_name), '[]')
+      from public.enrollments e join public.profiles p on p.id = e.user_id and p.role = 'student' and p.active
+      left join public.attendance_records r2 on r2.session_id = s.id and r2.user_id = p.id
+      where e.class_id = s.class_id),
+    'rechazos', (select coalesce(jsonb_agg(jsonb_build_object('full_name', p.full_name, 'student_code', p.student_code, 'motivo', x.reason,
+        'distance_m', x.distance_m, 'accuracy', round(x.accuracy::numeric), 'fecha', x.created_at) order by x.created_at desc), '[]')
+      from public.attendance_rejections x join public.profiles p on p.id = x.user_id where x.session_id = s.id
+        and not public.fuera_de_seccion(s.class_id, x.user_id)),
+    'incidencias', (select coalesce(jsonb_agg(jsonb_build_object('tipo', q.tipo, 'full_name', p.full_name, 'detalle', q.detalle, 'fecha', q.created_at) order by q.created_at desc), '[]')
+      from public.attendance_quorum_events q left join public.profiles p on p.id = q.user_id
+      where (q.session_id = s.id or (s.franja is not null and q.session_id is null and q.class_id = s.class_id and q.franja = s.franja))
+        and (q.user_id is null or not public.fuera_de_seccion(s.class_id, q.user_id))))
+  into r
+  from public.attendance_sessions s join public.classes c on c.id = s.class_id join public.courses co on co.id = c.course_id
+  where s.id = p_session;
+  return r;
+end;
+$$;
+
+revoke all on function public.gradebook_official(uuid), public.gradebook_lost(uuid), public.gradebook_sources(uuid),
+  public.attendance_report(uuid), public.attendance_live(uuid) from public, anon;
+grant execute on function public.gradebook_official(uuid), public.gradebook_lost(uuid), public.gradebook_sources(uuid),
+  public.attendance_report(uuid), public.attendance_live(uuid) to authenticated;
