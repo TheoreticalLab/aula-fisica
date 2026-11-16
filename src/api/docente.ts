@@ -166,8 +166,24 @@ export const roster = (classId: string) =>
   );
 export const setStudentGroup = (classId: string, userId: string, groupId: string | null) =>
   q(supabase.from('enrollments').update({ group_id: groupId }).eq('class_id', classId).eq('user_id', userId).select('user_id'));
-export const removeStudent = (classId: string, userId: string) =>
-  q(supabase.from('enrollments').delete().eq('class_id', classId).eq('user_id', userId));
+/** Baja de la sección: la matrícula pasa completa al archivo (migración 95); intentos y notas se conservan. */
+export const removeStudent = (classId: string, userId: string, motivo = '') =>
+  rpc<{ ok: boolean; error?: string }>('dar_de_baja', { p_class: classId, p_user: userId, p_motivo: motivo });
+/** Baja de todas las secciones en que el usuario actual es profesor (todas, si es administrador). */
+export const darDeBajaTodas = (userId: string, motivo = '') =>
+  rpc<{ ok: boolean; secciones: number }>('dar_de_baja_todas', { p_user: userId, p_motivo: motivo });
+export const reincorporar = (classId: string, userId: string) =>
+  rpc<{ ok: boolean; error?: string }>('reincorporar', { p_class: classId, p_user: userId });
+export interface BajaRow {
+  user_id: string;
+  full_name: string;
+  login_id: string | null;
+  student_code: string | null;
+  baja_at: string;
+  motivo: string;
+  baja_por_nombre: string | null;
+}
+export const bajasSeccion = (classId: string) => rpc<BajaRow[]>('bajas_seccion', { p_class: classId });
 
 // --- actividades ------------------------------------------------------------------------------
 export const listActivities = (classId: string) =>

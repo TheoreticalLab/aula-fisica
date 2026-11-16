@@ -4,6 +4,7 @@ import {
   activityAttempts,
   activityItems,
   activityStats,
+  bajasSeccion,
   copyActivityToClasses,
   deleteActivity,
   finalizeActivity,
@@ -360,14 +361,17 @@ function TabEjercicios({ activityId, courseId, lessons, initial, initialExercise
   );
 }
 
-/** Quién no ha entregado (sin empezar / en curso), con recordatorio por mensaje en vivo. */
-function Pendientes({ act, students, attempts }: {
+/** Quién no ha entregado (sin empezar / en curso), con recordatorio por mensaje en vivo. Las cuentas suspendidas
+ *  no cuentan: no pueden entrar ni recibir el recordatorio. */
+function Pendientes({ act, students: matriculados, attempts }: {
   act: Activity;
-  students: { user_id: string; profiles?: { full_name: string } | null }[];
+  students: { user_id: string; profiles?: { full_name: string; active?: boolean } | null }[];
   attempts: { user_id: string; status: string }[];
 }) {
   const [enviado, setEnviado] = useState<string | null>(null);
   const action = useAction();
+  const students = matriculados.filter((s) => s.profiles?.active !== false);
+  const suspendidos = matriculados.length - students.length;
   const entregaron = new Set(attempts.filter((a) => a.status === 'submitted').map((a) => a.user_id));
   const enCurso = new Set(attempts.filter((a) => a.status === 'in_progress').map((a) => a.user_id));
   const sinEntregar = students.filter((s) => !entregaron.has(s.user_id));
@@ -392,6 +396,7 @@ function Pendientes({ act, students, attempts }: {
           <div><p className="mb-1 text-sm font-medium">Empezado, sin entregar ({empezados.length})</p><p className="text-sm text-gray-600 dark:text-gray-300">{empezados.map(nombre).join(', ') || '—'}</p></div>
         </div>
       ) : <p className="text-sm text-emerald-700 dark:text-emerald-300">Todos entregaron. ✓</p>}
+      {suspendidos > 0 && <p className="mt-2 text-xs text-gray-500">No se cuentan {suspendidos} cuenta(s) suspendida(s). Para que un estudiante desaparezca de la sección, dele de baja en la pestaña Estudiantes.</p>}
       <ErrorBox error={action.error} />
       {enviado && <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-300">{enviado}</p>}
     </Card>
@@ -400,15 +405,18 @@ function Pendientes({ act, students, attempts }: {
 
 function TabResultados({ act, classId }: { act: Activity; classId: string }) {
   const st = useAsync(async () => {
-    const [attempts, students, stats] = await Promise.all([activityAttempts(act.id), roster(classId), activityStats(act.id)]);
-    return { attempts, students, stats };
+    const [todos, students, stats, bajas] = await Promise.all([activityAttempts(act.id), roster(classId), activityStats(act.id),
+      bajasSeccion(classId).catch(() => [])]);
+    // los dados de baja no existen para la sección: tampoco sus intentos
+    const fuera = new Set(bajas.map((b) => b.user_id));
+    return { attempts: todos.filter((a) => !fuera.has(a.user_id)), students, stats };
   }, [act.id]);
   const action = useAction();
   const [msg, setMsg] = useState<string | null>(null);
   if (st.loading) return <Spinner />;
   if (st.error) return <ErrorBox error={st.error} onRetry={st.reload} />;
   const { attempts, students, stats } = st.data!;
-  const name = (u: string) => students.find((s) => s.user_id === u)?.profiles?.full_name ?? 'Estudiante dado de baja';
+  const name = (u: string) => students.find((s) => s.user_id === u)?.profiles?.full_name ?? 'Fuera de la sección';
   const open = attempts.filter((a) => a.status === 'in_progress');
   const closed = act.closes_at && new Date(act.closes_at) <= new Date();
   return (

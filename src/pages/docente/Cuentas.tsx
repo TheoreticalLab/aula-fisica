@@ -6,6 +6,7 @@ import {
   adminSetRole,
   adminSuspiciousLogins,
   crearCuentas,
+  darDeBajaTodas,
   restablecerCuenta,
   suspenderCuenta,
   teacherOverview,
@@ -150,6 +151,11 @@ export default function Cuentas() {
     if (!window.confirm(suspender ? `¿Suspender la cuenta de ${nombre}? No podrá entrar ni ver nada; sus datos se conservan.` : `¿Reactivar la cuenta de ${nombre}?`)) return;
     if (await action.run(() => suspenderCuenta(id, suspender))) await lista.reload();
   }
+  async function darDeBaja(id: string, nombre: string, secciones: string[]) {
+    const motivo = window.prompt(`¿Dar de baja a ${nombre} de todas sus secciones (${secciones.join(', ')})?\n\nDesaparece de las listas de prácticas, del registro de calificaciones y de todo lo demás, y deja de ver esas secciones. Sus intentos y notas se conservan; puede reincorporarlo desde la pestaña Estudiantes de cada sección.\n\nMotivo (opcional):`, '');
+    if (motivo === null) return;
+    if (await action.run(() => darDeBajaTodas(id, motivo))) await lista.reload();
+  }
 
   return (
     <div>
@@ -200,6 +206,11 @@ export default function Cuentas() {
                             <button className="btn-secundario min-h-[32px] px-2 py-0 text-xs" disabled={action.busy} onClick={() => restablecer(u.id, u.full_name)}>Restablecer contraseña</button>
                             <button className={`${u.active ? 'btn-peligro' : 'btn-secundario'} min-h-[32px] px-2 py-0 text-xs`} disabled={action.busy}
                               onClick={() => suspender(u.id, u.full_name, u.active)}>{u.active ? 'Suspender' : 'Reactivar'}</button>
+                            {u.role === 'student' && u.classes.length > 0 && (
+                              <button className="btn-peligro min-h-[32px] px-2 py-0 text-xs" disabled={action.busy}
+                                title="Lo quita de todas sus secciones: deja de aparecer en prácticas y en el registro de calificaciones"
+                                onClick={() => darDeBaja(u.id, u.full_name, u.classes)}>Dar de baja</button>
+                            )}
                           </div>
                         )}
                       </td>

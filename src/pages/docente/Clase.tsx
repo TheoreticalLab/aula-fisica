@@ -19,6 +19,8 @@ import {
   listGroups,
   regenerateJoinCode,
   removeStudent,
+  bajasSeccion,
+  reincorporar,
   reviewQueue,
   roster,
   setStudentGroup,
@@ -124,8 +126,9 @@ export default function Clase() {
 
 function TabEstudiantes({ c, onChange }: { c: ClassRow; onChange: (c: ClassRow) => void }) {
   const data = useAsync(async () => {
-    const [r, g, t, a] = await Promise.all([roster(c.id), listGroups(c.id), classTeachers(c.id), informeAsistencia(c.id).catch(() => null)]);
-    return { roster: r, groups: g, teachers: t, asistencia: a };
+    const [r, g, t, a, b] = await Promise.all([roster(c.id), listGroups(c.id), classTeachers(c.id), informeAsistencia(c.id).catch(() => null),
+      bajasSeccion(c.id).catch(() => [])]);
+    return { roster: r, groups: g, teachers: t, asistencia: a, bajas: b };
   }, [c.id]);
   const action = useAction();
   const [groupName, setGroupName] = useState('');
@@ -134,7 +137,7 @@ function TabEstudiantes({ c, onChange }: { c: ClassRow; onChange: (c: ClassRow) 
   const [edit, setEdit] = useState({ name: c.name, term: c.term });
   if (data.loading) return <Spinner />;
   if (data.error) return <ErrorBox error={data.error} onRetry={data.reload} />;
-  const { roster: rs, groups, teachers, asistencia } = data.data!;
+  const { roster: rs, groups, teachers, asistencia, bajas } = data.data!;
   const clasesDadas = asistencia?.sesiones.length ?? 0;
   const presentesDe = new Map((asistencia?.estudiantes ?? []).map((e) => [e.user_id, e.presentes]));
   const sorted = [...rs].sort((a, b) => (a.profiles?.full_name ?? '').localeCompare(b.profiles?.full_name ?? ''));
@@ -182,8 +185,9 @@ function TabEstudiantes({ c, onChange }: { c: ClassRow; onChange: (c: ClassRow) 
                       </td>
                       <td className="py-2 text-right">
                         <button className="btn-texto text-xs text-red-700" onClick={async () => {
-                          if (!window.confirm(`¿Dar de baja a ${s.profiles?.full_name}? Sus intentos se conservan.`)) return;
-                          await action.run(() => removeStudent(c.id, s.user_id));
+                          const motivo = window.prompt(`¿Dar de baja a ${s.profiles?.full_name} de esta sección?\n\nDesaparece de todas las listas (prácticas, registro de calificaciones, asistencia…) y deja de ver la sección. Sus intentos y notas se conservan y puede reincorporarlo cuando quiera.\n\nMotivo (opcional):`, '');
+                          if (motivo === null) return;
+                          await action.run(() => removeStudent(c.id, s.user_id, motivo));
                           await data.reload();
                         }}>Dar de baja</button>
                       </td>
@@ -196,6 +200,26 @@ function TabEstudiantes({ c, onChange }: { c: ClassRow; onChange: (c: ClassRow) 
             <Empty>Nadie se ha matriculado todavía. Comparta el código de la clase.</Empty>
           )}
         </Card>
+        {bajas.length > 0 && (
+          <Card title={`Dados de baja (${bajas.length})`}>
+            <p className="mb-2 text-xs text-gray-500">No aparecen en ninguna lista de la sección ni pueden volver con el código de la clase. Al reincorporarlos recuperan su grupo, su fecha de matrícula, sus intentos y sus notas.</p>
+            <ul className="divide-y divide-gray-100 text-sm dark:divide-white/10">
+              {bajas.map((b) => (
+                <li key={b.user_id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <span>
+                    {b.full_name || '(sin nombre)'} <span className="text-xs text-gray-500">ID {b.login_id ?? '—'}</span>
+                    <span className="block text-xs text-gray-500">Baja el {fecha(b.baja_at)}{b.baja_por_nombre ? ` por ${b.baja_por_nombre}` : ''}{b.motivo ? ` · ${b.motivo}` : ''}</span>
+                  </span>
+                  <button className="btn-secundario min-h-[32px] px-2 py-0 text-xs" disabled={action.busy} onClick={async () => {
+                    if (!window.confirm(`¿Reincorporar a ${b.full_name} a esta sección?`)) return;
+                    await action.run(() => reincorporar(c.id, b.user_id));
+                    await data.reload();
+                  }}>Reincorporar</button>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
         <ErrorBox error={action.error} />
         <MatricularPorId classId={c.id} groups={groups} onDone={data.reload} />
       </div>
