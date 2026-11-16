@@ -407,8 +407,8 @@ function TabResultados({ act, classId }: { act: Activity; classId: string }) {
   const st = useAsync(async () => {
     const [todos, students, stats, bajas] = await Promise.all([activityAttempts(act.id), roster(classId), activityStats(act.id),
       bajasSeccion(classId).catch(() => [])]);
-    // los dados de baja no existen para la sección: tampoco sus intentos
-    const fuera = new Set(bajas.map((b) => b.user_id));
+    // los dados de baja y las cuentas suspendidas no cuentan en la sección: tampoco sus intentos
+    const fuera = new Set([...bajas.map((b) => b.user_id), ...students.filter((s) => s.profiles?.active === false).map((s) => s.user_id)]);
     return { attempts: todos.filter((a) => !fuera.has(a.user_id)), students, stats };
   }, [act.id]);
   const action = useAction();
@@ -422,7 +422,7 @@ function TabResultados({ act, classId }: { act: Activity; classId: string }) {
   return (
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-4">
-        <Card><p className="text-sm text-gray-500">Matriculados</p><p className="text-2xl font-semibold">{stats.summary.enrolled}</p></Card>
+        <Card><p className="text-sm text-gray-500" title="Sin dados de baja ni cuentas suspendidas">Matriculados activos</p><p className="text-2xl font-semibold">{stats.summary.enrolled}</p></Card>
         <Card><p className="text-sm text-gray-500">Entregaron</p><p className="text-2xl font-semibold">{stats.summary.students_submitted}</p></Card>
         <Card><p className="text-sm text-gray-500">Intentos entregados</p><p className="text-2xl font-semibold">{stats.summary.attempts}</p></Card>
         <Card><p className="text-sm text-gray-500">Media (mejor intento)</p><p className="text-2xl font-semibold">{stats.summary.mean_best ?? '—'}</p></Card>
