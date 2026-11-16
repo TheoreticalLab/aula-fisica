@@ -147,6 +147,8 @@ function Configuracion({ m, onGuardado, onPublicar }: { m: MaratonDocente; onGua
           <Num label="Cuota diaria (unidades de trabajo)" value={k.cuota} step={0.1} disabled={bloqueado} onChange={(v) => set('carga', { cuota: v })} hint="Interna: el estudiante no la ve." />
           <Num label="Tiempo objetivo mínimo (min)" value={k.objetivo_min} disabled={bloqueado} onChange={(v) => set('carga', { objetivo_min: v })} />
           <Num label="Tiempo objetivo máximo (min)" value={k.objetivo_max} disabled={bloqueado} onChange={(v) => set('carga', { objetivo_max: v })} />
+          <Num label="Fracción de unidades si responde mal (0–1)" value={k.fraccion_fallo} step={0.1} min={0} max={1} disabled={bloqueado} onChange={(v) => set('carga', { fraccion_fallo: v })} hint="1 = igual que acertar; 0,5 = la mitad; 0 = nada." />
+          <Num label="Tiempo mínimo de jornada para la cuota (min)" value={k.minutos_minimos} min={0} disabled={bloqueado} onChange={(v) => set('carga', { minutos_minimos: v })} hint="Aunque llegue a la cuota, la jornada no termina antes." />
           <div className="sm:col-span-3"><Check label="Finalización alternativa (tiempo efectivo + intentos válidos)" value={k.alternativa_activa} disabled={bloqueado} onChange={(v) => set('carga', { alternativa_activa: v })} /></div>
           <Num label="Tiempo mínimo de jornada para la vía alternativa (min)" value={k.alternativa_minutos} disabled={bloqueado || !k.alternativa_activa} onChange={(v) => set('carga', { alternativa_minutos: v })} />
           <Num label="Mínimo de intentos válidos (vía alternativa)" value={k.alternativa_intentos} disabled={bloqueado || !k.alternativa_activa} onChange={(v) => set('carga', { alternativa_intentos: v })} />

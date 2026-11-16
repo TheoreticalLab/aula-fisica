@@ -1,6 +1,6 @@
 /**
  * Espejo puro (TypeScript) de las reglas del motor del Maratón adaptativo. La decisión real la toma SIEMPRE el servidor
- * (public.maraton_cerrar / maraton_continuar, migración 94); este módulo existe para:
+ * (public.maraton_cerrar / maraton_continuar, migraciones 94 y 97); este módulo existe para:
  *  - documentar y probar la máquina de estados con Vitest (las mismas tablas que comprueba supabase/pruebas/maraton_adaptativo.sql);
  *  - simular estudiantes de distinto perfil y comprobar que la ponderación no acorta la jornada de quien resuelve
  *    muchos problemas extremos, ni obliga a un estudiante excepcional a trabajar indefinidamente.
@@ -18,11 +18,14 @@ export function nivelSiguiente(nivel: number, accion: Accion, correcta: boolean,
   return nivel; // cambio de ejercicio: mismo nivel
 }
 
-/** Unidades de trabajo de una acción: solo los intentos válidos suman (correctos o no); anticipados, en proporción. */
-export function unidades(nivel: number, accion: Accion, segundos: number, tMin: number, c: ConfigMaraton): number {
+/**
+ * Unidades de trabajo de una acción: solo los intentos válidos suman; una respuesta incorrecta, la fracción
+ * `carga.fraccion_fallo` (migración 97); una anticipada, en proporción al tiempo mínimo.
+ */
+export function unidades(nivel: number, accion: Accion, correcta: boolean, segundos: number, tMin: number, c: ConfigMaraton): number {
   if (accion !== 'respuesta') return 0;
   const peso = c.dificultad.pesos[nivel - 1];
-  return Math.round(peso * Math.min(1, segundos / tMin) * 100) / 100;
+  return Math.round(peso * Math.min(1, segundos / tMin) * (correcta ? 1 : c.carga.fraccion_fallo) * 100) / 100;
 }
 
 /** Tiempo acreditable: nunca más que el reloj del servidor ni que el tope del problema. */
@@ -33,10 +36,10 @@ export function segundosAcreditados(reloj: number, cliente: number | null, tMax:
 export interface ContadoresJornada { unidades: number; segundos: number; validos: number; presentados: number }
 export type FinJornada = { fin: false } | { fin: true; estado: 'completada'; via: 'cuota' | 'alternativa' } | { fin: true; estado: 'cerrada_limite'; motivo: string };
 
-/** ¿Termina la jornada? (vía A: cuota; vía B: tiempo + intentos; si no, límites de protección) */
+/** ¿Termina la jornada? (vía A: cuota tras el tiempo mínimo; vía B: tiempo + intentos; si no, límites de protección) */
 export function finJornada(j: ContadoresJornada, c: ConfigMaraton): FinJornada {
   const k = c.carga;
-  if (j.unidades >= k.cuota) return { fin: true, estado: 'completada', via: 'cuota' };
+  if (j.unidades >= k.cuota && j.segundos >= k.minutos_minimos * 60) return { fin: true, estado: 'completada', via: 'cuota' };
   if (k.alternativa_activa && j.segundos >= k.alternativa_minutos * 60 && j.validos >= k.alternativa_intentos) return { fin: true, estado: 'completada', via: 'alternativa' };
   if (j.segundos >= k.limite_minutos * 60) return { fin: true, estado: 'cerrada_limite', motivo: 'tiempo' };
   if (j.validos >= k.intentos_max) return { fin: true, estado: 'cerrada_limite', motivo: 'intentos' };
@@ -71,7 +74,7 @@ export function simularJornada(p: Perfil, c: ConfigMaraton, nivelInicial: number
     } else {
       const seg = p.minutos[L - 1] * 60;
       const ok = azar() < p.acierto[L - 1];
-      j.unidades = Math.round((j.unidades + unidades(L, 'respuesta', seg, tMinMin[L - 1] * 60, c)) * 100) / 100;
+      j.unidades = Math.round((j.unidades + unidades(L, 'respuesta', ok, seg, tMinMin[L - 1] * 60, c)) * 100) / 100;
       j.segundos += seg;
       j.validos++;
       suma += L;

@@ -2,7 +2,7 @@
  * Maratón adaptativo: reglas del motor (espejo TS de las funciones SQL de la migración 94) y simulaciones de jornada.
  * Las mismas transiciones se comprueban contra la base de datos en supabase/pruebas/maraton_adaptativo.sql.
  */
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CONFIG_PREDETERMINADA, combinar, erroresConfig } from '@/lib/maraton/config';
@@ -42,16 +42,21 @@ describe('máquina de estados', () => {
 describe('unidades de trabajo', () => {
   it('ponderaciones iniciales D1 1.00, D2 1.20, D3 1.40, D4 1.50, D5 1.00, D6 1.00', () => {
     expect(C.dificultad.pesos).toEqual([1, 1.2, 1.4, 1.5, 1, 1]);
-    expect([1, 2, 3, 4, 5, 6].map((n) => unidades(n, 'respuesta', 600, 300, C))).toEqual([1, 1.2, 1.4, 1.5, 1, 1]);
+    expect([1, 2, 3, 4, 5, 6].map((n) => unidades(n, 'respuesta', true, 600, 300, C))).toEqual([1, 1.2, 1.4, 1.5, 1, 1]);
   });
-  it('correctas e incorrectas válidas suman; «no puedo» y cambio no', () => {
-    expect(unidades(3, 'respuesta', 400, 180, C)).toBe(1.4);
-    expect(unidades(3, 'no_puedo', 400, 180, C)).toBe(0);
-    expect(unidades(3, 'cambio', 400, 180, C)).toBe(0);
+  it('una incorrecta suma la mitad (configurable: 1 = igual, 0 = nada); «no puedo» y cambio no suman', () => {
+    expect(C.carga.fraccion_fallo).toBe(0.5);
+    expect(unidades(3, 'respuesta', true, 400, 180, C)).toBe(1.4);
+    expect(unidades(3, 'respuesta', false, 400, 180, C)).toBe(0.7);
+    expect(unidades(3, 'respuesta', false, 400, 180, combinar({ carga: { fraccion_fallo: 1 } }))).toBe(1.4);
+    expect(unidades(3, 'respuesta', false, 400, 180, combinar({ carga: { fraccion_fallo: 0 } }))).toBe(0);
+    expect(unidades(3, 'no_puedo', false, 400, 180, C)).toBe(0);
+    expect(unidades(3, 'cambio', false, 400, 180, C)).toBe(0);
   });
-  it('una respuesta antes del tiempo mínimo recibe crédito proporcional, no completo', () => {
-    expect(unidades(4, 'respuesta', 120, 240, C)).toBe(0.75);
-    expect(unidades(4, 'respuesta', 0, 240, C)).toBe(0);
+  it('una respuesta antes del tiempo mínimo recibe crédito proporcional, no completo (y si es incorrecta, además la fracción)', () => {
+    expect(unidades(4, 'respuesta', true, 120, 240, C)).toBe(0.75);
+    expect(unidades(4, 'respuesta', false, 120, 240, C)).toBe(0.38);
+    expect(unidades(4, 'respuesta', true, 0, 240, C)).toBe(0);
   });
   it('el tiempo acreditado nunca supera el reloj del servidor ni el tope del problema', () => {
     expect(segundosAcreditados(30, 5000, 600)).toBe(30);
@@ -62,9 +67,12 @@ describe('unidades de trabajo', () => {
 });
 
 describe('finalización de la jornada', () => {
-  it('vía A: cuota de 12 unidades', () => {
-    expect(finJornada({ unidades: 11.9, segundos: 1000, validos: 10, presentados: 10 }, C)).toEqual({ fin: false });
-    expect(finJornada({ unidades: 12, segundos: 1000, validos: 10, presentados: 10 }, C)).toEqual({ fin: true, estado: 'completada', via: 'cuota' });
+  it('vía A: cuota de 12 unidades, nunca antes de 30 min de trabajo efectivo', () => {
+    expect(finJornada({ unidades: 11.9, segundos: 2000, validos: 10, presentados: 10 }, C)).toEqual({ fin: false });
+    expect(finJornada({ unidades: 12, segundos: 2000, validos: 10, presentados: 10 }, C)).toEqual({ fin: true, estado: 'completada', via: 'cuota' });
+    expect(finJornada({ unidades: 14, segundos: 1799, validos: 10, presentados: 10 }, C)).toEqual({ fin: false });
+    expect(finJornada({ unidades: 14, segundos: 1800, validos: 10, presentados: 10 }, C)).toEqual({ fin: true, estado: 'completada', via: 'cuota' });
+    expect(finJornada({ unidades: 12, segundos: 600, validos: 10, presentados: 10 }, combinar({ carga: { minutos_minimos: 0 } }))).toMatchObject({ via: 'cuota' });
   });
   it('vía B: 60 min efectivos y 8 intentos válidos (ambos)', () => {
     expect(finJornada({ unidades: 8, segundos: 3600, validos: 7, presentados: 9 }, C).fin).toBe(false);
@@ -80,10 +88,12 @@ describe('finalización de la jornada', () => {
 });
 
 describe('configuración', () => {
-  it('la configuración predeterminada es válida y coincide con maraton_defaults() de la migración', () => {
+  it('la configuración predeterminada es válida y coincide con maraton_defaults() de la última migración que la define', () => {
     expect(erroresConfig(C)).toEqual([]);
-    const sql = readFileSync(join(__dirname, '..', 'supabase', 'migrations', '20261114160000_maraton_adaptativo.sql'), 'utf8');
-    const json = sql.match(/create or replace function public\.maraton_defaults\(\)[\s\S]*?select '([\s\S]*?)'::jsonb/)![1];
+    const dir = join(__dirname, '..', 'supabase', 'migrations');
+    const ultima = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort().reverse()
+      .map((f) => readFileSync(join(dir, f), 'utf8')).find((s) => s.includes('create or replace function public.maraton_defaults()'))!;
+    const json = ultima.match(/create or replace function public\.maraton_defaults\(\)[\s\S]*?select '([\s\S]*?)'::jsonb/)![1];
     expect(JSON.parse(json)).toEqual(JSON.parse(JSON.stringify(C)));
   });
   it('detecta configuraciones inválidas', () => {
@@ -92,6 +102,8 @@ describe('configuración', () => {
     expect(erroresConfig(combinar({ programacion: { modo: 'calendario', calendario: ['2026-12-01'] } })).join(' ')).toMatch(/calendario/);
     expect(erroresConfig(combinar({ programacion: { apertura: '20:00', cierre: '08:00' } })).join(' ')).toMatch(/apertura/);
     expect(erroresConfig(combinar({ dificultad: { pesos: [1, 1, 1] } })).join(' ')).toMatch(/ponderación/);
+    expect(erroresConfig(combinar({ carga: { fraccion_fallo: 1.5 } })).join(' ')).toMatch(/incorrecta/);
+    expect(erroresConfig(combinar({ carga: { minutos_minimos: 100 } })).join(' ')).toMatch(/supera el límite/);
   });
 });
 
@@ -133,6 +145,23 @@ describe('simulación: la ponderación no acorta la jornada de quien resuelve pr
     expect(Math.max(...d.map((r) => r.minutos))).toBeLessThanOrEqual(90 + 14);
     expect(Math.max(...d.map((r) => r.presentados))).toBeLessThanOrEqual(30);
     expect(d.every((r) => r.estado === 'completada' || r.estado === 'cerrada_limite')).toBe(true);
+  });
+  it('fallar a propósito y rápido ya no completa la jornada: termina en el límite de intentos, para revisión docente', () => {
+    // escribe cualquier cosa y espera justo el tiempo mínimo de cada problema (D1 = 1 min)
+    const fallador: Perfil = { nombre: 'fallador', acierto: [0, 0, 0, 0, 0, 0], minutos: [1, 2, 3, 4, 5, 7] };
+    const az = mulberry32(3);
+    const ahora = simularJornada(fallador, C, 2, az);
+    expect(ahora).toMatchObject({ estado: 'cerrada_limite', motivo: 'intentos' });
+    expect(ahora.unidades).toBeLessThan(C.carga.cuota);
+    // contrafactual con la regla anterior (incorrecta = correcta y sin tiempo mínimo): jornada completada en ~13 min sin un acierto
+    const antes = simularJornada(fallador, combinar({ carga: { fraccion_fallo: 1, minutos_minimos: 0 } }), 2, az);
+    expect(antes).toMatchObject({ estado: 'completada', via: 'cuota' });
+    expect(antes.minutos).toBeLessThanOrEqual(13);
+  });
+  it('quien trabaja en serio no se ve afectado: el estudiante medio sigue completando por cuota o alternativa', () => {
+    const m = correr(medio);
+    expect(m.filter((r) => r.estado === 'completada').length / m.length).toBeGreaterThan(0.9);
+    expect(Math.min(...m.filter((r) => r.via === 'cuota').map((r) => r.minutos))).toBeGreaterThanOrEqual(30);
   });
   it('la cantidad de ejercicios por jornada es variable', () => {
     const todos = [...correr(excepcional, 100), ...correr(medio, 100), ...correr(debil, 100)];

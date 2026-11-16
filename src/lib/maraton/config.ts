@@ -1,6 +1,6 @@
 /**
  * Configuración del Maratón adaptativo: tipos, valores predeterminados y validación en el cliente.
- * Es un ESPEJO de public.maraton_defaults() y public.maraton_config_errores() (migración 94): el servidor vuelve a
+ * Es un ESPEJO de public.maraton_defaults() y public.maraton_config_errores() (migraciones 94 y 97): el servidor vuelve a
  * validar todo al guardar; aquí solo sirve para avisar antes de enviar.
  */
 
@@ -9,6 +9,10 @@ export interface ConfigMaraton {
   carga: {
     cuota: number; alternativa_activa: boolean; alternativa_minutos: number; alternativa_intentos: number;
     objetivo_min: number; objetivo_max: number; limite_minutos: number; intentos_max: number; presentados_max: number;
+    /** fracción de las unidades del nivel que suma una respuesta incorrecta (migración 97) */
+    fraccion_fallo: number;
+    /** minutos de trabajo efectivo antes de los cuales la cuota no completa la jornada (migración 97) */
+    minutos_minimos: number;
   };
   dificultad: {
     niveles: number; nivel_inicial: number; adaptativa: boolean; pesos: number[]; ascenso: number; descenso: number; descenso_no_puedo: number;
@@ -22,7 +26,8 @@ export interface ConfigMaraton {
 
 export const CONFIG_PREDETERMINADA: ConfigMaraton = {
   programacion: { jornadas: 14, modo: 'consecutivas', calendario: [], hora_inicio: '00:00', apertura: '00:00', cierre: '23:59', zona: 'America/Santo_Domingo' },
-  carga: { cuota: 12, alternativa_activa: true, alternativa_minutos: 60, alternativa_intentos: 8, objetivo_min: 60, objetivo_max: 75, limite_minutos: 90, intentos_max: 18, presentados_max: 30 },
+  carga: { cuota: 12, alternativa_activa: true, alternativa_minutos: 60, alternativa_intentos: 8, objetivo_min: 60, objetivo_max: 75, limite_minutos: 90, intentos_max: 18, presentados_max: 30,
+    fraccion_fallo: 0.5, minutos_minimos: 30 },
   dificultad: { niveles: 6, nivel_inicial: 2, adaptativa: true, pesos: [1.0, 1.2, 1.4, 1.5, 1.0, 1.0], ascenso: 1, descenso: 1, descenso_no_puedo: 1, nivel_al_iniciar_jornada: 'continuar', t_min_factor: 1, t_min_nivel_s: null },
   comodines: { total: 10, por_jornada: null, no_puedo: true },
   contenido: { temas: null, excluir_plantillas: [], distribucion: {} },
@@ -63,6 +68,9 @@ export function erroresConfig(c: ConfigMaraton): string[] {
   if (k.presentados_max < k.intentos_max) e.push('El máximo de problemas presentados no puede ser menor que el máximo de intentos.');
   if (k.objetivo_min > k.objetivo_max) e.push('El tiempo objetivo mínimo supera al máximo.');
   if (k.alternativa_activa && k.alternativa_intentos > k.intentos_max) e.push('La finalización alternativa pide más intentos que el máximo permitido.');
+  if (!entre(k.fraccion_fallo, 0, 1)) e.push('La fracción de unidades de una respuesta incorrecta debe estar entre 0 y 1.');
+  if (!entre(k.minutos_minimos, 0, 600)) e.push('El tiempo mínimo de la jornada debe estar entre 0 y 600 minutos.');
+  else if (k.minutos_minimos > k.limite_minutos) e.push('El tiempo mínimo de la jornada supera el límite máximo: nunca se completaría por la cuota.');
   if (!entre(d.niveles, 2, 6)) e.push('El número de niveles debe estar entre 2 y 6.');
   if (!entre(d.nivel_inicial, 1, d.niveles)) e.push('El nivel inicial debe estar entre 1 y el número de niveles.');
   if (d.pesos.length !== 6 || d.pesos.some((x) => !entre(x, 0.1, 10))) e.push('Cada ponderación debe estar entre 0.1 y 10 (seis niveles).');
@@ -77,7 +85,9 @@ export function erroresConfig(c: ConfigMaraton): string[] {
 
 /** Texto breve de la regla de finalización (para el profesor). */
 export function describirFinalizacion(c: ConfigMaraton): string {
-  const a = `cuando acumula ${c.carga.cuota} unidades de trabajo`;
+  const fallo = c.carga.fraccion_fallo === 1 ? 'una respuesta incorrecta suma igual que una correcta'
+    : c.carga.fraccion_fallo === 0 ? 'una respuesta incorrecta no suma' : `una respuesta incorrecta suma el ${Math.round(c.carga.fraccion_fallo * 100)} %`;
+  const a = `cuando acumula ${c.carga.cuota} unidades de trabajo (${fallo})${c.carga.minutos_minimos > 0 ? `, nunca antes de ${c.carga.minutos_minimos} min de trabajo efectivo,` : ''}`;
   const b = c.carga.alternativa_activa ? ` o cuando registra ${c.carga.alternativa_minutos} min de trabajo efectivo y ${c.carga.alternativa_intentos} intentos válidos` : '';
   return `La jornada termina ${a}${b}. Límites de protección: ${c.carga.limite_minutos} min, ${c.carga.intentos_max} intentos válidos o ${c.carga.presentados_max} problemas presentados (cierre seguro y revisión docente).`;
 }
