@@ -63,6 +63,9 @@ export const lessonProgress = (courseId: string, userId?: string) =>
 export const startLessonPractice = (lessonId: string) => rpc<string>('start_lesson_practice', { p_lesson: lessonId });
 export const restartLessonPractice = (lessonId: string) => rpc<string>('restart_lesson_practice', { p_lesson: lessonId });
 export const startActivityAttempt = (activityId: string) => rpc<string>('start_activity_attempt', { p_activity: activityId });
+/** Empezar una evaluación con el código de entrada rotativo del profesor (migración 100). */
+export const startActivityAttemptCodigo = (activityId: string, codigo: string) =>
+  rpc<{ ok: boolean; attempt_id?: string; mensaje?: string }>('start_activity_attempt_codigo', { p_activity: activityId, p_codigo: codigo });
 /** Lectura cronometrada: estado actual (no suma tiempo) y latido (suma el tiempo real desde el anterior). */
 export const myReading = (activityId: string) => rpc<ReadingState | null>('my_reading', { p_activity: activityId });
 export const readingBeat = (activityId: string, visible: boolean) =>

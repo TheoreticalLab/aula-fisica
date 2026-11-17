@@ -62,6 +62,9 @@ export const examExtend = (attemptId: string, minutos: number, motivo?: string) 
   rpc<{ extra_s: number; limite_ms: number | null }>('exam_extend', { p_attempt: attemptId, p_minutos: minutos, p_motivo: motivo ?? null });
 export const examMonitor =(activityId: string) => rpc<MonitorExamenDatos>('exam_monitor', { p_activity: activityId });
 export const examRules =(activityId: string) => rpc<ConfigExamen>('exam_rules', { p_activity: activityId });
+/** Código de entrada vigente (solo el profesor de la sección; migración 100). */
+export interface CodigoEntrada { activo: boolean; codigo?: string; segundos?: number; cambia_at?: string; ahora?: string }
+export const examCodigoEntrada = (activityId: string) => rpc<CodigoEntrada>('exam_codigo_entrada', { p_activity: activityId });
 // Examen adaptativo (migración 53). Sin la migración, el intento se trata como no adaptativo.
 export interface EstadoAdaptativo { activo: boolean; max_items?: number; administradas?: number; fin?: boolean; theta?: number; se?: number; dominio?: number | null }
 export const adaptativoEstado = (attemptId: string) => rpc<EstadoAdaptativo>('exam_adaptive_estado', { p_attempt: attemptId })

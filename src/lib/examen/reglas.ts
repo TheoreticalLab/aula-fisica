@@ -3,7 +3,10 @@ import type { ConfigExamen } from './motor';
 import { reglasIntegridad } from './integridad';
 
 export function describirReglas(c: ConfigExamen): { titulo: string; lineas: string[] } | null {
-  const protegida = reglasIntegridad(c.integridad);
+  const protegida = [
+    ...(c.codigo_entrada ? ['Para empezar necesita el código de entrada que le da el profesor en ese momento (cambia cada minuto).'] : []),
+    ...reglasIntegridad(c.integridad),
+  ];
   if (c.presentacion !== 'una_a_la_vez') return protegida.length ? { titulo: 'Evaluación protegida', lineas: protegida } : null;
   const r = describirUnaALaVez(c);
   return { titulo: r.titulo, lineas: [...protegida, ...r.lineas] };

@@ -29,6 +29,7 @@ import { DisenoExamen } from './lieia/DisenoExamen';
 import { ModoExamen } from './ModoExamen';
 import { MonitorExamen } from './MonitorExamen';
 import { IntegridadExamen } from './IntegridadExamen';
+import { CodigoEntrada } from './CodigoEntrada';
 import { ConfigAsistida } from './ConfigAsistida';
 import { ConfigTiempoMinimo } from './ConfigTiempoMinimo';
 import ConfigControl from './ConfigControl';
@@ -125,6 +126,8 @@ export default function ActividadEditor() {
         <Link to={`/docente/actividades/${activityId}/telemetria`} className="btn-secundario">🔭 Análisis de telemetría</Link>
         {dirty && <span className="text-xs text-amber-700 dark:text-amber-300">Guarde los cambios para verlos en la vista previa.</span>}
       </div>
+      {/* código de entrada rotativo (migración 100): visible en cualquier pestaña mientras la evaluación lo pida */}
+      {act.mode === 'exam' && <CodigoEntrada activityId={activityId} />}
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[{ id: 'config', label: 'Configuración' }, { id: 'ejercicios', label: `Ejercicios (${st.data!.items.length})` }, { id: 'diseno', label: '🔬 Diseño LIEIA' }, { id: 'resultados', label: 'Resultados y estadísticas' }]} />
       <ErrorBox error={action.error} />
       {tab === 'config' && (

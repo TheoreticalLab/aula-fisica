@@ -25,6 +25,8 @@ export interface ConfigExamen {
   sin_saltos?: boolean;
   /** Bloquear al salir e impedir copiar (migración 85). Al guardar, `codigo` vacío conserva el anterior. */
   integridad?: { bloquear_al_salir: boolean; impedir_copiar: boolean; codigo_configurado?: boolean; codigo?: string };
+  /** Para empezar hace falta el código de entrada rotativo que da el profesor (migración 100). */
+  codigo_entrada?: boolean;
 }
 
 export const CONFIG_EXAMEN_POR_DEFECTO: ConfigExamen = {

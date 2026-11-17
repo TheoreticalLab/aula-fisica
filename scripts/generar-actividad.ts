@@ -65,6 +65,8 @@ export interface ActividadDef {
     duracionMin: number; navegacion: 'libre' | 'solo_adelante'; sinSaltos: boolean;
     /** Bloquear al salir: el código fijo se genera al azar y nadie lo conoce; el profesor usa códigos temporales. */
     bloquearAlSalir: boolean; impedirCopiar: boolean;
+    /** Para empezar hace falta el código de entrada rotativo que muestra el panel del profesor (migración 100). */
+    codigoEntrada?: boolean;
   };
   /** Apertura y cierre programados (ISO 8601 con desfase explícito, p. ej. '2026-11-13T18:00:00-04:00').
    *  El servidor no entrega preguntas ni deja empezar antes de la apertura, y el reloj del examen no pasa del cierre. */
@@ -240,9 +242,9 @@ begin
       select v_act, e.id, x.pos from unnest(${arr(a.ejercicios.map((e) => e.id))}) with ordinality as x(slug, pos)
       join public.exercises e on e.course_id = v_curso and e.slug = x.slug
       on conflict (activity_id, exercise_id) do nothing;${x ? `
-    insert into public.exam_settings (activity_id, presentacion, navegacion, duracion_s, pausas_permitidas, sin_saltos, bloquear_al_salir, impedir_copiar, codigo_salida_hash)
+    insert into public.exam_settings (activity_id, presentacion, navegacion, duracion_s, pausas_permitidas, sin_saltos, bloquear_al_salir, impedir_copiar, codigo_salida_hash${x.codigoEntrada ? ', codigo_entrada' : ''})
       values (v_act, 'una_a_la_vez', ${q(x.navegacion)}, ${x.duracionMin * 60}, false, ${x.sinSaltos}, ${x.bloquearAlSalir}, ${x.impedirCopiar},
-        ${x.bloquearAlSalir ? `extensions.crypt(encode(extensions.gen_random_bytes(24), 'base64'), extensions.gen_salt('bf'))` : 'null'})
+        ${x.bloquearAlSalir ? `extensions.crypt(encode(extensions.gen_random_bytes(24), 'base64'), extensions.gen_salt('bf'))` : 'null'}${x.codigoEntrada ? ', true' : ''})
       on conflict (activity_id) do nothing;` : ''}
     -- comprobaciones ANTES de publicar
     if (select count(*) from public.activity_items where activity_id = v_act) <> ${n} then raise exception 'La actividad de % no quedó con ${n} ejercicios', c.name; end if;
@@ -319,9 +321,9 @@ values ('${actId}', ${clase}, ${q(a.titulo)}, ${q(a.instrucciones)}, ${q(s.modo)
 on conflict (id) do nothing;`);
   const x = a.examen;
   if (x) {
-    out.push(`insert into public.exam_settings (activity_id, presentacion, navegacion, duracion_s, pausas_permitidas, sin_saltos, bloquear_al_salir, impedir_copiar, codigo_salida_hash)
+    out.push(`insert into public.exam_settings (activity_id, presentacion, navegacion, duracion_s, pausas_permitidas, sin_saltos, bloquear_al_salir, impedir_copiar, codigo_salida_hash${x.codigoEntrada ? ', codigo_entrada' : ''})
 values ('${actId}', 'una_a_la_vez', ${q(x.navegacion)}, ${x.duracionMin * 60}, false, ${x.sinSaltos}, ${x.bloquearAlSalir}, ${x.impedirCopiar},
-  ${x.bloquearAlSalir ? `extensions.crypt(encode(extensions.gen_random_bytes(24), 'base64'), extensions.gen_salt('bf'))` : 'null'})
+  ${x.bloquearAlSalir ? `extensions.crypt(encode(extensions.gen_random_bytes(24), 'base64'), extensions.gen_salt('bf'))` : 'null'}${x.codigoEntrada ? ', true' : ''})
 on conflict (activity_id) do nothing;`);
   }
   out.push(`insert into public.activity_items (activity_id, exercise_id, position)
@@ -333,14 +335,16 @@ on conflict (activity_id, exercise_id) do nothing;`);
   if (select count(*) from public.activity_items i join public.exercise_keys k on k.exercise_id = i.exercise_id where i.activity_id = '${actId}') <> ${n} then
     raise exception 'Faltan claves de respuesta en la actividad';
   end if;
-  if exists (select 1 from public.activity_items i join public.exercises e on e.id = i.exercise_id where i.activity_id = '${actId}' and e.lesson_id is null) then
+  -- solo los ejercicios que declaran lección (las asignaturas sin lecciones, como el laboratorio, no la llevan)
+  if exists (select 1 from public.activity_items i join public.exercises e on e.id = i.exercise_id where i.activity_id = '${actId}' and e.lesson_id is null
+             and e.slug = any (${arr(a.ejercicios.filter((e) => e.leccion !== undefined).map((e) => e.id))})) then
     raise exception 'Algún ejercicio quedó sin lección';
   end if;${a.puntosTotales !== undefined ? `
   if (select sum(coalesce(i.points, e.points)) from public.activity_items i join public.exercises e on e.id = i.exercise_id where i.activity_id = '${actId}') <> ${a.puntosTotales} then
     raise exception 'La actividad no suma ${a.puntosTotales} puntos';
   end if;` : ''}${x ? `
   if not exists (select 1 from public.exam_settings where activity_id = '${actId}' and presentacion = 'una_a_la_vez' and navegacion = ${q(x.navegacion)}
-                 and duracion_s = ${x.duracionMin * 60} and bloquear_al_salir = ${x.bloquearAlSalir} and sin_saltos = ${x.sinSaltos}) then
+                 and duracion_s = ${x.duracionMin * 60} and bloquear_al_salir = ${x.bloquearAlSalir} and sin_saltos = ${x.sinSaltos}${x.codigoEntrada ? ' and codigo_entrada' : ''}) then
     raise exception 'La configuración del examen no quedó como se pidió';
   end if;` : ''}${a.apertura ? `
   if (select opens_at from public.activities where id = '${actId}') is distinct from ${ts(a.apertura)}

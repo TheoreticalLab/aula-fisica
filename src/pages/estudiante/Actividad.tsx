@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { LecturaCronometrada } from '@/components/LecturaCronometrada';
 import { configTiempo } from '@/api/tiempoMinimo';
 import { formatoTiempo } from '@/lib/lectura';
-import { myActivities, startActivityAttempt } from '@/api/estudiante';
+import { myActivities, startActivityAttempt, startActivityAttemptCodigo } from '@/api/estudiante';
 import { supabase } from '@/lib/supabase';
 import type { Activity } from '@/api/tipos';
 import { fecha, puntaje, relativo, useAction, useAsync } from '@/lib/util';
@@ -66,17 +66,20 @@ export default function Actividad() {
     ]);
     if (error) throw new Error('Actividad no disponible.');
     // reglas del motor de examen (si la evaluación lo usa); sin ellas, la evaluación es clásica
-    const reglas = (act as Activity).mode === 'exam' ? describirReglas(await examRules(activityId).catch(() => CONFIG_CLASICA)) : null;
-    return { act: act as Activity, mine: list.find((a) => a.id === activityId), reglas };
+    const cfg = (act as Activity).mode === 'exam' ? await examRules(activityId).catch(() => CONFIG_CLASICA) : null;
+    const reglas = cfg ? describirReglas(cfg) : null;
+    return { act: act as Activity, mine: list.find((a) => a.id === activityId), reglas, conCodigo: !!cfg?.codigo_entrada };
   }, [activityId]);
   const action = useAction();
   // tiempo mínimo de realización (migración 78); si la función no existe aún, simplemente no se muestra
   const tmin = useAsync(() => configTiempo(activityId).catch(() => null), [activityId]);
   const [lecturaHecha, setLecturaHecha] = useState(false);
   const alCompletarLectura = useCallback(() => setLecturaHecha(true), []);
+  const [codigo, setCodigo] = useState('');
+  const [avisoCodigo, setAvisoCodigo] = useState<string | null>(null);
   if (loading) return <Spinner />;
   if (error) return <ErrorBox error={error} />;
-  const { act, mine, reglas } = data!;
+  const { act, mine, reglas, conCodigo } = data!;
   const conLectura = !!act.reading_min_seconds && !!act.reading_text;
   const bloqueada = conLectura && !lecturaHecha && !mine?.reading_done && !mine?.in_progress;
   const now = Date.now();
@@ -85,6 +88,14 @@ export default function Actividad() {
   const used = mine?.attempts_used ?? 0;
   const left = act.max_attempts === null ? null : act.max_attempts - used;
   async function start() {
+    if (conCodigo) {
+      // código de entrada rotativo: el servidor lo comprueba; un código incorrecto solo muestra el aviso
+      setAvisoCodigo(null);
+      const r = await action.run(() => startActivityAttemptCodigo(activityId, codigo));
+      if (r?.ok && r.attempt_id) nav(`/intento/${r.attempt_id}`);
+      else if (r) setAvisoCodigo(r.mensaje ?? 'Código no válido.');
+      return;
+    }
     const id = await action.run(() => startActivityAttempt(activityId));
     if (id) nav(`/intento/${id}`);
   }
@@ -122,9 +133,19 @@ export default function Actividad() {
           ) : bloqueada ? (
             <p className="text-sm text-gray-600 dark:text-gray-300">🔒 Los ejercicios se habilitan cuando cumpla el tiempo mínimo de la lectura de abajo.</p>
           ) : (
-            <button className="btn-primario" onClick={start} disabled={action.busy}>
-              {conLectura ? (used ? 'Nuevo intento de los ejercicios' : 'Ir a los ejercicios') : used ? 'Nuevo intento' : reglas?.titulo.startsWith('Examen de ') ? 'Comenzar (empieza el reloj)' : 'Comenzar'}
-            </button>
+            <>
+              {conCodigo && (
+                <label className="block w-full">
+                  <span className="etiqueta">Código de entrada (se lo da el profesor; cambia cada minuto)</span>
+                  <input className="campo max-w-[12rem] font-mono text-lg tracking-widest" inputMode="numeric" autoComplete="off" maxLength={8}
+                    value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="000000" />
+                  {avisoCodigo && <span className="mt-1 block text-sm text-red-700 dark:text-red-400">{avisoCodigo}</span>}
+                </label>
+              )}
+              <button className="btn-primario" onClick={start} disabled={action.busy || (conCodigo && codigo.replace(/\D/g, '').length < 6)}>
+                {conLectura ? (used ? 'Nuevo intento de los ejercicios' : 'Ir a los ejercicios') : used ? 'Nuevo intento' : reglas?.titulo.startsWith('Examen de ') ? 'Comenzar (empieza el reloj)' : 'Comenzar'}
+              </button>
+            </>
           )}
         </div>
       </FichaActividad>
