@@ -160,12 +160,16 @@ function FaseTexto({ e }: { e: EstadoMaraton }) {
 
 function Jornada({ e, onEstado }: { e: EstadoMaraton; onEstado: (s: EstadoMaraton) => void }) {
   const act = useAction();
-  const j = e.jornada;
-  const ej = j ? ESTADO_JORNADA[j.estado] ?? ESTADO_JORNADA.en_curso : null;
+  // El servidor devuelve la última jornada registrada. Si es de un día anterior y hoy abre otra que aún no se ha
+  // creado (se crea al pulsar «Comenzar»), se muestra la de hoy sin iniciar, no la anterior.
+  const anterior = !!e.jornada && !e.prueba && e.jornada.estado !== 'en_curso' && !e.jornada.reabierta_hasta
+    && e.hoy.fase === 'abierta' && e.hoy.numero != null && e.jornada.numero < e.hoy.numero;
+  const j = anterior ? null : e.jornada;
+  const ej = j ? ESTADO_JORNADA[j.estado] ?? ESTADO_JORNADA.en_curso : anterior ? ESTADO_JORNADA.sin_iniciar : null;
   return (
     <>
       <div className="tarjeta grid grid-cols-2 gap-3 text-sm sm:grid-cols-4" aria-live="polite">
-        <div><div className="text-xs uppercase text-gray-500">Jornada</div><div className="text-lg font-semibold">{j ? `${j.numero} de ${e.maraton.jornadas}` : '—'}</div></div>
+        <div><div className="text-xs uppercase text-gray-500">Jornada</div><div className="text-lg font-semibold">{j ? `${j.numero} de ${e.maraton.jornadas}` : anterior ? `${e.hoy.numero} de ${e.maraton.jornadas}` : '—'}</div></div>
         <div><div className="text-xs uppercase text-gray-500">Estado</div><div className="mt-1">{ej ? <Badge tone={ej.tono}>{ej.t}</Badge> : <Badge>Sin jornada abierta</Badge>}</div></div>
         <div><div className="text-xs uppercase text-gray-500">Ejercicios respondidos</div><div className="text-lg font-semibold">{j?.respondidos ?? 0}</div></div>
         <div><div className="text-xs uppercase text-gray-500">Tiempo registrado</div><div className="text-lg font-semibold">{j?.minutos ?? 0} min</div></div>
