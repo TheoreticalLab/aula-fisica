@@ -10,7 +10,7 @@ import {
 } from '@/api/maraton';
 import { etiquetaNivel } from '@/lib/maraton/config';
 import {
-  AVISO_INTERPRETACION, comportamiento, consistencia, evolucion, evolucionPorTema, rendimiento, situacionPorEstudiante, tipoPunto, trayectoria, type PuntoTrayectoria, type Situacion,
+  AVISO_INTERPRETACION, comportamiento, consistencia, evolucion, evolucionPorTema, nivelesDe, rendimiento, situacionPorEstudiante, tipoPunto, trayectoria, type PuntoTrayectoria, type Situacion,
 } from '@/lib/maraton/indicadores';
 import { csvDetalle, csvEstadisticas, csvResumen, descargarBlob, estadisticasSeccion, xlsxMaraton } from '@/lib/maraton/exportar';
 import { downloadText, fecha, useAction, useAsync } from '@/lib/util';
@@ -238,7 +238,7 @@ function DetalleEstudiante({ m, e, onVolver, onCambio }: { m: MaratonDocente; e:
                 <ComposedChart data={tray} margin={{ top: 10, right: 20, bottom: 20, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                   <XAxis dataKey="x" type="number" domain={[1, Math.max(1, tray.length)]} allowDecimals={false} label={{ value: 'Ejercicio (secuencia)', position: 'insideBottom', offset: -10 }} />
-                  <YAxis dataKey="nivel" domain={[1, 6]} ticks={[1, 2, 3, 4, 5, 6]} tickFormatter={(v) => `D${v}`} />
+                  <YAxis dataKey="nivel" domain={[1, nivelesDe(ps).length]} ticks={nivelesDe(ps)} tickFormatter={(v) => `D${v}`} />
                   <Tooltip content={({ payload }) => { const p = payload?.[0]?.payload as PuntoTrayectoria | undefined; return p ? (
                     <div className="rounded border bg-white p-2 text-xs shadow dark:bg-gray-900">#{p.x} · jornada {p.jornada} · D{p.nivel}{p.despues ? ` → D${p.despues}` : ''}<br />{NOMBRE_TIPO[p.tipo]} · {p.p.tema}</div>) : null; }} />
                   <Line type="stepAfter" dataKey="nivel" stroke={oscuro ? '#9ca3af' : '#4b5563'} dot={false} isAnimationActive={false} />
@@ -271,7 +271,7 @@ function DetalleEstudiante({ m, e, onVolver, onCambio }: { m: MaratonDocente; e:
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={evo.map((x) => ({ ...x, precisionPct: x.precision == null ? null : Math.round(x.precision * 100), minutos: x.medianaSegundos == null ? null : Math.round(x.medianaSegundos / 6) / 10 }))}>
                   <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                  <XAxis dataKey="jornada" /><YAxis yAxisId="p" domain={[0, 100]} /><YAxis yAxisId="n" orientation="right" domain={[0, 6]} />
+                  <XAxis dataKey="jornada" /><YAxis yAxisId="p" domain={[0, 100]} /><YAxis yAxisId="n" orientation="right" domain={[0, nivelesDe(ps).length]} />
                   <Tooltip /><Legend />
                   <Line yAxisId="p" dataKey="precisionPct" name="% aciertos" stroke="#16a34a" connectNulls />
                   <Line yAxisId="n" dataKey="nivelMedio" name="Nivel medio" stroke="#2563eb" connectNulls />
@@ -315,6 +315,23 @@ function VerPresentacion({ p, siguiente, onClose }: { p: PresentacionHistorial; 
       <div className="max-h-[70vh] space-y-2 overflow-y-auto text-sm">
         <div className="break-all text-xs text-gray-500">{p.plantilla_id} · variante {p.variante_id} · {p.tema} · {p.subtema}</div>
         <Markdown className="prosa text-sm">{p.enunciado}</Markdown>
+        {/* problema por etapas o con comprobación (migración 99): texto de cada etapa, cuándo la entregó y si acertó */}
+        {(p.etapas ?? []).length > 0 && (
+          <div className="space-y-2">
+            <div className="text-xs text-gray-500">
+              Etapa 1: {p.etapa1 ? <>{p.etapa1.correcta ? '✔' : '✖'} · entregada {fecha(p.etapa1.entregada_at)}</> : (p.accion ? 'cerrada sin entregar' : 'en curso')}
+            </div>
+            {p.etapas!.map((et) => (
+              <div key={et.numero} className="rounded border border-dashed border-gray-300 p-2 dark:border-white/20">
+                <div className="text-xs text-gray-500">
+                  {et.tipo === 'comprobacion' ? 'Comprobación de razonamiento' : `Etapa ${et.numero}`} ·{' '}
+                  {et.entregada_at ? <>{et.correcta ? '✔' : '✖'} · entregada {fecha(et.entregada_at)}</> : (p.etapa_actual === et.numero && !p.accion ? 'en curso' : 'no entregada')}
+                </div>
+                <Markdown className="prosa text-sm">{et.enunciado}</Markdown>
+              </div>
+            ))}
+          </div>
+        )}
         <dl className="grid grid-cols-2 gap-2">
           <div><dt className="text-xs text-gray-500">Recibido</dt><dd>{fecha(p.presentada_at)}</dd></div>
           <div><dt className="text-xs text-gray-500">Cerrado</dt><dd>{fecha(p.cerrada_at)}</dd></div>

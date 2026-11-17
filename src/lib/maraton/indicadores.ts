@@ -40,10 +40,16 @@ export interface Rendimiento {
   porTema: { tema: string; presentados: number; validos: number; correctas: number; precision: number | null; noPuedo: number }[];
 }
 
+/** niveles que se muestran: 1–6 siempre; 7–9 solo si el estudiante llegó a ellos (progresión avanzada, migración 99) */
+export function nivelesDe(ps: { nivel: number }[]): number[] {
+  const max = Math.max(6, ...ps.map((p) => p.nivel));
+  return Array.from({ length: max }, (_, i) => i + 1);
+}
+
 export function rendimiento(ps: PresentacionHistorial[]): Rendimiento {
   const cerr = ps.filter((p) => p.accion);
   const val = cerr.filter((p) => p.accion === 'respuesta');
-  const porNivel = [1, 2, 3, 4, 5, 6].map((n) => {
+  const porNivel = nivelesDe(ps).map((n) => {
     const xs = cerr.filter((p) => p.nivel === n), v = xs.filter((p) => p.accion === 'respuesta');
     return { nivel: n, presentados: ps.filter((p) => p.nivel === n).length, validos: v.length, correctas: v.filter((p) => p.resultado === 'correcta').length,
       precision: tasa(v.filter((p) => p.resultado === 'correcta').length, v.length), noPuedo: xs.filter((p) => p.accion === 'no_puedo').length,
@@ -95,11 +101,11 @@ export function comportamiento(ps: PresentacionHistorial[]): Comportamiento {
     }
   }
   return {
-    noPuedoPorNivel: [1, 2, 3, 4, 5, 6].map((n) => {
+    noPuedoPorNivel: nivelesDe(ps).map((n) => {
       const xs = ps.filter((p) => p.nivel === n && p.accion), np = xs.filter((p) => p.accion === 'no_puedo').length;
       return { nivel: n, n: np, frecuencia: tasa(np, xs.length) };
     }),
-    cambiosPorNivel: [1, 2, 3, 4, 5, 6].map((n) => ({ nivel: n, n: ps.filter((p) => p.nivel === n && p.accion === 'cambio').length })),
+    cambiosPorNivel: nivelesDe(ps).map((n) => ({ nivel: n, n: ps.filter((p) => p.nivel === n && p.accion === 'cambio').length })),
     segundosAntesDeAbandonar: mediana(ps.filter((p) => p.accion === 'no_puedo').map((p) => p.segundos ?? 0)),
     rachaCorrectas: rc, rachaIncorrectas: ri, maxPermanenciaD6: maxD6, entradasAltas: entradas, oscilaciones: osc, cambiosDeDireccion: giros,
   };
@@ -151,13 +157,13 @@ export function consistencia(ps: PresentacionHistorial[]): Observacion[] {
     const alto = val.filter((p) => p.tema === t && p.nivel >= 5), bajo = val.filter((p) => p.tema === t && p.nivel <= 2);
     if (alto.length >= 2 && bajo.length >= 2) {
       const pa = alto.filter((p) => p.resultado === 'correcta').length / alto.length, pb = bajo.filter((p) => p.resultado === 'correcta').length / bajo.length;
-      if (pa >= 0.7 && pb <= 0.4) out.push({ tipo: 'extremo_vs_elemental', titulo: `Tema ${t}: aciertos altos en D5–D6 y bajos en D1–D2`,
-        detalle: `D5–D6: ${Math.round(pa * 100)} % de ${alto.length}; D1–D2: ${Math.round(pb * 100)} % de ${bajo.length}.`, referencias: [...alto, ...bajo].map((p) => p.secuencia) });
+      if (pa >= 0.7 && pb <= 0.4) out.push({ tipo: 'extremo_vs_elemental', titulo: `Tema ${t}: aciertos altos en D5 o superior y bajos en D1–D2`,
+        detalle: `D5 o superior: ${Math.round(pa * 100)} % de ${alto.length}; D1–D2: ${Math.round(pb * 100)} % de ${bajo.length}.`, referencias: [...alto, ...bajo].map((p) => p.secuencia) });
     }
   }
-  // 2) aciertos en D5–D6 con menos de la mitad del tiempo mínimo del problema
+  // 2) aciertos en D5 o superior con menos de la mitad del tiempo mínimo del problema
   const rapidos = val.filter((p) => p.nivel >= 5 && p.resultado === 'correcta' && (p.segundos ?? 0) < 0.5 * p.t_min_s);
-  if (rapidos.length) out.push({ tipo: 'extremo_rapido', titulo: `${rapidos.length} acierto(s) en D5–D6 con menos de la mitad del tiempo mínimo`,
+  if (rapidos.length) out.push({ tipo: 'extremo_rapido', titulo: `${rapidos.length} acierto(s) en D5 o superior con menos de la mitad del tiempo mínimo`,
     detalle: rapidos.map((p) => `#${p.secuencia}: ${Math.round(p.segundos ?? 0)} s (mínimo ${p.t_min_s} s)`).join('; '), referencias: rapidos.map((p) => p.secuencia) });
   // 3) cambios bruscos de tiempo entre jornadas (mediana por intento ×2 o ÷2)
   const ev = evolucion(ps).filter((e) => e.medianaSegundos !== null && e.validos >= 3);
@@ -190,6 +196,14 @@ export function consistencia(ps: PresentacionHistorial[]): Observacion[] {
   }
   if (racha.length >= 4) rachas.push(racha);
   for (const r of rachas) out.push({ tipo: 'anticipadas_seguidas', titulo: `${r.length} respuestas seguidas antes del tiempo mínimo`, detalle: `Problemas #${r[0]}–#${r[r.length - 1]}.`, referencias: r });
+  // 7) comprobación de razonamiento fallada con el resultado numérico bien (migración 99)
+  const comp = val.filter((p) => p.comprobacion && p.etapa1?.correcta === true && p.etapas?.find((e) => e.tipo === 'comprobacion')?.correcta === false);
+  if (comp.length >= 2) out.push({ tipo: 'comprobacion_fallada', titulo: `${comp.length} resultado(s) correcto(s) con la comprobación de razonamiento fallada`,
+    detalle: comp.map((p) => `#${p.secuencia}`).join(', ') + '.', referencias: comp.map((p) => p.secuencia) });
+  // 8) problemas por etapas: primera etapa bien y las siguientes mal, de forma repetida
+  const etapas = val.filter((p) => (p.etapas_total ?? 1) > 2 && p.etapa1?.correcta === true && (p.etapas ?? []).filter((e) => e.tipo === 'etapa' && e.correcta === false).length >= 2);
+  if (etapas.length >= 2) out.push({ tipo: 'etapas_desiguales', titulo: `${etapas.length} problema(s) por etapas con la primera bien y las siguientes mal`,
+    detalle: etapas.map((p) => `#${p.secuencia}`).join(', ') + '.', referencias: etapas.map((p) => p.secuencia) });
   return out;
 }
 

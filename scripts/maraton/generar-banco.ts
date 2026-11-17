@@ -39,10 +39,20 @@ export function sqlBanco(c: BancoConstruido): string {
   for (const p of b.plantillas) {
     const vs = c.variantes.get(p.id) ?? [];
     l.push(`insert into public.maraton_plantillas (id, banco_id, tema, subtema, nivel, titulo, metodo, t_min_s, t_max_s, unidades, etiquetas, fuente, estado) values (${[
-      p.id, b.id, p.tema, p.subtema].map(lit).join(', ')}, ${p.nivel}, ${lit(p.titulo)}, ${lit(p.metodo)}, ${p.t_min_s}, ${p.t_max_s}, ${[1, 1.2, 1.4, 1.5, 1, 1][p.nivel - 1]}, array[${p.etiquetas.map(lit).join(', ')}]::text[], ${lit(p.fuente)}, ${lit(p.estado ?? 'validada')}) on conflict (id) do nothing;`);
+      p.id, b.id, p.tema, p.subtema].map(lit).join(', ')}, ${p.nivel}, ${lit(p.titulo)}, ${lit(p.metodo)}, ${p.t_min_s}, ${p.t_max_s}, ${[1, 1.2, 1.4, 1.5, 1, 1, 1, 1, 1][p.nivel - 1]}, array[${p.etiquetas.map(lit).join(', ')}]::text[], ${lit(p.fuente)}, ${lit(p.estado ?? 'validada')}) on conflict (id) do nothing;`);
     for (const v of vs) {
       l.push(`insert into public.maraton_variantes (id, plantilla_id, n, enunciado, partes, datos, estado, huella) values (${lit(v.id)}, ${lit(p.id)}, ${v.n}, ${lit(v.enunciado)}, ${json(v.partes)}, ${json(v.datos)}, 'validada', ${lit(v.huella)}) on conflict (id) do nothing;`);
       l.push(`insert into public.maraton_claves (variante_id, clave, solucion, verificacion) values (${lit(v.id)}, ${json(v.clave)}, ${lit(v.solucion)}, ${json({ ...v.verificacion, semilla: v.semilla })}) on conflict (variante_id) do nothing;`);
+      // etapas 2…n (niveles 7–9) y comprobación de razonamiento (ordinarios), migración 99
+      (v.etapas ?? []).forEach((e, i) => {
+        l.push(`insert into public.maraton_etapas (variante_id, numero, tipo, enunciado, partes) values (${lit(v.id)}, ${i + 2}, 'etapa', ${lit(e.enunciado)}, ${json(e.partes)}) on conflict do nothing;`);
+        l.push(`insert into public.maraton_etapas_claves (variante_id, numero, clave) values (${lit(v.id)}, ${i + 2}, ${json(e.clave)}) on conflict do nothing;`);
+      });
+      if (v.comprobacion) {
+        const k = v.comprobacion;
+        l.push(`insert into public.maraton_etapas (variante_id, numero, tipo, enunciado, partes) values (${lit(v.id)}, 2, 'comprobacion', ${lit(k.enunciado)}, ${json([k.parte])}) on conflict do nothing;`);
+        l.push(`insert into public.maraton_etapas_claves (variante_id, numero, clave, solucion) values (${lit(v.id)}, 2, ${json(k.clave)}, ${lit(k.solucion)}) on conflict do nothing;`);
+      }
     }
   }
   return l.join('\n') + '\n';
@@ -60,7 +70,7 @@ export function informe(c: BancoConstruido) {
       niveles: [...new Set(pls.map((p) => p.nivel))].sort(),
     };
   });
-  const porNivel = [1, 2, 3, 4, 5, 6].map((n) => {
+  const porNivel = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => {
     const pls = b.plantillas.filter((p) => p.nivel === n && (p.estado ?? 'validada') === 'validada');
     return { nivel: n, plantillas: pls.length, variantes: pls.reduce((s, p) => s + (c.variantes.get(p.id)?.length ?? 0), 0) };
   });

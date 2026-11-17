@@ -33,7 +33,27 @@ describe.skipIf(!hay)('banco del Maratón de Física General 1', async () => {
 
   it('todas las variantes superan la validación (verificación independiente, dimensiones, corrección, ambigüedad, datos, LaTeX)', () => {
     expect(c.errores).toEqual([]);
-    expect(todas.length).toBe(banco.plantillas.length * 12);
+    expect(todas.length).toBe(banco.plantillas.reduce((s, p) => s + (p.variantes ?? 12), 0));
+  });
+  it('niveles 7–9 (migración 99): de 3 a 5 etapas, cada una con su clave; sin comprobación; D9 con banco amplio', () => {
+    for (const n of [7, 8, 9]) expect(validadas.filter((p) => p.nivel === n).length, `D${n}`).toBeGreaterThanOrEqual(5);
+    for (const p of banco.plantillas.filter((x) => x.nivel > 6)) {
+      for (const v of c.variantes.get(p.id)!) {
+        expect(v.etapas?.length ?? 0, v.id).toBeGreaterThanOrEqual(2);
+        expect(v.etapas!.length, v.id).toBeLessThanOrEqual(4);
+        for (const e of v.etapas!) expect(e.clave.partes.length, v.id).toBe(e.partes.length);
+        expect(v.comprobacion, v.id).toBeUndefined();
+      }
+    }
+    for (const p of validadas.filter((x) => x.nivel === 9)) expect(p.variantes ?? 30, p.id).toBeGreaterThanOrEqual(60);
+  });
+  it('comprobaciones de razonamiento en casi todos los problemas ordinarios; factor positivo y texto renderizable', () => {
+    const ord = todas.filter((v) => !v.etapas);
+    expect(ord.filter((v) => v.comprobacion).length / ord.length).toBeGreaterThan(0.85);
+    for (const v of ord.filter((x) => x.comprobacion)) {
+      expect(parseFloat(v.comprobacion!.clave.partes[0].value), v.id).toBeGreaterThan(0);
+      expect(erroresKatex(v.comprobacion!.enunciado), v.id).toEqual([]);
+    }
   });
   it('solo temas efectivamente impartidos: verificados con problemas, pendientes sin plantillas validadas, excluidos vacíos', () => {
     const estado = new Map(banco.temas.map((t) => [t.codigo, t.estado]));
@@ -53,8 +73,8 @@ describe.skipIf(!hay)('banco del Maratón de Física General 1', async () => {
   });
   it('coherencia de la dificultad: tiempos mínimos crecientes y problemas D5–D6 de varias etapas', () => {
     const media = (n: number) => { const xs = validadas.filter((p) => p.nivel === n).map((p) => p.t_min_s); return xs.reduce((a, b) => a + b, 0) / xs.length; };
-    for (const n of [2, 3, 4, 5, 6]) expect(media(n)).toBeGreaterThan(media(n - 1));
-    for (const p of validadas.filter((x) => x.nivel >= 5)) {
+    for (const n of [2, 3, 4, 5, 6, 7, 8, 9]) expect(media(n)).toBeGreaterThan(media(n - 1));
+    for (const p of validadas.filter((x) => x.nivel >= 5 && x.nivel <= 6)) {
       const v = c.variantes.get(p.id)![0];
       const etapas = v.partes.length >= 2 || p.etiquetas.some((e) => ['varias_etapas', 'serie_geometrica', 'razonamiento', 'inverso'].includes(e));
       expect(etapas, p.id).toBe(true);
@@ -73,7 +93,8 @@ describe.skipIf(!hay)('banco del Maratón de Física General 1', async () => {
     }
   });
   it('enunciados y soluciones se renderizan con KaTeX sin errores', () => {
-    const errs = todas.flatMap((v) => [...erroresKatex(v.enunciado), ...erroresKatex(v.solucion)].map((e) => `${v.id}: ${e}`));
+    const errs = todas.flatMap((v) => [...erroresKatex(v.enunciado), ...erroresKatex(v.solucion), ...(v.etapas ?? []).flatMap((e) => erroresKatex(e.enunciado))]
+      .map((e) => `${v.id}: ${e}`));
     expect(errs).toEqual([]);
   });
   it('la verificación independiente coincide con la respuesta analítica en TODAS las variantes', () => {
@@ -88,7 +109,7 @@ describe.skipIf(!hay)('banco del Maratón de Física General 1', async () => {
   it('el SQL generado es idempotente y no contiene nada fuera de las tablas del maratón', () => {
     const sql = sqlBanco(c);
     const sentencias = sql.split('\n').filter((l) => /^insert into/.test(l));
-    expect(sentencias.every((l) => /^insert into public\.maraton_(bancos|temas|plantillas|variantes|claves) /.test(l))).toBe(true);
+    expect(sentencias.every((l) => /^insert into public\.maraton_(bancos|temas|plantillas|variantes|claves|etapas|etapas_claves) /.test(l))).toBe(true);
     expect(sql.split('\n').filter((l) => /^insert into public\.maraton_variantes/.test(l)).length).toBe(todas.length);
     expect(sql).not.toMatch(/\b(delete|update|drop|truncate)\b/i);
   });

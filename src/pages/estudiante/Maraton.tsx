@@ -10,7 +10,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { interpretNumeric } from '@calif/calificar.ts';
 import { API_MARATON, esNoValida, type EstadoMaraton, type MiInforme } from '@/api/maraton';
-import { NOMBRE_NIVEL, reglasPermanencia } from '@/lib/maraton/config';
+import { reglasPermanencia } from '@/lib/maraton/config';
 import { fecha, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, ErrorBox, Modal, Notice, PageTitle, Spinner } from '@/components/ui';
 import { Markdown } from '@/components/Markdown';
@@ -219,6 +219,15 @@ function Problema({ e, onEstado }: { e: EstadoMaraton; onEstado: (s: EstadoMarat
   const idems = useRef<Record<string, string>>({});
   const idem = (accion: string) => (idems.current[accion] ??= uuid());
   const listo = partes.every((x) => x.trim());
+  // problema por etapas: al pasar a la siguiente, casillas nuevas y otra clave de idempotencia (el procedimiento sigue)
+  // (solo cuando cambia la etapa: un refresco del estado no borra lo que está escribiendo)
+  const etapa = p.etapa ?? 1;
+  const nPartes = p.partes.length;
+  useEffect(() => {
+    setPartes(Array.from({ length: nPartes }, () => ''));
+    setInvalida([]);
+    delete idems.current.respuesta;
+  }, [etapa, nPartes]);
 
   const terminar = (s: EstadoMaraton) => {
     try { localStorage.removeItem(CLAVE_T(p.presentacion_id)); } catch { /* nada */ }
@@ -227,9 +236,11 @@ function Problema({ e, onEstado }: { e: EstadoMaraton; onEstado: (s: EstadoMarat
   };
   async function responder() {
     setInvalida([]);
-    const r = await act.run(() => API_MARATON.responder(p.presentacion_id, idem('respuesta'), partes.map((x) => x.trim()), proc.trim() || null, segundos()));
+    const r = await act.run(() => API_MARATON.responder(p.presentacion_id, idem('respuesta'), partes.map((x) => x.trim()), proc.trim() || null, segundos(), etapa));
     if (!r) return;
     if (esNoValida(r)) { setInvalida(r.mensajes); delete idems.current.respuesta; return; }
+    // etapa intermedia: el mismo problema sigue abierto (el tiempo activo se conserva)
+    if (r.problema?.presentacion_id === p.presentacion_id) { onEstado(r); return; }
     terminar(r);
   }
   async function noPuedo() {
@@ -247,7 +258,23 @@ function Problema({ e, onEstado }: { e: EstadoMaraton; onEstado: (s: EstadoMarat
   return (
     <div className="tarjeta space-y-4">
       <div className="flex items-center gap-2 text-sm text-gray-500"><span>Ejercicio {p.numero} de la jornada</span></div>
-      <Markdown className="prosa text-base">{p.enunciado}</Markdown>
+      {etapa > 1 && p.contexto != null ? (
+        <>
+          <Markdown className="prosa text-base">{p.contexto}</Markdown>
+          {/* lo ya entregado, tal como lo envió (no se puede cambiar ni dice si acertó) */}
+          {(p.previas ?? []).map((pv) => (
+            <div key={pv.etapa} className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-white/10 dark:bg-white/5">
+              <div className="text-xs font-semibold uppercase text-gray-500">Etapa {pv.etapa} · entregada</div>
+              {pv.enunciado && <Markdown className="prosa mt-1 text-sm">{pv.enunciado}</Markdown>}
+              <ul className="mt-1 space-y-0.5">
+                {pv.partes.map((pt, i) => <li key={i}>{pt.etiqueta}: <span className="font-mono">{pv.respuesta?.[i] ?? '—'}</span></li>)}
+              </ul>
+            </div>
+          ))}
+          <div className="text-xs font-semibold uppercase text-gray-500">Etapa {etapa}</div>
+          {p.actual && <Markdown className="prosa text-base">{p.actual}</Markdown>}
+        </>
+      ) : <Markdown className="prosa text-base">{p.enunciado}</Markdown>}
       <form className="space-y-3" onSubmit={(ev) => { ev.preventDefault(); if (listo) void responder(); }}>
         {p.partes.map((pt, i) => (
           <label key={i} className="block">
@@ -327,13 +354,7 @@ export function InformeEstudiante({ i }: { i: MiInforme }) {
           <Dato t="Sustituidos (comodines)" v={r.cambios} />
           <Dato t="«No puedo resolverlo»" v={r.no_puedo} />
           <Dato t="Tiempo registrado" v={`${Math.round(r.segundos / 60)} min`} />
-          <Dato t="Nivel máximo alcanzado" v={r.nivel_maximo ? NOMBRE_NIVEL[r.nivel_maximo] : '—'} />
-          <Dato t="Problemas extremos resueltos" v={r.extremos_resueltos} />
         </dl>
-      </Card>
-      <Card title="Trabajo por tipo de problema">
-        <table className="w-full text-sm"><thead><tr className="text-left text-xs uppercase text-gray-500"><th>Tipo</th><th>Presentados</th><th>Válidos</th><th>Correctas</th></tr></thead>
-          <tbody>{r.por_nivel.map((n) => <tr key={n.nivel} className="border-t border-gray-100 dark:border-white/10"><td>{NOMBRE_NIVEL[n.nivel]}</td><td>{n.presentados}</td><td>{n.validos}</td><td>{n.correctas}</td></tr>)}</tbody></table>
       </Card>
       <Card title="Temas abordados">
         <table className="w-full text-sm"><thead><tr className="text-left text-xs uppercase text-gray-500"><th>Tema</th><th>Presentados</th><th>Válidos</th><th>Correctas</th></tr></thead>

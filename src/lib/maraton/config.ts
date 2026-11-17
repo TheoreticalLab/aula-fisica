@@ -1,6 +1,6 @@
 /**
  * Configuración del Maratón adaptativo: tipos, valores predeterminados y validación en el cliente.
- * Es un ESPEJO de public.maraton_defaults() y public.maraton_config_errores() (migraciones 94 y 97): el servidor vuelve a
+ * Es un ESPEJO de public.maraton_defaults() y public.maraton_config_errores() (migraciones 94, 97, 98 y 99): el servidor vuelve a
  * validar todo al guardar; aquí solo sirve para avisar antes de enviar.
  */
 
@@ -28,6 +28,21 @@ export interface ConfigMaraton {
     fuera_rapido_nivel: number | null;
     fuera_rapido_segundos: number;
   };
+  /**
+   * progresión avanzada (migración 99): tras acertar el nivel 6 llegan problemas de varias etapas (niveles 7–9), y una
+   * proporción de los ordinarios lleva una comprobación breve de razonamiento. Invisible para el estudiante.
+   */
+  avanzado: {
+    activo: boolean;
+    /** ponderación de los niveles 7, 8 y 9 (no puede superar la mayor ordinaria: sin bonificación por nivel) */
+    pesos: number[];
+    /** porcentaje de problemas ordinarios (con comprobación disponible) que la llevan */
+    comprobacion_porcentaje: number;
+    /** porcentaje para el problema que sigue a una respuesta anticipada (la misma regla para todos, según la conducta) */
+    comprobacion_tras_anticipada: number;
+    /** segundos que una comprobación añade al tiempo mínimo y al tope del problema */
+    comprobacion_segundos: number;
+  };
   comodines: { total: number; por_jornada: number | null; no_puedo: boolean };
   contenido: { temas: string[] | null; excluir_plantillas: string[]; distribucion: Record<string, number> };
   informes: { estudiante: boolean; docente: boolean; publicacion_estudiante: string | null; exportaciones: string[]; indicadores: boolean };
@@ -40,6 +55,7 @@ export const CONFIG_PREDETERMINADA: ConfigMaraton = {
     fraccion_fallo: 0.5, minutos_minimos: 30 },
   permanencia: { min_correctas: 5, fuera_por_presentados: true, fuera_por_continuidad: true, fuera_rapido_nivel: 6, fuera_rapido_segundos: 60 },
   dificultad: { niveles: 6, nivel_inicial: 2, adaptativa: true, pesos: [1.0, 1.2, 1.4, 1.5, 1.0, 1.0], ascenso: 1, descenso: 1, descenso_no_puedo: 1, nivel_al_iniciar_jornada: 'continuar', t_min_factor: 1, t_min_nivel_s: null },
+  avanzado: { activo: true, pesos: [1.0, 1.0, 1.0], comprobacion_porcentaje: 10, comprobacion_tras_anticipada: 100, comprobacion_segundos: 60 },
   comodines: { total: 10, por_jornada: null, no_puedo: true },
   contenido: { temas: null, excluir_plantillas: [], distribucion: {} },
   informes: { estudiante: true, docente: true, publicacion_estudiante: null, exportaciones: ['pdf', 'csv', 'xlsx'], indicadores: true },
@@ -47,7 +63,12 @@ export const CONFIG_PREDETERMINADA: ConfigMaraton = {
 };
 
 /** Nombres internos de los niveles (solo para el profesor y el informe final; nunca durante la resolución). */
-export const NOMBRE_NIVEL: Record<number, string> = { 1: 'Básico', 2: 'Intermedio', 3: 'Avanzado', 4: 'Difícil', 5: 'Desafiante', 6: 'Extremo' };
+export const NOMBRE_NIVEL: Record<number, string> = {
+  1: 'Básico', 2: 'Intermedio', 3: 'Avanzado', 4: 'Difícil', 5: 'Desafiante', 6: 'Extremo',
+  7: 'Encadenado', 8: 'Integrado', 9: 'Generalización',
+};
+/** nivel más alto que puede aparecer (los 7–9 solo con la progresión avanzada) */
+export const NIVEL_MAX = 9;
 export const etiquetaNivel = (n: number | null | undefined) => (n ? `D${n} · ${NOMBRE_NIVEL[n] ?? ''}` : '—');
 
 /** Combina una configuración parcial con la predeterminada (un nivel de profundidad, como maraton_cfg). */
@@ -93,6 +114,12 @@ export function erroresConfig(c: ConfigMaraton): string[] {
   else if (pe.min_correctas > Math.min(k.intentos_max, k.presentados_max)) e.push('El mínimo de ejercicios bien resueltos supera el máximo de intentos o de problemas de la jornada: nadie podría completarla.');
   if (pe.fuera_rapido_nivel !== null && (!Number.isInteger(pe.fuera_rapido_nivel) || !entre(pe.fuera_rapido_nivel, 1, 6))) e.push('El nivel de la regla de rapidez debe estar entre 1 y 6.');
   if (!Number.isInteger(pe.fuera_rapido_segundos) || !entre(pe.fuera_rapido_segundos, 1, 3600)) e.push('Los segundos de la regla de rapidez deben estar entre 1 y 3600.');
+  const av = c.avanzado;
+  if (av.pesos.length !== 3) e.push('Debe haber una ponderación por cada nivel avanzado (7, 8 y 9).');
+  else if (av.pesos.some((x) => !entre(x, 0.1, 10))) e.push('Cada ponderación avanzada debe ser al menos 0.1.');
+  else if (av.pesos.some((x) => x > Math.max(...d.pesos))) e.push('La ponderación de un nivel avanzado no puede superar la mayor ponderación ordinaria (no hay bonificación por nivel).');
+  if (![av.comprobacion_porcentaje, av.comprobacion_tras_anticipada].every((x) => Number.isInteger(x) && entre(x, 0, 100))) e.push('Los porcentajes de comprobaciones de razonamiento deben estar entre 0 y 100.');
+  if (!Number.isInteger(av.comprobacion_segundos) || !entre(av.comprobacion_segundos, 0, 600)) e.push('El tiempo adicional de una comprobación debe estar entre 0 y 600 s.');
   if (!Number.isInteger(w.total) || !entre(w.total, 0, 100)) e.push('Los comodines deben estar entre 0 y 100.');
   if (w.por_jornada !== null && (!Number.isInteger(w.por_jornada) || !entre(w.por_jornada, 0, 100))) e.push('El límite diario de comodines no es válido.');
   if (!entre(c.seguridad.gracia_s, 0, 600)) e.push('El margen de gracia debe estar entre 0 y 600 s.');

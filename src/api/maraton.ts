@@ -33,7 +33,16 @@ export interface EstadoMaraton {
   aceptado: boolean;
   jornada: { numero: number; fecha: string; estado: EstadoJornada; respondidos: number; minutos: number; segundos: number; reabierta_hasta: string | null; cierra: string | null } | null;
   comodines_disponibles: number;
-  problema: { presentacion_id: string; enunciado: string; partes: { etiqueta: string; unidad: string }[]; presentada_at: string; numero: number } | null;
+  /**
+   * Problema abierto. Con varias etapas (migración 99): `contexto` es el enunciado inicial, `previas` las etapas ya
+   * entregadas (con lo que respondió, sin decir si acertó), `actual` el texto de la etapa abierta y `partes` sus casillas.
+   * Nunca trae el nivel ni el número total de etapas. `enunciado` es el texto completo (compatibilidad).
+   */
+  problema: {
+    presentacion_id: string; enunciado: string; partes: { etiqueta: string; unidad: string }[]; presentada_at: string; numero: number;
+    etapa?: number; contexto?: string; actual?: string | null;
+    previas?: { etapa: number; enunciado: string | null; partes: { etiqueta: string; unidad: string }[]; respuesta: string[] }[];
+  } | null;
   aviso: 'ya_procesada' | 'ya_cerrada' | 'jornada_cerrada' | null;
   ultimo: { resultado: 'correcta' | 'incorrecta' } | null;
   informe_disponible: boolean;
@@ -62,8 +71,9 @@ export interface FilaJornada {
 export interface ResumenInscripcion {
   jornadas_completadas: number; jornadas_iniciadas: number; jornadas_revision?: number; via_cuota?: number; via_alternativa?: number;
   presentados: number; intentos_validos: number; correctas: number; incorrectas: number; no_puedo: number; cambios: number; anticipadas: number;
-  segundos: number; unidades?: number; nivel_maximo: number | null; nivel_maximo_correcto: number | null; extremos_resueltos: number;
-  por_nivel: FilaNivel[]; por_tema: FilaTema[]; por_jornada: FilaJornada[];
+  // los niveles y las anticipadas solo llegan al profesor (el informe del estudiante no los trae desde la migración 99)
+  segundos: number; unidades?: number; nivel_maximo?: number | null; nivel_maximo_correcto?: number | null; extremos_resueltos?: number;
+  por_nivel?: FilaNivel[]; por_tema: FilaTema[]; por_jornada: FilaJornada[];
 }
 export interface MiInforme { participo: boolean; titulo?: string; jornadas_total?: number; resumen?: ResumenInscripcion; aviso?: string }
 
@@ -75,8 +85,8 @@ export const API_MARATON = {
     rpc<EstadoMaraton>('maraton_no_puedo', { p_presentacion: presentacion, p_idem: idem, p_segundos_cliente: segundos, p_procedimiento: procedimiento }),
   cambiar: (presentacion: string, idem: string, segundos: number | null) =>
     rpc<EstadoMaraton>('maraton_cambiar', { p_presentacion: presentacion, p_idem: idem, p_segundos_cliente: segundos }),
-  responder: (presentacion: string, idem: string, partes: string[], procedimiento: string | null, segundos: number | null) =>
-    invocar<EstadoMaraton | RespuestaNoValida>('maraton', { action: 'responder', presentacion_id: presentacion, idem, partes, procedimiento, segundos_cliente: segundos }),
+  responder: (presentacion: string, idem: string, partes: string[], procedimiento: string | null, segundos: number | null, etapa?: number) =>
+    invocar<EstadoMaraton | RespuestaNoValida>('maraton', { action: 'responder', presentacion_id: presentacion, idem, partes, procedimiento, segundos_cliente: segundos, etapa }),
   miInforme: (id: string) => rpc<MiInforme>('maraton_mi_informe', { p_maraton: id }),
 };
 export type ApiMaraton = typeof API_MARATON;
@@ -117,6 +127,7 @@ export interface ClaveParte { format: 'numeric'; value: string; relTol?: number;
 export interface MuestraVariante {
   id: string; n: number; enunciado: string; partes: { etiqueta: string; unidad: string }[]; datos: Record<string, number>;
   clave: { partes: ClaveParte[] } | null; solucion: string | null; verificacion: { independiente: number[]; analitica: number[]; desviacion_max: number } | null; estado: string;
+  etapas?: { numero: number; tipo: 'etapa' | 'comprobacion'; enunciado: string; partes: { etiqueta: string; unidad: string }[]; clave: { partes: ClaveParte[] } | null; solucion: string }[];
 }
 
 export interface EstudianteResumen {
@@ -139,6 +150,14 @@ export interface PresentacionHistorial {
   respuesta: { partes: string[] } | null; procedimiento: string | null; detalle: { partes: { correcta: boolean; codigo: string }[] } | null;
   segundos: number | null; segundos_cliente: number | null; anticipada: boolean | null; unidades: number | null; nivel_despues: number | null;
   comodines_antes: number | null; comodines_despues: number | null; enunciado: string; partes: { etiqueta: string; unidad: string }[]; clave: { partes: ClaveParte[] } | null;
+  /** problemas por etapas (migración 99): `partes`, `clave`, `respuesta` y `detalle` traen todas las etapas en orden */
+  etapa_actual?: number; etapas_total?: number; comprobacion?: boolean;
+  etapas?: EtapaHistorial[];
+  etapa1?: { respuesta: string[]; correcta: boolean; entregada_at: string } | null;
+}
+export interface EtapaHistorial {
+  numero: number; tipo: 'etapa' | 'comprobacion'; enunciado: string; partes: { etiqueta: string; unidad: string }[];
+  clave: { partes: ClaveParte[] } | null; respuesta: string[] | null; correcta: boolean | null; entregada_at: string | null;
 }
 export interface Historial {
   estudiante: { user_id: string; nombre: string; login_id: string | null };

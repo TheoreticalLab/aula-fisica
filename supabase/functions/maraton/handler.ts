@@ -2,11 +2,15 @@
  * Lógica de la Edge Function «maraton» (Maratón adaptativo), independiente de Deno para probarla con Vitest.
  *
  * Acción única:
- *  - responder { presentacion_id, idem, partes: string[], procedimiento?, segundos_cliente? }
- *      1. pide la clave del problema ABIERTO del usuario (svc_maraton_clave: comprueba dueño, acceso y estado);
+ *  - responder { presentacion_id, idem, etapa?, partes: string[], procedimiento?, segundos_cliente? }
+ *      1. pide la clave de la etapa ABIERTA del problema del usuario (svc_maraton_clave: comprueba dueño, acceso y
+ *         estado; nunca entrega claves de etapas futuras);
  *      2. valida la forma de la respuesta: si no es un intento válido, contesta sin escribir nada (puede corregir y reenviar);
- *      3. califica con el motor existente y registra la decisión (svc_maraton_responder: bloqueo, idempotencia,
- *         máquina de estados, unidades, finalización). Devuelve SOLO el estado operativo para el estudiante.
+ *      3. califica con el motor existente y registra la etapa (svc_maraton_etapa: bloqueo, idempotencia, etapa en orden;
+ *         en la última, acierto completo solo si todas las etapas son correctas, y la máquina de estados de siempre).
+ *         Devuelve SOLO el estado operativo para el estudiante (sin decir si la etapa fue correcta).
+ *    `etapa` es la que el estudiante tiene en pantalla: si ya no es la abierta (doble envío, otra pestaña), la base
+ *    responde con el estado vigente sin escribir. Sin `etapa` (interfaz anterior) se toma la abierta.
  *
  * El resto de acciones (iniciar, «No puedo», cambiar ejercicio) no necesitan la clave y son funciones SQL directas.
  * Nunca se devuelven claves, soluciones, niveles, ponderaciones ni unidades de trabajo.
@@ -54,11 +58,17 @@ export async function handle(body: unknown, userId: string, db: Db): Promise<unk
   const partes = b.partes.map((p) => (typeof p === 'string' ? p.slice(0, MAX_PARTE + 1) : ''));
   const procedimiento = typeof b.procedimiento === 'string' ? b.procedimiento.slice(0, 20000) : null;
   const seg = typeof b.segundos_cliente === 'number' && Number.isFinite(b.segundos_cliente) ? Math.max(0, Math.min(b.segundos_cliente, 86400)) : null;
+  if (b.etapa !== undefined && b.etapa !== null && !(Number.isInteger(b.etapa) && (b.etapa as number) >= 1 && (b.etapa as number) <= 5)) {
+    throw new HttpError(400, 'Etapa inválida');
+  }
 
-  const ctx = await call<{ abierta: boolean; clave: ClaveMaraton | null }>(db, 'svc_maraton_clave', { p_user: userId, p_presentacion: presentacion });
+  const ctx = await call<{ abierta: boolean; clave: ClaveMaraton | null; etapa?: number }>(db, 'svc_maraton_clave', { p_user: userId, p_presentacion: presentacion });
+  const abierta = ctx.etapa ?? 1;
+  const etapa = typeof b.etapa === 'number' ? b.etapa : abierta;
   let correcta = false;
   let detalle: unknown = null;
-  if (ctx.abierta && ctx.clave) {
+  // solo se califica contra la clave de la etapa que el estudiante tiene en pantalla
+  if (ctx.abierta && ctx.clave && etapa === abierta) {
     let ev;
     try {
       ev = evaluarRespuesta(ctx.clave, partes);
@@ -69,11 +79,12 @@ export async function handle(body: unknown, userId: string, db: Db): Promise<unk
     correcta = ev.correcta;
     detalle = { partes: ev.partes.map((p) => ({ correcta: p.correcta, codigo: p.codigo })) };
   }
-  // problema ya cerrado (doble envío, otra pestaña): la base responde con el estado vigente sin cambiar nada
-  return await call(db, 'svc_maraton_responder', {
+  // problema ya cerrado o etapa ya entregada (doble envío, otra pestaña): la base responde con el estado vigente sin cambiar nada
+  return await call(db, 'svc_maraton_etapa', {
     p_user: userId,
     p_presentacion: presentacion,
     p_idem: idem,
+    p_etapa: etapa,
     p_respuesta: { partes },
     p_procedimiento: procedimiento,
     p_segundos_cliente: seg,

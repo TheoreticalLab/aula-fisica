@@ -15,7 +15,7 @@ function mockDb(clave: unknown = { abierta: true, clave: CLAVE }, errores: Recor
       calls.push({ fn, args });
       if (errores[fn]) return { data: null, error: errores[fn] };
       if (fn === 'svc_maraton_clave') return { data: clave, error: null };
-      if (fn === 'svc_maraton_responder') return { data: ESTADO, error: null };
+      if (fn === 'svc_maraton_etapa') return { data: ESTADO, error: null };
       return { data: null, error: { message: 'desconocida' } };
     },
   };
@@ -28,7 +28,7 @@ describe('handler maraton', () => {
     const { db, calls } = mockDb();
     const r = await handle(cuerpo(['7.78 m/s', '0.333'], { procedimiento: 'p = mv', segundos_cliente: 321 }), U, db);
     expect(r).toEqual(ESTADO);
-    expect(calls.map((c) => c.fn)).toEqual(['svc_maraton_clave', 'svc_maraton_responder']);
+    expect(calls.map((c) => c.fn)).toEqual(['svc_maraton_clave', 'svc_maraton_etapa']);
     expect(calls[0].args).toEqual({ p_user: U, p_presentacion: P });
     expect(calls[1].args).toMatchObject({ p_user: U, p_presentacion: P, p_idem: I, p_correcta: true, p_respuesta: { partes: ['7.78 m/s', '0.333'] }, p_procedimiento: 'p = mv', p_segundos_cliente: 321 });
   });
@@ -52,7 +52,7 @@ describe('handler maraton', () => {
   it('problema ya cerrado (doble envío): la base decide sin cambiar nada', async () => {
     const { db, calls } = mockDb({ abierta: false, clave: null });
     await handle(cuerpo(['7.78 m/s', '0.333']), U, db);
-    expect(calls[1].fn).toBe('svc_maraton_responder');
+    expect(calls[1].fn).toBe('svc_maraton_etapa');
     expect(calls[1].args.p_correcta).toBe(false);
   });
   it('el usuario no se puede suplantar desde el cuerpo', async () => {
@@ -70,7 +70,37 @@ describe('handler maraton', () => {
   });
   it('errores de autorización y de reglas se traducen a 403 y 409; los internos no filtran detalles', async () => {
     await expect(handle(cuerpo(['1 m/s', '1']), U, mockDb(undefined, { svc_maraton_clave: { message: 'Ese problema no le corresponde', code: '42501' } }).db)).rejects.toMatchObject({ status: 403 });
-    await expect(handle(cuerpo(['1 m/s', '1']), U, mockDb(undefined, { svc_maraton_responder: { message: 'No le quedan comodines', code: 'P0001' } }).db)).rejects.toMatchObject({ status: 409, message: 'No le quedan comodines' });
+    await expect(handle(cuerpo(['1 m/s', '1']), U, mockDb(undefined, { svc_maraton_etapa: { message: 'No le quedan comodines', code: 'P0001' } }).db)).rejects.toMatchObject({ status: 409, message: 'No le quedan comodines' });
     await expect(handle(cuerpo(['1 m/s', '1']), U, mockDb(undefined, { svc_maraton_clave: { message: 'detalle interno', code: 'XX000' } }).db)).rejects.toMatchObject({ status: 500, message: 'Error interno del maratón' });
+  });
+});
+
+describe('handler maraton · problemas por etapas (migración 99)', () => {
+  const CLAVE2 = { partes: [{ format: 'numeric', value: '12.5 J', relTol: 0.03 }] };
+  it('califica la etapa abierta con SU clave y la registra con su número', async () => {
+    const { db, calls } = mockDb({ abierta: true, etapa: 2, etapas_total: 4, clave: CLAVE2 });
+    await handle(cuerpo(['12.6 J'], { etapa: 2 }), U, db);
+    expect(calls[1]).toMatchObject({ fn: 'svc_maraton_etapa', args: { p_etapa: 2, p_correcta: true, p_respuesta: { partes: ['12.6 J'] } } });
+  });
+  it('una etapa que ya no es la abierta no se califica contra la clave de otra (la base responde sin escribir)', async () => {
+    const { db, calls } = mockDb({ abierta: true, etapa: 3, etapas_total: 4, clave: CLAVE2 });
+    await handle(cuerpo(['12.5 J'], { etapa: 2 }), U, db);
+    expect(calls[1].args).toMatchObject({ p_etapa: 2, p_correcta: false, p_detalle: null });
+  });
+  it('sin etapa (interfaz anterior) se toma la abierta', async () => {
+    const { db, calls } = mockDb({ abierta: true, etapa: 2, etapas_total: 2, clave: CLAVE2 });
+    await handle(cuerpo(['12.5 J']), U, db);
+    expect(calls[1].args).toMatchObject({ p_etapa: 2, p_correcta: true });
+  });
+  it('la respuesta de una etapa no dice si fue correcta ni contiene la clave', async () => {
+    const { db } = mockDb({ abierta: true, etapa: 2, etapas_total: 4, clave: CLAVE2 });
+    const r = await handle(cuerpo(['12.5 J'], { etapa: 2 }), U, db);
+    expect(JSON.stringify(r)).not.toMatch(/12\.5|correct/);
+  });
+  it('etapa fuera de 1..5 → 400', async () => {
+    const { db } = mockDb();
+    await expect(handle(cuerpo(['1 m/s', '1'], { etapa: 0 }), U, db)).rejects.toMatchObject({ status: 400 });
+    await expect(handle(cuerpo(['1 m/s', '1'], { etapa: 6 }), U, db)).rejects.toMatchObject({ status: 400 });
+    await expect(handle(cuerpo(['1 m/s', '1'], { etapa: '2' }), U, db)).rejects.toMatchObject({ status: 400 });
   });
 });

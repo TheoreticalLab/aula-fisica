@@ -96,7 +96,7 @@ function Configuracion({ m, onGuardado, onPublicar }: { m: MaratonDocente; onGua
     const r = await act.run(() => maratonGuardar(m.id, datos));
     if (r) { onGuardado(r); setOk(true); }
   }
-  const p = c.programacion, k = c.carga, d = c.dificultad, w = c.comodines, pe = c.permanencia;
+  const p = c.programacion, k = c.carga, d = c.dificultad, w = c.comodines, pe = c.permanencia, av = c.avanzado;
   return (
     <div className="space-y-4">
       {bloqueado && <Notice tone="warn">El maratón ya tiene participantes: para no cambiar las reglas a mitad del recorrido solo se pueden editar los textos y los informes.</Notice>}
@@ -215,6 +215,27 @@ function Configuracion({ m, onGuardado, onPublicar }: { m: MaratonDocente; onGua
           D5 y D6 valen 1 unidad para que los problemas extremos no acorten la jornada; la vía alternativa evita que un estudiante excepcional quede atrapado. No hay límite de permanencia en D6 (contradiría la regla de no descender por acertar).</p>
       </Card>
 
+      <Card title="Progresión avanzada (problemas por etapas y comprobaciones)">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="pt-6"><Check label="Tras acertar D6, pasar a D7–D9 (problemas de varias etapas)" value={av.activo} disabled={bloqueado} onChange={(v) => set('avanzado', { activo: v })} /></div>
+          <Num label="Comprobaciones de razonamiento (% de problemas ordinarios)" value={av.comprobacion_porcentaje} min={0} max={100} disabled={bloqueado}
+            onChange={(v) => set('avanzado', { comprobacion_porcentaje: v })} />
+          <Num label="… tras una respuesta anticipada (%)" value={av.comprobacion_tras_anticipada} min={0} max={100} disabled={bloqueado}
+            onChange={(v) => set('avanzado', { comprobacion_tras_anticipada: v })} hint="Misma regla para todos: depende de la conducta, no de quién es." />
+          <Num label="Tiempo que añade una comprobación (s)" value={av.comprobacion_segundos} min={0} max={600} disabled={bloqueado}
+            onChange={(v) => set('avanzado', { comprobacion_segundos: v })} />
+          {[0, 1, 2].map((i) => (
+            <Num key={i} label={`Unidades D${i + 7} · ${NOMBRE_NIVEL[i + 7]}`} value={av.pesos[i]} step={0.05} min={0.1} disabled={bloqueado}
+              onChange={(v) => set('avanzado', { pesos: av.pesos.map((y, j) => (j === i ? v : y)) })} />
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-gray-500">
+          D7 razonamiento encadenado, D8 integración de principios, D9 consistencia y generalización. Acertar sube (D9 se repite); fallar o «No puedo» baja, como en los demás niveles.
+          Un problema por etapas cuenta como UNA respuesta para todos los límites y es correcto solo si todas sus etapas lo son. Los requisitos para completar la jornada no cambian, y las
+          unidades de D7–D9 no pueden superar la mayor ordinaria (sin bonificación). El estudiante nunca ve niveles, ni cuántas etapas tiene un problema, ni si lleva comprobación.
+          Solo funciona con 6 niveles adaptativos y un banco con problemas D7–D9.</p>
+      </Card>
+
       <Card title="Comodines">
         <div className="grid gap-3 sm:grid-cols-3">
           <Num label="Sustituciones en todo el maratón" value={w.total} min={0} max={100} disabled={bloqueado} onChange={(v) => set('comodines', { total: v })} />
@@ -316,7 +337,7 @@ function Contenido({ m, onGuardado }: { m: MaratonDocente; onGuardado: (x: Marat
                   <td><button className="enlace text-left" onClick={() => setFiltro(t.codigo)}>{t.nombre}</button><br /><Badge tone={t.estado === 'verificado' ? 'green' : t.estado === 'pendiente' ? 'amber' : 'gray'}>{t.estado}</Badge></td>
                   <td className="text-xs">{t.unidad}</td><td className="text-xs">{t.fuente}</td><td className="text-xs">{t.practicas}</td><td className="text-xs">{t.examenes}</td>
                   <td><Badge tone={COBERTURA[t.cobertura]}>{t.cobertura.replace('_', ' ')}</Badge></td>
-                  <td className="whitespace-nowrap text-xs">{[1, 2, 3, 4, 5, 6].map((n) => `D${n}:${t.por_nivel[n]?.variantes ?? 0}`).join(' ')}</td>
+                  <td className="whitespace-nowrap text-xs">{[1, 2, 3, 4, 5, 6, 7, 8, 9].filter((n) => n <= 6 || t.por_nivel[n]?.variantes).map((n) => `D${n}:${t.por_nivel[n]?.variantes ?? 0}`).join(' ')}</td>
                 </tr>
               ))}
             </tbody>
@@ -370,6 +391,14 @@ function VistaPlantilla({ p, onClose, onRevisada }: { p: PlantillaBanco; onClose
             <div className="mb-1 text-xs text-gray-500">Variante {v.n} · {v.id}</div>
             <Markdown className="prosa text-sm">{v.enunciado}</Markdown>
             <div className="mt-2 text-sm"><strong>Clave:</strong> {v.clave?.partes.map((k, i) => <span key={i} className="mr-2 font-mono">{v.partes[i]?.etiqueta}: {k.value} (±{Math.round((k.relTol ?? 0.02) * 100)} %)</span>)}</div>
+            {/* etapas siguientes (D7–D9) o comprobación de razonamiento (ordinarios), migración 99 */}
+            {(v.etapas ?? []).map((et) => (
+              <div key={et.numero} className="mt-2 rounded border border-dashed border-gray-300 p-2 text-sm dark:border-white/20">
+                <div className="text-xs text-gray-500">{et.tipo === 'comprobacion' ? 'Comprobación de razonamiento (solo en algunos problemas)' : `Etapa ${et.numero}`}</div>
+                <Markdown className="prosa text-sm">{et.enunciado}</Markdown>
+                <div className="mt-1"><strong>Clave:</strong> {et.clave?.partes.map((k, i) => <span key={i} className="mr-2 font-mono">{et.partes[i]?.etiqueta}: {k.value}</span>)}</div>
+              </div>
+            ))}
             {v.solucion && <details className="mt-1 text-sm"><summary className="cursor-pointer">Solución desarrollada</summary><Markdown className="prosa mt-1 text-sm">{v.solucion}</Markdown></details>}
             {v.verificacion && <div className="mt-1 text-xs text-gray-500">Verificación independiente: {v.verificacion.independiente.map((x) => x.toPrecision(5)).join(' | ')} (desviación máx. {(v.verificacion.desviacion_max * 100).toFixed(3)} %)</div>}
           </div>

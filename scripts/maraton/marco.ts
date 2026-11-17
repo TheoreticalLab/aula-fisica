@@ -9,7 +9,12 @@
  * concretos viven en privado/maraton/<banco>/ (excluido de git), como el resto de las claves del aula.
  */
 
-export type Nivel = 1 | 2 | 3 | 4 | 5 | 6;
+/**
+ * 1–6: niveles ordinarios. 7–9: progresión avanzada (migración 99), problemas de varias ETAPAS sucesivas:
+ *  7 razonamiento encadenado · 8 integración de principios · 9 consistencia y generalización.
+ */
+export type Nivel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+export const NIVEL_MAX_ORDINARIO = 6;
 
 /** Magnitudes admitidas en las partes de una respuesta (para la comprobación dimensional de la clave). */
 export type Magnitud =
@@ -32,13 +37,42 @@ export interface Parte {
 
 export type Datos = Record<string, number>;
 
-export interface Generado {
-  /** datos que aparecen en el enunciado (en las unidades en que se escriben) */
-  datos: Datos;
+/** Etapa 2, 3, … de un problema avanzado: se muestra cuando el estudiante entrega la anterior (sin decirle si acertó). */
+export interface Etapa {
+  /**
+   * Texto de la etapa. Debe poder resolverse con el enunciado inicial, los datos NUEVOS que aquí se dan y los resultados
+   * físicos de etapas anteriores; nunca depende de lo que respondió el estudiante (un error suyo no vuelve imposible
+   * la etapa: solo arrastra su propio resultado).
+   */
   enunciado: string;
   partes: Parte[];
-  /** solución desarrollada (Markdown + KaTeX) */
+}
+
+export interface Generado {
+  /** datos que aparecen en el enunciado o en las etapas (en las unidades en que se escriben) */
+  datos: Datos;
+  /** enunciado inicial; en un problema por etapas, el contexto y la pregunta de la etapa 1 */
+  enunciado: string;
+  /** partes de la respuesta (en un problema por etapas, las de la etapa 1) */
+  partes: Parte[];
+  /** etapas 2…n (solo niveles 7–9; entre 2 y 4, es decir, de 3 a 5 etapas en total) */
+  etapas?: Etapa[];
+  /** solución desarrollada (Markdown + KaTeX), de todas las etapas */
   solucion: string;
+}
+
+/** todas las partes de una variante en orden: etapa 1 y después las demás */
+export const partesTodas = (g: Generado): Parte[] => [...g.partes, ...(g.etapas ?? []).flatMap((e) => e.partes)];
+
+/**
+ * Datos que admiten la comprobación breve de razonamiento en problemas ordinarios: si solo ese dato se multiplica por
+ * uno de los factores, ¿por qué factor queda multiplicado un resultado? El factor exacto lo calcula el verificador
+ * independiente con el dato cambiado; se declaran solo datos y factores que mantienen el problema físicamente válido.
+ */
+export interface Escalable {
+  /** descripción en el texto: «la masa del bloque», «la altura desde la que se suelta» */
+  nombre: string;
+  factores: number[];
 }
 
 export interface Plantilla {
@@ -58,8 +92,12 @@ export interface Plantilla {
   estado?: 'validada' | 'pendiente_revision';
   /** devuelve null si el sorteo no cumple las condiciones físicas (se descarta y se sortea otra vez) */
   generar(r: Rng): Generado | null;
-  /** cálculo independiente de cada parte a partir SOLO de los datos (mismas unidades que las partes) */
+  /** cálculo independiente de cada parte (de TODAS las etapas, en orden) a partir SOLO de los datos (mismas unidades que las partes) */
   verificar(d: Datos): number[];
+  /** variantes que se construyen de esta plantilla (por defecto, las del banco: 30) */
+  variantes?: number;
+  /** datos que admiten la comprobación de razonamiento (solo niveles 1–6; clave = nombre del dato en `datos`) */
+  escalables?: Record<string, Escalable>;
   /** tolerancia relativa del verificador (por defecto 0.5 %) */
   tolVerificacion?: number;
 }

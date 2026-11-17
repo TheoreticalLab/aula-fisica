@@ -9,22 +9,35 @@ import type { ConfigMaraton } from './config';
 
 export type Accion = 'respuesta' | 'no_puedo' | 'cambio';
 
+/**
+ * Nivel máximo efectivo (public.maraton_nivel_max, migración 99): 9 con la progresión avanzada activa sobre los 6
+ * niveles adaptativos (y un banco con problemas 7–9); si no, los niveles configurados.
+ */
+export function nivelMaximo(c: ConfigMaraton, bancoAvanzado = true): number {
+  const d = c.dificultad;
+  return c.avanzado.activo && d.niveles === 6 && d.adaptativa && bancoAvanzado ? 9 : d.niveles;
+}
+
 /** Nivel después de una acción (máquina de estados determinista). */
-export function nivelSiguiente(nivel: number, accion: Accion, correcta: boolean, c: ConfigMaraton): number {
+export function nivelSiguiente(nivel: number, accion: Accion, correcta: boolean, c: ConfigMaraton, bancoAvanzado = true): number {
   const d = c.dificultad;
   if (!d.adaptativa) return nivel;
-  if (accion === 'respuesta') return correcta ? Math.min(d.niveles, nivel + d.ascenso) : Math.max(1, nivel - d.descenso);
+  if (accion === 'respuesta') return correcta ? Math.min(nivelMaximo(c, bancoAvanzado), nivel + d.ascenso) : Math.max(1, nivel - d.descenso);
   if (accion === 'no_puedo') return Math.max(1, nivel - d.descenso_no_puedo);
   return nivel; // cambio de ejercicio: mismo nivel
 }
 
+/** Ponderación de un nivel: 1–6 de `dificultad.pesos`, 7–9 de `avanzado.pesos` (sin bonificación, migración 99). */
+export const ponderacion = (nivel: number, c: ConfigMaraton) => (nivel > 6 ? c.avanzado.pesos[nivel - 7] : c.dificultad.pesos[nivel - 1]);
+
 /**
  * Unidades de trabajo de una acción: solo los intentos válidos suman; una respuesta incorrecta, la fracción
- * `carga.fraccion_fallo` (migración 97); una anticipada, en proporción al tiempo mínimo.
+ * `carga.fraccion_fallo` (migración 97); una anticipada, en proporción al tiempo mínimo. Un problema por etapas es UNA
+ * respuesta: correcta solo si todas sus etapas lo son (una parcial es incorrecta).
  */
 export function unidades(nivel: number, accion: Accion, correcta: boolean, segundos: number, tMin: number, c: ConfigMaraton): number {
   if (accion !== 'respuesta') return 0;
-  const peso = c.dificultad.pesos[nivel - 1];
+  const peso = ponderacion(nivel, c);
   return Math.round(peso * Math.min(1, segundos / tMin) * (correcta ? 1 : c.carga.fraccion_fallo) * 100) / 100;
 }
 
@@ -59,40 +72,66 @@ export function finJornada(j: ContadoresJornada, c: ConfigMaraton): FinJornada {
 // ---------------------------------------------------------------------------
 export interface Perfil {
   nombre: string;
-  /** probabilidad de acertar por nivel (índice 0 = D1) */
+  /** probabilidad de acertar por nivel (índice 0 = D1; hasta 9 valores; si faltan, se repite el último) */
   acierto: number[];
-  /** minutos que tarda en un intento válido, por nivel */
+  /** minutos que tarda en un intento válido, por nivel (problema completo, todas sus etapas) */
   minutos: number[];
   /** probabilidad de declarar «No puedo» por nivel */
   noPuedo?: number[];
+  /** probabilidad de acertar la comprobación de razonamiento cuando acertó el problema (por defecto 1) */
+  comprobacion?: number;
+  /** minutos que le lleva una comprobación (por defecto 1) */
+  minutosComprobacion?: number;
 }
-export interface ResultadoJornada { estado: string; via?: string; motivo?: string; validos: number; presentados: number; minutos: number; unidades: number; nivelMedio: number; enD6: number; nivelFinal: number }
+export interface ResultadoJornada {
+  estado: string; via?: string; motivo?: string; validos: number; presentados: number; correctas: number; minutos: number; unidades: number;
+  nivelMedio: number; enD6: number; avanzados: number; comprobaciones: number; nivelFinal: number;
+}
 
-/** Simula una jornada con un generador determinista (los tiempos mínimos son los del banco: D1 1 min … D6 7 min). */
-export function simularJornada(p: Perfil, c: ConfigMaraton, nivelInicial: number, azar: () => number, tMinMin = [1, 2, 3, 4, 5, 7]): ResultadoJornada {
+/** tiempos mínimos del banco FG1 por nivel, en minutos (D1 1 … D6 7; avanzados 9, 11, 13) */
+export const T_MIN_BANCO_MIN = [1, 2, 3, 4, 5, 7, 9, 11, 13];
+const porNivel = (xs: number[] | undefined, L: number, def = 0) => (xs && xs.length ? xs[Math.min(L, xs.length) - 1] : def);
+
+/**
+ * Simula una jornada con un generador determinista. Con la progresión avanzada, los niveles 7–9 llegan tras acertar el 6;
+ * una proporción `avanzado.comprobacion_porcentaje` de los problemas ordinarios lleva comprobación (el sorteo del servidor
+ * es determinista por inscripción y número de problema: aquí se modela con el mismo azar para todos los perfiles).
+ */
+export function simularJornada(p: Perfil, c: ConfigMaraton, nivelInicial: number, azar: () => number, tMinMin = T_MIN_BANCO_MIN, bancoAvanzado = true): ResultadoJornada {
   const j: ContadoresJornada = { unidades: 0, segundos: 0, validos: 0, presentados: 0, correctas: 0 };
-  let nivel = nivelInicial, suma = 0, enD6 = 0;
+  let nivel = nivelInicial, suma = 0, enD6 = 0, avanzados = 0, comprobaciones = 0, anticipadaPrev = false;
   for (let guarda = 0; guarda < 1000; guarda++) {
     j.presentados++;
     const L = nivel;
-    if (p.noPuedo && azar() < p.noPuedo[L - 1]) {
+    // porcentaje base, o el mayor si la respuesta anterior fue anticipada (misma regla para todos, según la conducta)
+    const pc: number = anticipadaPrev ? Math.max(c.avanzado.comprobacion_porcentaje, c.avanzado.comprobacion_tras_anticipada) : c.avanzado.comprobacion_porcentaje;
+    // (sin comprobaciones ni «No puedo» no se consume azar: las simulaciones anteriores a la migración 99 no cambian)
+    const conComp: boolean = L <= 6 && pc > 0 && azar() * 100 < pc;
+    anticipadaPrev = false;
+    if (p.noPuedo && azar() < porNivel(p.noPuedo, L)) {
       j.segundos += 120;
-      nivel = nivelSiguiente(L, 'no_puedo', false, c);
+      nivel = nivelSiguiente(L, 'no_puedo', false, c, bancoAvanzado);
     } else {
-      const seg = p.minutos[L - 1] * 60;
-      const ok = azar() < p.acierto[L - 1];
-      j.unidades = Math.round((j.unidades + unidades(L, 'respuesta', ok, seg, tMinMin[L - 1] * 60, c)) * 100) / 100;
+      const extra = conComp ? c.avanzado.comprobacion_segundos : 0;
+      const seg: number = porNivel(p.minutos, L) * 60 + (conComp ? (p.minutosComprobacion ?? 1) * 60 : 0);
+      // acierto completo: el problema y, si la lleva, la comprobación
+      const ok = azar() < porNivel(p.acierto, L) && (!conComp || azar() < (p.comprobacion ?? 1));
+      j.unidades = Math.round((j.unidades + unidades(L, 'respuesta', ok, seg, tMinMin[L - 1] * 60 + extra, c)) * 100) / 100;
+      anticipadaPrev = seg < tMinMin[L - 1] * 60 + extra;
       j.segundos += seg;
       j.validos++;
       if (ok) j.correctas++;
       suma += L;
       if (L === 6) enD6++;
-      nivel = nivelSiguiente(L, 'respuesta', ok, c);
+      if (L > 6) avanzados++;
+      if (conComp) comprobaciones++;
+      nivel = nivelSiguiente(L, 'respuesta', ok, c, bancoAvanzado);
     }
     const f = finJornada(j, c);
     if (f.fin) {
       return { estado: f.estado, via: f.estado === 'completada' ? f.via : undefined, motivo: f.estado !== 'completada' ? f.motivo : undefined,
-        validos: j.validos, presentados: j.presentados, minutos: j.segundos / 60, unidades: j.unidades, nivelMedio: j.validos ? suma / j.validos : 0, enD6, nivelFinal: nivel };
+        validos: j.validos, presentados: j.presentados, correctas: j.correctas, minutos: j.segundos / 60, unidades: j.unidades,
+        nivelMedio: j.validos ? suma / j.validos : 0, enD6, avanzados, comprobaciones, nivelFinal: nivel };
     }
   }
   throw new Error('la simulación no terminó');
