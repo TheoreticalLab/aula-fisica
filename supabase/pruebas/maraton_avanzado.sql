@@ -253,8 +253,9 @@ begin
       if x.comprobacion is distinct from rapido then raise exception 'FALLO: comprobación % tras una respuesta % anticipada', x.comprobacion, case when rapido then '' else 'no' end; end if;
       if rapido then con := con + 1; else sin := sin + 1; end if;
     end if;
-    -- alterna respuestas anticipadas (20 s, mínimo 60 s) y pausadas (300 s); falla para quedarse en niveles ordinarios
-    rapido := k % 2 = 1;
+    -- respuestas anticipadas (20 s, mínimo 60 s) y pausadas (300 s) en ciclos de 4 (rápida, rápida, lenta, lenta), que no
+    -- van al compás de la alternancia de temas; falla para quedarse en niveles ordinarios
+    rapido := k % 4 in (1, 2);
     perform pg_temp.resolver(m, u, false, case when rapido then 20 else 300 end);
   end loop;
   if con = 0 or sin = 0 then raise exception 'FALLO: el sorteo no cubrió ambos casos (con %, sin %)', con, sin; end if;
