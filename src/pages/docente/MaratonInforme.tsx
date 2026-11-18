@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CartesianGrid, ComposedChart, Legend, Line, LineChart, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-  maratonExportar, maratonHistorial, maratonIncidencia, maratonReincorporar, maratonResumen, type EstudianteResumen, type TipoFuera, type FilaExportacion, type Historial, type MaratonDocente, type PresentacionHistorial,
+  maratonConsultaCerrar, maratonConsultas, maratonExportar, maratonHistorial, maratonIncidencia, maratonReincorporar, maratonResumen, type EstudianteResumen, type TipoFuera, type FilaExportacion, type Historial, type MaratonDocente, type PresentacionHistorial,
 } from '@/api/maraton';
 import { etiquetaNivel } from '@/lib/maraton/config';
 import {
@@ -25,7 +25,7 @@ const COLORES: Record<PuntoTrayectoria['tipo'], string> = { correcta: '#16a34a',
 const NOMBRE_TIPO: Record<PuntoTrayectoria['tipo'], string> = { correcta: 'Correcta', incorrecta: 'Incorrecta', no_puedo: '«No puedo»', cambio: 'Sustitución (comodín)', cierre: 'Cerrada por plazo', abierta: 'Abierta' };
 const ESTADO_J: Record<string, string> = { completada: '✔', en_curso: '…', cerrada_limite: '⚠', incompleta: '✖', justificada: 'J', pendiente: '○' };
 
-const NOMBRE_FUERA: Record<TipoFuera, string> = { aciertos: 'mínimo de aciertos', presentados: 'máximo de problemas', continuidad: 'continuidad', rapidez: 'resolución demasiado rápida' };
+const NOMBRE_FUERA: Record<TipoFuera, string> = { aciertos: 'mínimo de aciertos', presentados: 'máximo de problemas', continuidad: 'continuidad', rapidez: 'resolución demasiado rápida', declaracion: 'declaró uso de IA' };
 const SEG_RECARGA = 20;
 const tipoFila = (f: FilaExportacion) => (f.accion === 'respuesta' ? (f.resultado === 'correcta' ? 'correcta' : 'incorrecta') : f.accion ?? 'abierta') as PuntoTrayectoria['tipo'];
 const tonoTipo = (t: PuntoTrayectoria['tipo']) => (t === 'correcta' ? 'green' : t === 'incorrecta' ? 'red' : t === 'abierta' ? 'blue' : 'gray');
@@ -69,9 +69,10 @@ function EjercicioActual({ s }: { s: Situacion | undefined }) {
 export function MaratonInforme({ m }: { m: MaratonDocente }) {
   const st = useAsync(() => maratonResumen(m.id), [m.id]);
   const vivo = useAsync(() => maratonExportar(m.id), [m.id]);
+  const cons = useAsync(() => maratonConsultas(m.id), [m.id]);
   const [sel, setSel] = useState<EstudianteResumen | null>(null);
   const [auto, setAuto] = useState(true);
-  const recarga = useRecarga(auto && !sel, () => { void st.reload(); void vivo.reload(); });
+  const recarga = useRecarga(auto && !sel, () => { void st.reload(); void vivo.reload(); void cons.reload(); });
   const sit = useMemo(() => situacionPorEstudiante(vivo.data ?? []), [vivo.data]);
   const act = useAction();
   if (st.loading && !st.data) return <Spinner />;
@@ -129,6 +130,33 @@ export function MaratonInforme({ m }: { m: MaratonDocente }) {
         </div>
         <p className="mt-2 text-xs text-gray-500">Pulse una fila para ver, ejercicio por ejercicio, qué recibió, qué respondió, si acertó y la clave; además el recorrido adaptativo y el informe individual.</p>
       </Card>
+      {(cons.data ?? []).map((c) => (
+        <Card key={c.id} title={`Pregunta de la plataforma: ${c.titulo}`} actions={c.activa
+          ? <button className="btn-secundario text-sm no-print" disabled={act.busy}
+              onClick={() => { if (window.confirm('¿Cerrar la pregunta? Dejará de mostrarse a quienes no la han respondido; las respuestas se conservan.')) void act.run(async () => cons.setData(await maratonConsultaCerrar(c.id))); }}>Cerrar la pregunta</button>
+          : <Badge>Cerrada {fecha(c.cerrada_at)}</Badge>}>
+          <p className="whitespace-pre-line text-sm text-gray-600 dark:text-gray-400">{c.texto}</p>
+          <p className="mt-2 text-sm">
+            <strong>{c.respuestas.filter((r) => r.respuesta).length}</strong> «Sí» · <strong>{c.respuestas.filter((r) => !r.respuesta).length}</strong> «No» · <strong>{c.pendientes.length}</strong> sin responder
+            {c.fuera_si ? ' · quien responde «Sí» queda fuera del maratón (puede reincorporarlo desde su ficha)' : ''}
+          </p>
+          <div className="mt-2 overflow-x-auto">
+            <table className={TABLA}>
+              <thead><tr><th>Estudiante</th><th>Respuesta</th><th>Jornada</th><th>Hora</th></tr></thead>
+              <tbody>
+                {c.respuestas.map((r) => (
+                  <tr key={r.user_id}><td>{r.nombre}<br /><span className="text-xs text-gray-500">{r.login_id}</span></td>
+                    <td>{r.respuesta ? <Badge tone="red">Sí</Badge> : <Badge tone="green">No</Badge>}</td><td>{r.jornada ?? '—'}</td><td>{fecha(r.created_at)}</td></tr>
+                ))}
+                {c.pendientes.map((p) => (
+                  <tr key={p.user_id}><td>{p.nombre}<br /><span className="text-xs text-gray-500">{p.login_id}</span></td>
+                    <td><Badge>{c.activa ? 'Pendiente (la verá al entrar)' : 'No respondió'}</Badge></td><td>—</td><td>—</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ))}
       {est.length > 0 && (
         <Card title="Estadísticas de la sección por jornada">
           <div className="h-56">

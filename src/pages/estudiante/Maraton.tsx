@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { interpretNumeric } from '@calif/calificar.ts';
-import { API_MARATON, esNoValida, type EstadoMaraton, type MiInforme } from '@/api/maraton';
+import { API_MARATON, esNoValida, type ConsultaMaraton, type EstadoMaraton, type MiInforme } from '@/api/maraton';
 import { reglasPermanencia } from '@/lib/maraton/config';
 import { fecha, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, ErrorBox, Modal, Notice, PageTitle, Spinner } from '@/components/ui';
@@ -97,6 +97,16 @@ export default function Maraton() {
     document.addEventListener('visibilitychange', f);
     return () => document.removeEventListener('visibilitychange', f);
   }, [maratonId]);
+  // pregunta de la plataforma (migración 101): se consulta al cargar, tras cada acción y cada 2 min con la página visible
+  const [consulta, setConsulta] = useState<ConsultaMaraton | null>(null);
+  const participa = !!e && e.aceptado && !e.prueba && !e.fuera;
+  useEffect(() => {
+    if (!participa) { setConsulta(null); return; }
+    const buscar = () => { if (document.visibilityState === 'visible') void API_MARATON.consultaPendiente(maratonId).then(setConsulta).catch(() => undefined); };
+    buscar();
+    const iv = window.setInterval(buscar, 120_000);
+    return () => window.clearInterval(iv);
+  }, [maratonId, participa, e]);
 
   if (st.loading && !e) return <Spinner />;
   if (st.error && !e) return <ErrorBox error={st.error} onRetry={st.reload} />;
@@ -109,8 +119,39 @@ export default function Maraton() {
         {e.prueba && <Notice tone="warn">Modo prueba del profesor: este recorrido no aparece en los informes y puede reiniciarse desde el configurador.</Notice>}
         {!e.aceptado ? <Condiciones e={e} onIniciar={setEstado} /> : <Jornada e={e} onEstado={setEstado} />}
         {e.informe_disponible && <InformeDisponible maratonId={maratonId} />}
+        {consulta && participa && <PreguntaPlataforma maratonId={maratonId} c={consulta} onEstado={(s) => { setConsulta(null); setEstado(s); }} />}
       </div>
     </CalculadoraProvider>
+  );
+}
+
+/** Pregunta de la plataforma: ocupa la pantalla y no se puede cerrar sin responder; «Sí» pide confirmación. */
+function PreguntaPlataforma({ maratonId, c, onEstado }: { maratonId: string; c: ConsultaMaraton; onEstado: (s: EstadoMaraton) => void }) {
+  const act = useAction();
+  const [confirmar, setConfirmar] = useState(false);
+  const responder = async (r: boolean) => { const s = await act.run(() => API_MARATON.declarar(maratonId, c.id, r)); if (s) onEstado(s); };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div role="alertdialog" aria-modal="true" aria-labelledby="pregunta-titulo" className="tarjeta w-full max-w-lg space-y-4 bg-white dark:bg-gray-900">
+        <h2 id="pregunta-titulo" className="text-lg font-bold">{c.titulo}</h2>
+        <div className="space-y-2">{c.texto.split(/\n\s*\n/).map((p, k) => <p key={k}>{p}</p>)}</div>
+        {!confirmar ? (
+          <div className="flex flex-wrap justify-end gap-3">
+            <button className="btn-secundario min-h-[44px] min-w-[96px]" disabled={act.busy} onClick={() => setConfirmar(true)}>Sí</button>
+            <button className="btn-secundario min-h-[44px] min-w-[96px]" disabled={act.busy} onClick={() => void responder(false)}>No</button>
+          </div>
+        ) : (
+          <>
+            <Notice tone="warn">Al confirmar que marcó «Sí», quedará fuera de este maratón. Esta respuesta no se puede cambiar.</Notice>
+            <div className="flex flex-wrap justify-end gap-3">
+              <button className="btn-secundario min-h-[44px]" disabled={act.busy} onClick={() => setConfirmar(false)}>Volver</button>
+              <button className="btn-primario min-h-[44px]" disabled={act.busy} onClick={() => void responder(true)}>Confirmar «Sí»</button>
+            </div>
+          </>
+        )}
+        <ErrorBox error={act.error} />
+      </div>
+    </div>
   );
 }
 
@@ -182,8 +223,10 @@ function Jornada({ e, onEstado }: { e: EstadoMaraton; onEstado: (s: EstadoMarato
         : e.fuera ? (
           <div className="tarjeta border-red-300 dark:border-red-700">
             <h2 className="text-lg font-bold">Su participación en el maratón terminó</h2>
-            <p className="mt-1">Según las reglas de permanencia comunicadas al inicio, {MOTIVO_FUERA[e.fuera.tipo] ?? 'se incumplió una regla de permanencia'}
-              {e.fuera.jornada ? ` (jornada ${e.fuera.jornada})` : ''}.</p>
+            {e.fuera.tipo === 'declaracion'
+              ? <p className="mt-1">Respondió «Sí» a la pregunta de la plataforma sobre el uso de inteligencia artificial{e.fuera.jornada ? ` (jornada ${e.fuera.jornada})` : ''}.</p>
+              : <p className="mt-1">Según las reglas de permanencia comunicadas al inicio, {MOTIVO_FUERA[e.fuera.tipo] ?? 'se incumplió una regla de permanencia'}
+                  {e.fuera.jornada ? ` (jornada ${e.fuera.jornada})` : ''}.</p>}
             <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">No puede continuar en las jornadas siguientes. Si cree que hubo un error o una falla técnica, hable con su profesor: puede revisarlo y reincorporarle.</p>
           </div>
         ) : j?.estado === 'completada' ? (

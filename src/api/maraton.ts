@@ -50,7 +50,7 @@ export interface EstadoMaraton {
   fuera?: { tipo: TipoFuera; jornada: number | null; desde: string } | null;
 }
 
-export type TipoFuera = 'aciertos' | 'presentados' | 'continuidad' | 'rapidez';
+export type TipoFuera = 'aciertos' | 'presentados' | 'continuidad' | 'rapidez' | 'declaracion';
 export interface FueraDocente { tipo: TipoFuera; motivo: string | null; jornada: number | null; desde: string }
 
 /** Respuesta de la Edge Function cuando el envío no es un intento válido (no se registra nada). */
@@ -88,7 +88,13 @@ export const API_MARATON = {
   responder: (presentacion: string, idem: string, partes: string[], procedimiento: string | null, segundos: number | null, etapa?: number) =>
     invocar<EstadoMaraton | RespuestaNoValida>('maraton', { action: 'responder', presentacion_id: presentacion, idem, partes, procedimiento, segundos_cliente: segundos, etapa }),
   miInforme: (id: string) => rpc<MiInforme>('maraton_mi_informe', { p_maraton: id }),
+  consultaPendiente: (id: string) => rpc<ConsultaMaraton | null>('maraton_consulta_pendiente', { p_maraton: id }),
+  declarar: (id: string, consulta: string, respuesta: boolean) =>
+    rpc<EstadoMaraton>('maraton_declarar', { p_maraton: id, p_consulta: consulta, p_respuesta: respuesta }),
 };
+
+/** Pregunta de la plataforma pendiente de responder (migración 101): mientras exista, no se puede seguir trabajando. */
+export interface ConsultaMaraton { id: string; titulo: string; texto: string }
 export type ApiMaraton = typeof API_MARATON;
 
 export const esNoValida = (r: EstadoMaraton | RespuestaNoValida): r is RespuestaNoValida => (r as RespuestaNoValida).valida === false;
@@ -196,3 +202,12 @@ export const maratonIncidencia = (id: string, userId: string, jornada: number, t
   rpc<Historial>('maraton_incidencia', { p_maraton: id, p_user: userId, p_jornada: jornada, p_tipo: tipo, p_motivo: motivo, p_hasta: hasta });
 export const maratonReincorporar = (id: string, userId: string, motivo: string) =>
   rpc<Historial>('maraton_reincorporar', { p_maraton: id, p_user: userId, p_motivo: motivo });
+
+/** Preguntas de la plataforma (migración 101) con las respuestas y quién falta por responder. */
+export interface ConsultaDocente {
+  id: string; titulo: string; texto: string; fuera_si: boolean; activa: boolean; created_at: string; cerrada_at: string | null;
+  respuestas: { user_id: string; nombre: string; login_id: string | null; respuesta: boolean; jornada: number | null; created_at: string }[];
+  pendientes: { user_id: string; nombre: string; login_id: string | null }[];
+}
+export const maratonConsultas = (id: string) => rpc<ConsultaDocente[]>('maraton_consultas_docente', { p_maraton: id });
+export const maratonConsultaCerrar = (consulta: string) => rpc<ConsultaDocente[]>('maraton_consulta_cerrar', { p_consulta: consulta });
