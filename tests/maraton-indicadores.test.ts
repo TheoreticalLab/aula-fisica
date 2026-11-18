@@ -1,7 +1,9 @@
 /** Maratón adaptativo: indicadores descriptivos del informe docente y exportaciones (src/lib/maraton). */
 import { describe, expect, it } from 'vitest';
 import type { FilaExportacion, PresentacionHistorial, ResumenDocente } from '@/api/maraton';
-import { comportamiento, consistencia, evolucion, rendimiento, situacionPorEstudiante, trayectoria } from '@/lib/maraton/indicadores';
+import { comportamiento, consistencia, evolucion, faltaJornada, rendimiento, situacionPorEstudiante, trayectoria } from '@/lib/maraton/indicadores';
+import { CONFIG_PREDETERMINADA } from '@/lib/maraton/config';
+import type { FilaJornada } from '@/api/maraton';
 import { csvDetalle, csvEstadisticas, csvResumen, estadisticasSeccion } from '@/lib/maraton/exportar';
 
 let sec = 0;
@@ -109,5 +111,30 @@ describe('exportaciones', () => {
     expect(s.get('A1')!.ultima.secuencia).toBe(3);
     expect(s.get('B1')).toMatchObject({ abierta: false, presentados: 1, correctas: 0, incorrectas: 0 });
     expect(s.get('N-sin')).toMatchObject({ correctas: 1 });
+  });
+});
+
+describe('faltaJornada (cuánto le falta para completar la jornada)', () => {
+  const fj = (x: Partial<FilaJornada>): FilaJornada => ({ numero: 2, fecha: '2026-11-17', estado: 'en_curso', via: null, presentados: 0, validos: 0, correctas: 0,
+    incorrectas: 0, no_puedo: 0, cambios: 0, anticipadas: 0, segundos: 0, unidades: 0, nivel_medio: null, nivel_maximo: null, ...x });
+  it('sin jornada: todo por hacer', () => {
+    const f = faltaJornada(undefined, CONFIG_PREDETERMINADA);
+    expect(f.estado).toBe('sin_iniciar');
+    expect(f.aciertos).toEqual({ tiene: 0, meta: 5, falta: 5 });
+    expect(f.viaA).toMatchObject({ faltaUnidades: 12, faltaMin: 30 });
+    expect(f.viaB).toMatchObject({ faltaRespuestas: 8, faltaMin: 60 });
+    expect(f.margen).toEqual({ min: 90, respuestas: 18, presentados: 30 });
+    expect(f.sinAlcance).toBe(false);
+  });
+  it('a mitad de jornada: los minutos se redondean hacia arriba (el servidor exige el tiempo completo)', () => {
+    const f = faltaJornada(fj({ correctas: 3, validos: 6, presentados: 7, segundos: 59 * 60 + 30, unidades: 7.456 }), CONFIG_PREDETERMINADA);
+    expect(f.aciertos.falta).toBe(2);
+    expect(f.viaB).toMatchObject({ respuestas: 6, faltaRespuestas: 2, minutos: 59, faltaMin: 1 });
+    expect(f.viaA).toMatchObject({ unidades: 7.46, faltaUnidades: 4.54, faltaMin: 0 });
+    expect(f.margen).toEqual({ min: 31, respuestas: 12, presentados: 23 });
+  });
+  it('sin alcance: ya no llega al mínimo de aciertos', () => {
+    expect(faltaJornada(fj({ correctas: 0, validos: 14, presentados: 14 }), CONFIG_PREDETERMINADA).sinAlcance).toBe(true);
+    expect(faltaJornada(fj({ correctas: 1, validos: 14, presentados: 14 }), CONFIG_PREDETERMINADA).sinAlcance).toBe(false);
   });
 });

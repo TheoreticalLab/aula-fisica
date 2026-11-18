@@ -6,11 +6,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CartesianGrid, ComposedChart, Legend, Line, LineChart, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-  maratonConsultaCerrar, maratonConsultas, maratonExportar, maratonHistorial, maratonIncidencia, maratonReincorporar, maratonResumen, type EstudianteResumen, type TipoFuera, type FilaExportacion, type Historial, type MaratonDocente, type PresentacionHistorial,
+  maratonConsultaCerrar, maratonConsultas, maratonExportar, maratonHistorial, maratonIncidencia, maratonReincorporar, maratonResumen, type EstudianteResumen, type TipoFuera, type FilaExportacion, type Historial, type MaratonDocente, type PresentacionHistorial, type ResumenDocente,
 } from '@/api/maraton';
 import { etiquetaNivel } from '@/lib/maraton/config';
 import {
-  AVISO_INTERPRETACION, comportamiento, consistencia, evolucion, evolucionPorTema, nivelesDe, rendimiento, situacionPorEstudiante, tipoPunto, trayectoria, type PuntoTrayectoria, type Situacion,
+  AVISO_INTERPRETACION, comportamiento, consistencia, evolucion, evolucionPorTema, faltaJornada, nivelesDe, rendimiento, situacionPorEstudiante, tipoPunto, trayectoria, type PuntoTrayectoria, type Situacion,
 } from '@/lib/maraton/indicadores';
 import { csvDetalle, csvEstadisticas, csvResumen, descargarBlob, estadisticasSeccion, xlsxMaraton } from '@/lib/maraton/exportar';
 import { downloadText, fecha, useAction, useAsync } from '@/lib/util';
@@ -130,6 +130,7 @@ export function MaratonInforme({ m }: { m: MaratonDocente }) {
         </div>
         <p className="mt-2 text-xs text-gray-500">Pulse una fila para ver, ejercicio por ejercicio, qué recibió, qué respondió, si acertó y la clave; además el recorrido adaptativo y el informe individual.</p>
       </Card>
+      <FaltaHoy d={d} />
       {(cons.data ?? []).map((c) => (
         <Card key={c.id} title={`Pregunta de la plataforma: ${c.titulo}`} actions={c.activa
           ? <button className="btn-secundario text-sm no-print" disabled={act.busy}
@@ -174,6 +175,64 @@ export function MaratonInforme({ m }: { m: MaratonDocente }) {
         </Card>
       )}
     </div>
+  );
+}
+
+const n1 = (x: number) => x.toLocaleString('es-DO', { maximumFractionDigits: 2 });
+const lista = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} y ${xs[xs.length - 1]}`);
+
+/** Cuánto le falta a cada participante para completar la jornada de hoy (mismas reglas que el servidor). */
+function FaltaHoy({ d }: { d: ResumenDocente }) {
+  const h = d.maraton.hoy;
+  if (!h.numero || (h.fase !== 'abierta' && h.fase !== 'cerrada_hoy')) return null;
+  const c = d.maraton.config;
+  const filas = d.estudiantes.filter((e) => e.aceptado_at);
+  return (
+    <Card title={`¿Cuánto le falta para completar la jornada ${h.numero}?`}>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Para completar hacen falta {c.permanencia.min_correctas} aciertos y además
+        {c.carga.alternativa_activa ? ` la vía B (${c.carga.alternativa_minutos} min y ${c.carga.alternativa_intentos} respuestas)` : ''}
+        {c.carga.alternativa_activa && c.carga.cuota > 0 ? ' o' : ''}
+        {c.carga.cuota > 0 ? ` la vía A (${c.carga.cuota} unidades, nunca antes de ${c.carga.minutos_minimos} min)` : ''}.
+        Cuenta los problemas ya entregados: el que tiene abierto suma al entregarlo.
+      </p>
+      <div className="mt-2 overflow-x-auto">
+        <table className={TABLA}>
+          <thead><tr><th>Estudiante</th><th>Aciertos</th><th>Respuestas</th><th>Tiempo</th><th>Unidades</th><th>Le falta</th><th>Antes del límite le quedan</th></tr></thead>
+          <tbody>
+            {filas.map((e) => {
+              const f = faltaJornada(e.resumen?.por_jornada.find((j) => j.numero === h.numero), c);
+              const b = f.viaB, a = f.viaA;
+              const faltaB = b ? lista([f.aciertos.falta ? `${f.aciertos.falta} acierto${f.aciertos.falta > 1 ? 's' : ''}` : '', b.faltaRespuestas ? `${b.faltaRespuestas} respuesta${b.faltaRespuestas > 1 ? 's' : ''}` : '', b.faltaMin ? `${b.faltaMin} min` : ''].filter(Boolean)) : '';
+              const faltaA = a ? lista([f.aciertos.falta ? `${f.aciertos.falta} acierto${f.aciertos.falta > 1 ? 's' : ''}` : '', a.faltaUnidades ? `${n1(a.faltaUnidades)} unidades` : '', a.faltaMin ? `${a.faltaMin} min` : ''].filter(Boolean)) : '';
+              return (
+                <tr key={e.user_id}>
+                  <td><span className="font-medium">{e.nombre}</span><br /><span className="text-xs text-gray-500">{e.login_id}</span></td>
+                  <td>{f.aciertos.tiene} / {f.aciertos.meta}</td>
+                  <td>{b ? `${b.respuestas} / ${b.metaRespuestas}` : '—'}</td>
+                  <td>{b ? `${b.minutos} / ${b.metaMin} min` : '—'}</td>
+                  <td>{a ? `${n1(a.unidades)} / ${a.meta}` : '—'}</td>
+                  <td>
+                    {e.fuera ? <Badge tone="red">Fuera del maratón</Badge>
+                      : f.estado === 'completada' ? <Badge tone="green">✔ Completada</Badge>
+                      : f.estado === 'cerrada_limite' ? <Badge tone="amber">Cerrada por límite (en revisión)</Badge>
+                      : f.estado === 'incompleta' ? <Badge tone="red">No completada</Badge>
+                      : f.estado === 'justificada' ? <Badge>Justificada</Badge>
+                      : <>
+                          {f.estado === 'sin_iniciar' && <div className="text-xs text-gray-500">No ha empezado hoy</div>}
+                          {b && <div>Vía B: {faltaB || '—'}</div>}
+                          {a && <div>Vía A: {faltaA || '—'}</div>}
+                          {f.sinAlcance && <Badge tone="red">Ya no alcanza {f.aciertos.meta} aciertos</Badge>}
+                        </>}
+                  </td>
+                  <td className="text-xs">{f.estado === 'en_curso' || f.estado === 'sin_iniciar' ? `${f.margen.min} min · ${f.margen.respuestas} respuestas · ${f.margen.presentados} problemas` : '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 

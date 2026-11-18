@@ -6,7 +6,8 @@
  * oscilación entre niveles es en parte efecto del propio algoritmo (sube al acertar y baja al fallar), no un cambio
  * demostrado de competencia. El profesor contrasta estos datos con otras evaluaciones.
  */
-import type { FilaExportacion, PresentacionHistorial } from '@/api/maraton';
+import type { FilaExportacion, FilaJornada, PresentacionHistorial } from '@/api/maraton';
+import type { ConfigMaraton } from '@/lib/maraton/config';
 
 export interface PuntoTrayectoria {
   x: number; nivel: number; despues: number | null; jornada: number;
@@ -228,4 +229,38 @@ export function situacionPorEstudiante(filas: FilaExportacion[]): Map<string, Si
     r.set(k, s);
   }
   return r;
+}
+
+/**
+ * Lo que le falta a un estudiante para completar una jornada, con las mismas reglas que el servidor: el mínimo de
+ * aciertos y además la vía A (cuota de unidades tras el tiempo mínimo) o la vía B (minutos + respuestas). Cuenta solo
+ * los problemas ya cerrados (el que tiene abierto suma al entregarlo). También el margen hasta los límites de la jornada.
+ */
+export interface FaltaJornada {
+  estado: 'sin_iniciar' | 'en_curso' | 'completada' | 'cerrada_limite' | 'incompleta' | 'justificada';
+  aciertos: { tiene: number; meta: number; falta: number };
+  viaA: { unidades: number; meta: number; faltaUnidades: number; faltaMin: number; minimoMin: number } | null;
+  viaB: { respuestas: number; metaRespuestas: number; faltaRespuestas: number; minutos: number; metaMin: number; faltaMin: number } | null;
+  /** margen hasta los límites de protección (minutos, respuestas, problemas presentados) */
+  margen: { min: number; respuestas: number; presentados: number };
+  /** ya no puede alcanzar el mínimo de aciertos con las respuestas y problemas que le quedan */
+  sinAlcance: boolean;
+}
+
+export function faltaJornada(j: FilaJornada | undefined, c: ConfigMaraton): FaltaJornada {
+  const k = c.carga, meta = c.permanencia.min_correctas;
+  const correctas = j?.correctas ?? 0, validos = j?.validos ?? 0, presentados = j?.presentados ?? 0;
+  const segundos = j?.segundos ?? 0, minutos = Math.floor(segundos / 60), unidades = Math.round((j?.unidades ?? 0) * 100) / 100;
+  const estado = (j?.estado ?? 'sin_iniciar') as FaltaJornada['estado'];
+  const faltan = (m: number) => Math.max(0, Math.ceil((m * 60 - segundos) / 60));
+  const margen = { min: faltan(k.limite_minutos), respuestas: Math.max(0, k.intentos_max - validos), presentados: Math.max(0, k.presentados_max - presentados) };
+  return {
+    estado,
+    aciertos: { tiene: correctas, meta, falta: Math.max(0, meta - correctas) },
+    viaA: k.cuota > 0 ? { unidades, meta: k.cuota, faltaUnidades: Math.max(0, Math.round((k.cuota - unidades) * 100) / 100), faltaMin: faltan(k.minutos_minimos), minimoMin: k.minutos_minimos } : null,
+    viaB: k.alternativa_activa ? { respuestas: validos, metaRespuestas: k.alternativa_intentos, faltaRespuestas: Math.max(0, k.alternativa_intentos - validos),
+      minutos, metaMin: k.alternativa_minutos, faltaMin: faltan(k.alternativa_minutos) } : null,
+    margen,
+    sinAlcance: correctas + Math.min(margen.respuestas, margen.presentados) < meta,
+  };
 }
