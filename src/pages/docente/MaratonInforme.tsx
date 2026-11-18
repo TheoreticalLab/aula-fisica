@@ -8,7 +8,7 @@ import { CartesianGrid, ComposedChart, Legend, Line, LineChart, ResponsiveContai
 import {
   maratonConsultaCerrar, maratonConsultas, maratonExportar, maratonHistorial, maratonIncidencia, maratonReincorporar, maratonResumen, type EstudianteResumen, type TipoFuera, type FilaExportacion, type Historial, type MaratonDocente, type PresentacionHistorial, type ResumenDocente,
 } from '@/api/maraton';
-import { etiquetaNivel } from '@/lib/maraton/config';
+import { etiquetaNivel, SIN_TOPE_MIN } from '@/lib/maraton/config';
 import {
   AVISO_INTERPRETACION, comportamiento, consistencia, evolucion, evolucionPorTema, faltaJornada, nivelesDe, rendimiento, situacionPorEstudiante, tipoPunto, trayectoria, type PuntoTrayectoria, type Situacion,
 } from '@/lib/maraton/indicadores';
@@ -225,7 +225,7 @@ function FaltaHoy({ d }: { d: ResumenDocente }) {
                           {f.sinAlcance && <Badge tone="red">Ya no alcanza {f.aciertos.meta} aciertos</Badge>}
                         </>}
                   </td>
-                  <td className="text-xs">{f.estado === 'en_curso' || f.estado === 'sin_iniciar' ? `${f.margen.min} min · ${f.margen.respuestas} respuestas · ${f.margen.presentados} problemas` : '—'}</td>
+                  <td className="text-xs">{f.estado === 'en_curso' || f.estado === 'sin_iniciar' ? `${c.carga.limite_minutos >= SIN_TOPE_MIN ? '' : `${f.margen.min} min · `}${f.margen.respuestas} respuestas · ${f.margen.presentados} problemas` : '—'}</td>
                 </tr>
               );
             })}

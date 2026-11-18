@@ -126,6 +126,9 @@ export function erroresConfig(c: ConfigMaraton): string[] {
   return e;
 }
 
+/** Un límite de tiempo de 600 min (el máximo admitido) equivale a no tener tope en un día de clase. */
+export const SIN_TOPE_MIN = 600;
+
 /** Texto breve de la regla de finalización (para el profesor). */
 export function describirFinalizacion(c: ConfigMaraton): string {
   const fallo = c.carga.fraccion_fallo === 1 ? 'una respuesta incorrecta suma igual que una correcta'
@@ -133,7 +136,7 @@ export function describirFinalizacion(c: ConfigMaraton): string {
   const a = `cuando acumula ${c.carga.cuota} unidades de trabajo (${fallo})${c.carga.minutos_minimos > 0 ? `, nunca antes de ${c.carga.minutos_minimos} min de trabajo efectivo,` : ''}`;
   const b = c.carga.alternativa_activa ? ` o cuando registra ${c.carga.alternativa_minutos} min de trabajo efectivo y ${c.carga.alternativa_intentos} intentos válidos` : '';
   const min = c.permanencia.min_correctas > 0 ? ` En ambos casos necesita al menos ${c.permanencia.min_correctas} ejercicios bien resueltos.` : '';
-  return `La jornada termina ${a}${b}.${min} Límites de protección: ${c.carga.limite_minutos} min, ${c.carga.intentos_max} intentos válidos o ${c.carga.presentados_max} problemas presentados (cierre seguro y revisión docente).`;
+  return `La jornada termina ${a}${b}.${min} Límites de protección: ${c.carga.limite_minutos >= SIN_TOPE_MIN ? '' : `${c.carga.limite_minutos} min, `}${c.carga.intentos_max} intentos válidos o ${c.carga.presentados_max} problemas presentados (cierre seguro y revisión docente).`;
 }
 
 /** Reglas de permanencia en frases (para el profesor y, sin niveles, para el estudiante). */

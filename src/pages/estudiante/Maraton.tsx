@@ -10,7 +10,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { interpretNumeric } from '@calif/calificar.ts';
 import { API_MARATON, esNoValida, type ConsultaMaraton, type EstadoMaraton, type MiInforme } from '@/api/maraton';
-import { reglasPermanencia } from '@/lib/maraton/config';
+import { reglasPermanencia, SIN_TOPE_MIN } from '@/lib/maraton/config';
 import { fecha, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, ErrorBox, Modal, Notice, PageTitle, Spinner } from '@/components/ui';
 import { Markdown } from '@/components/Markdown';
@@ -118,6 +118,12 @@ export default function Maraton() {
           actions={<BotonCalculadora />} />
         {e.prueba && <Notice tone="warn">Modo prueba del profesor: este recorrido no aparece en los informes y puede reiniciarse desde el configurador.</Notice>}
         {!e.aceptado ? <Condiciones e={e} onIniciar={setEstado} /> : <Jornada e={e} onEstado={setEstado} />}
+        {e.aceptado && e.maraton.instrucciones && (
+          <details className="tarjeta text-sm">
+            <summary className="cursor-pointer font-medium">Instrucciones y requisitos del maratón</summary>
+            <Markdown className="prosa mt-2">{e.maraton.instrucciones}</Markdown>
+          </details>
+        )}
         {e.informe_disponible && <InformeDisponible maratonId={maratonId} />}
         {consulta && participa && <PreguntaPlataforma maratonId={maratonId} c={consulta} onEstado={(s) => { setConsulta(null); setEstado(s); }} />}
       </div>
@@ -165,7 +171,7 @@ function Condiciones({ e, onIniciar }: { e: EstadoMaraton; onIniciar: (s: Estado
       <ul className="mb-4 grid gap-2 text-sm sm:grid-cols-2">
         <li><strong>Duración:</strong> {m.jornadas} jornadas {m.fecha_inicio ? `desde el ${m.fecha_inicio}` : '(fecha por confirmar)'}.</li>
         <li><strong>Horario diario:</strong> de {m.apertura} a {m.cierre} ({m.zona}).</li>
-        <li><strong>Duración orientativa:</strong> {m.tiempo_orientativo[0]}–{m.tiempo_orientativo[1]} min por jornada (máximo ~{m.limite_minutos} min).</li>
+        <li><strong>Duración orientativa:</strong> {m.tiempo_orientativo[0]}–{m.tiempo_orientativo[1]} min por jornada{m.limite_minutos >= SIN_TOPE_MIN ? ' (sin tope de tiempo)' : ` (máximo ~${m.limite_minutos} min)`}.</li>
         <li><strong>Comodines:</strong> {m.comodines_total} en todo el maratón{m.comodines_por_jornada !== null ? ` (máximo ${m.comodines_por_jornada} por jornada)` : ''}.</li>
         <li><strong>Dificultad adaptativa</strong> y <strong>cantidad variable</strong> de ejercicios por jornada.</li>
         <li><strong>Informes, no notas:</strong> el sistema describe su trabajo; la recuperación la decide el profesor.</li>
