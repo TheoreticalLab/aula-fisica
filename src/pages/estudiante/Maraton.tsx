@@ -213,6 +213,18 @@ function Jornada({ e, onEstado }: { e: EstadoMaraton; onEstado: (s: EstadoMarato
     && e.hoy.fase === 'abierta' && e.hoy.numero != null && e.jornada.numero < e.hoy.numero;
   const j = anterior ? null : e.jornada;
   const ej = j ? ESTADO_JORNADA[j.estado] ?? ESTADO_JORNADA.en_curso : anterior ? ESTADO_JORNADA.sin_iniciar : null;
+  // cierre del día: se muestra la hora, se avisa en los últimos 30 min y, al pasar el plazo (con la gracia del
+  // servidor), se pide el estado para que la página muestre la jornada cerrada en vez de seguir con el problema
+  const cierra = j?.estado === 'en_curso' && j.cierra ? Date.parse(j.cierra) : null;
+  const [ahora, setAhora] = useState(() => Date.now());
+  useEffect(() => {
+    if (!cierra) return;
+    const iv = window.setInterval(() => setAhora(Date.now()), 30_000);
+    const ms = cierra + 125_000 - Date.now();
+    const t = ms < 2 ** 31 - 1 ? window.setTimeout(() => void API_MARATON.estado(e.maraton.id).then(onEstado).catch(() => undefined), Math.max(0, ms)) : undefined;
+    return () => { window.clearInterval(iv); if (t !== undefined) window.clearTimeout(t); };
+  }, [cierra, e.maraton.id, onEstado]);
+  const minCierre = cierra ? Math.ceil((cierra - ahora) / 60_000) : null;
   return (
     <>
       <div className="tarjeta grid grid-cols-2 gap-3 text-sm sm:grid-cols-4" aria-live="polite">
@@ -223,6 +235,9 @@ function Jornada({ e, onEstado }: { e: EstadoMaraton; onEstado: (s: EstadoMarato
         <div className="col-span-2 sm:col-span-4"><span className="text-xs uppercase text-gray-500">Comodines disponibles:</span> <strong>{e.comodines_disponibles}</strong>
           {j?.reabierta_hasta && <span className="ml-3"><Badge tone="purple">Jornada reabierta hasta {fecha(j.reabierta_hasta)}</Badge></span>}</div>
       </div>
+      {cierra && minCierre !== null && (minCierre <= 30
+        ? <Notice tone="warn">{minCierre > 0 ? `Quedan ${minCierre} min para el cierre de la jornada (${fecha(j!.cierra)}).` : 'La jornada ya cerró.'} Lo que no se complete antes del cierre queda sin completar.</Notice>
+        : <p className="text-xs text-gray-500">La jornada cierra el {fecha(j!.cierra)}.</p>)}
       {e.aviso && <Notice tone="warn">{AVISOS[e.aviso] ?? e.aviso}</Notice>}
       {e.ultimo && <Notice tone={e.ultimo.resultado === 'correcta' ? 'ok' : 'warn'}>Su respuesta anterior fue {e.ultimo.resultado === 'correcta' ? 'correcta' : 'incorrecta'}.</Notice>}
       {e.problema ? <Problema key={e.problema.presentacion_id} e={e} onEstado={onEstado} />
