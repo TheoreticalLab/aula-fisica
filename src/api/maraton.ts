@@ -15,6 +15,11 @@ export interface HoyMaraton {
   abre?: string;
   cierra?: string;
   siguiente?: { numero: number; fecha: string; abre: string; cierra: string } | null;
+  /** jornadas a elegir (migración 106): día del plazo, fin personal al cumplir las requeridas y avance */
+  dia?: number;
+  terminado?: boolean;
+  requeridas?: number;
+  completadas?: number;
 }
 
 export type EstadoJornada = 'sin_iniciar' | 'en_curso' | 'completada' | 'cerrada' | 'incompleta' | 'justificada';
@@ -24,6 +29,8 @@ export interface EstadoMaraton {
     id: string; titulo: string; asignatura: string; descripcion: string; instrucciones: string; jornadas: number; fecha_inicio: string | null;
     zona: string; apertura: string; cierre: string; tiempo_orientativo: [number, number]; limite_minutos: number;
     comodines_total: number; comodines_por_jornada: number | null; no_puedo: boolean; estado: string;
+    /** jornadas a elegir (migración 106): días del plazo en que se eligen las `jornadas` requeridas */
+    dias?: number | null;
     /** reglas de permanencia que el estudiante debe conocer (migración 98; ausentes antes de aplicarla) */
     permanencia?: { min_correctas: number; presentados_max: number | null; continuidad: boolean; rapido_segundos: number | null };
   };

@@ -169,7 +169,7 @@ function Condiciones({ e, onIniciar }: { e: EstadoMaraton; onIniciar: (s: Estado
   return (
     <Card title="Antes de comenzar">
       <ul className="mb-4 grid gap-2 text-sm sm:grid-cols-2">
-        <li><strong>Duración:</strong> {m.jornadas} jornadas {m.fecha_inicio ? `desde el ${m.fecha_inicio}` : '(fecha por confirmar)'}.</li>
+        <li><strong>Duración:</strong> {m.jornadas} jornadas{m.dias ? `, una por día, a elegir en ${m.dias} días` : ''} {m.fecha_inicio ? `desde el ${m.fecha_inicio}` : '(fecha por confirmar)'}.</li>
         <li><strong>Horario diario:</strong> de {m.apertura} a {m.cierre} ({m.zona}).</li>
         <li><strong>Duración orientativa:</strong> {m.tiempo_orientativo[0]}–{m.tiempo_orientativo[1]} min por jornada{m.limite_minutos >= SIN_TOPE_MIN ? ' (sin tope de tiempo)' : ` (máximo ~${m.limite_minutos} min)`}.</li>
         <li><strong>Comodines:</strong> {m.comodines_total} en todo el maratón{m.comodines_por_jornada !== null ? ` (máximo ${m.comodines_por_jornada} por jornada)` : ''}.</li>
@@ -196,6 +196,7 @@ function Condiciones({ e, onIniciar }: { e: EstadoMaraton; onIniciar: (s: Estado
 
 function FaseTexto({ e }: { e: EstadoMaraton }) {
   const h = e.hoy;
+  if (h.terminado) return <>Completó todas las jornadas del maratón.</>;
   if (e.finalizado || h.fase === 'finalizado') return <>El maratón terminó.</>;
   if (h.fase === 'sin_fecha') return <>El maratón todavía no tiene fecha de inicio.</>;
   if (h.fase === 'antes') return <>Empieza el {fecha(h.siguiente?.abre)}.</>;
@@ -255,7 +256,8 @@ function Jornada({ e, onEstado }: { e: EstadoMaraton; onEstado: (s: EstadoMarato
             <div className="text-3xl" aria-hidden>🏁</div>
             <h2 className="mt-1 text-xl font-bold">JORNADA COMPLETADA</h2>
             <p className="mt-1">Has cumplido los requisitos correspondientes a esta jornada.</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Podrás continuar el maratón en la próxima jornada{e.hoy.siguiente ? ` (abre el ${fecha(e.hoy.siguiente.abre)})` : ''}.</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{e.hoy.terminado ? 'Completaste todas las jornadas del maratón.'
+              : `Podrás continuar el maratón en la próxima jornada${e.hoy.siguiente ? ` (abre el ${fecha(e.hoy.siguiente.abre)})` : ''}.`}</p>
           </div>
         ) : j?.estado === 'cerrada' ? (
           <Notice tone="warn">La jornada se cerró de forma segura porque se alcanzó un límite de la jornada. Quedó registrada para revisión del profesor; no se declara incumplida automáticamente.</Notice>
