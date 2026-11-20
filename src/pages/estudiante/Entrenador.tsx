@@ -58,9 +58,9 @@ export default function Entrenador() {
   const act = useAction();
   useEffect(() => { if (st.data) setEstado(st.data); }, [st.data]);
 
-  if (st.loading && !estado) return <Spinner />;
-  if (st.error && !estado) return <ErrorBox error={st.error} onRetry={st.reload} />;
-  const e = estado!;
+  // `estado` se copia de st.data en un efecto (después del render): mientras tanto se usa st.data directamente
+  const e = estado ?? st.data;
+  if (!e) return st.error ? <ErrorBox error={st.error} onRetry={st.reload} /> : <Spinner />;
   const temaValido = tema && e.temas.some((t) => t.codigo === tema) ? tema : null;
 
   const elegirTema = (t: string | null) => {
