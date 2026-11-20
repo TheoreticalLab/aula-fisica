@@ -149,9 +149,10 @@ describe('pestañas de la sección agrupadas', () => {
   it('cada pestaña pertenece a un solo grupo y no falta ninguna', () => {
     const todas = GRUPOS_SECCION.flatMap((g) => [...g.pestanas]);
     expect(new Set(todas).size).toBe(todas.length);
-    expect([...todas].sort()).toEqual(['actividades', 'asistencia', 'avisos', 'calificaciones', 'clases', 'coincidencias', 'controles', 'entregas', 'estadisticas',
-      'estudiantes', 'maraton', 'pes', 'programa', 'regularizacion', 'revision', 'seguimiento']);
+    expect([...todas].sort()).toEqual(['actividades', 'asistencia', 'avisos', 'calificaciones', 'clases', 'coincidencias', 'controles', 'entregas', 'entrenador',
+      'estadisticas', 'estudiantes', 'maraton', 'pes', 'programa', 'regularizacion', 'revision', 'seguimiento']);
     expect(grupoDePestana('maraton')).toBe('evaluacion');
+    expect(grupoDePestana('entrenador')).toBe('evaluacion');
   });
   it('los enlaces ?t= existentes caen en su grupo; lo desconocido, en el primero', () => {
     expect(grupoDePestana('revision')).toBe('evaluacion');

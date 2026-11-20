@@ -178,7 +178,7 @@ export function buscarEstudiantes<T extends EstudianteBuscable>(lista: T[], cons
 export const GRUPOS_SECCION = [
   { id: 'personas', label: 'Personas', icono: '👥', pestanas: ['estudiantes', 'asistencia', 'seguimiento', 'avisos'] },
   { id: 'clases', label: 'Clases', icono: '🧑‍🏫', pestanas: ['clases', 'programa'] },
-  { id: 'evaluacion', label: 'Evaluación', icono: '📝', pestanas: ['actividades', 'pes', 'maraton', 'revision', 'calificaciones', 'estadisticas'] },
+  { id: 'evaluacion', label: 'Evaluación', icono: '📝', pestanas: ['actividades', 'pes', 'maraton', 'entrenador', 'revision', 'calificaciones', 'estadisticas'] },
   { id: 'entregas', label: 'Entregas', icono: '📎', pestanas: ['controles', 'entregas', 'regularizacion', 'coincidencias'] },
 ] as const;
 

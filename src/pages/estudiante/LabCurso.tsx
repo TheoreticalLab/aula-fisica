@@ -15,6 +15,7 @@ import { optimizarPizarra, type FotoPizarra } from '@/lib/imagen';
 import { fecha, puntaje, relativo, useAsync } from '@/lib/util';
 import { Badge, ErrorBox, Modal, Notice, PageTitle, ProgressBar, Spinner } from '@/components/ui';
 import { VisorControl } from '@/components/VisorControl';
+import { ListaEntrenadores } from '@/components/ListaEntrenadores';
 
 const kb = (b: number) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`);
 const ESTADO_ENTREGA: Record<string, string> = { recibido: 'Sin revisar', aceptado: 'Aprobada', rechazado: 'Requiere corrección' };
@@ -86,6 +87,7 @@ export default function LabCurso({ course, actividades, avisos, secciones, isTea
             })}
           </section>
 
+          <ListaEntrenadores classIds={data?.secciones.map((s) => s.class_id) ?? []} titulo="Entrenador · practique para el próximo examen" />
           <section aria-labelledby="modulo-b">
             <h2 id="modulo-b" className="mb-3 font-serif text-2xl font-semibold">Módulo B · Prácticas y/o exámenes</h2>
             <Actividades actividades={actividades} />

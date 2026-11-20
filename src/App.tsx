@@ -41,6 +41,7 @@ const Clase = lazyConRecarga(() => import('@/pages/docente/Clase'));
 const PesEditor = lazyConRecarga(() => import('@/pages/docente/PesEditor'));
 const MaratonEditor = lazyConRecarga(() => import('@/pages/docente/MaratonEditor'));
 const MaratonEstudiante = lazyConRecarga(() => import('@/pages/estudiante/Maraton'));
+const EntrenadorEstudiante = lazyConRecarga(() => import('@/pages/estudiante/Entrenador'));
 const Aurora = lazyConRecarga(() => import('@/pages/estudiante/Aurora'));
 const AuroraInforme = lazyConRecarga(() => import('@/pages/docente/AuroraInforme'));
 const PesSimulador = lazyConRecarga(() => import('@/pages/docente/PesSimulador'));
@@ -123,6 +124,7 @@ export default function App() {
               <Route path="evaluaciones" element={auth(<Evaluaciones />)} />
               <Route path="pes/:practicaId" element={auth(<PracticaExtraordinaria />)} />
               <Route path="maraton/:maratonId" element={auth(<MaratonEstudiante />)} />
+              <Route path="entrenador/:entrenadorId" element={auth(<EntrenadorEstudiante />)} />
               <Route path="aurora/:id" element={auth(<Aurora />)} />
               <Route path="practicar" element={auth(<Practicar />)} />
               <Route path="laboratorio" element={auth(<Laboratorio />)} />

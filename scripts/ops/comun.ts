@@ -233,6 +233,10 @@ export const TABLAS_PROTEGIDAS = [
   'maraton_presentaciones',
   'maraton_eventos',
   'maraton_incidencias',
+  // Entrenador (migración 107): práctica libre de los estudiantes
+  'entrenadores',
+  'entrenador_ejercicios',
+  'entrenador_respuestas',
 ];
 
 export async function contarFilas(db: pg.Client, tablas: string[]): Promise<Record<string, number>> {
