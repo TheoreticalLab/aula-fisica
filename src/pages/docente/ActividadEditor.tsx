@@ -22,6 +22,7 @@ import type { Activity, Exercise, RevealPolicy } from '@/api/tipos';
 import { aInputFecha, CATEGORIA, deInputFecha, DIFICULTAD, downloadText, fecha, porcentaje, puntaje, relativo, toCsv, useAction, useAsync } from '@/lib/util';
 import { rpc } from '@/lib/supabase';
 import { Badge, Card, Empty, ErrorBox, Field, Notice, PageTitle, Spinner, Tabs } from '@/components/ui';
+import { ConsultasActividad } from '@/components/ConsultasActividad';
 import { EditorMarkdown } from '@/components/EditorMarkdown';
 import { analizarTexto, formatoTiempo, MAX_SEGUNDOS, MIN_SEGUNDOS, segundosSugeridos } from '@/lib/lectura';
 import { CODIGO_ERROR } from '@/lib/codigos';
@@ -226,6 +227,7 @@ export default function ActividadEditor() {
       {tab === 'diseno' && <DisenoExamen activityId={activityId} courseId={cls.course_id} estudiantesSeccion={0} />}
       {tab === 'resultados' && act.mode === 'exam' && <div className="mt-4"><MonitorExamen activityId={activityId} /><IntegridadExamen activityId={activityId} /></div>}
       {tab === 'resultados' && act.mode === 'practice' && <div className="mt-4"><ProcesoAprendizaje activityId={activityId} /></div>}
+      {tab === 'resultados' && act.mode === 'practice' && <ConsultasActividad activityId={activityId} />}
       {tab === 'resultados' && <TabResultados act={act} classId={cls.id} />}
     </div>
   );

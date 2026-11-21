@@ -9,6 +9,7 @@ import type { Activity } from '@/api/tipos';
 import { fecha, puntaje, relativo, useAction, useAsync } from '@/lib/util';
 import { Badge, Card, ErrorBox, Notice, PageTitle, Spinner } from '@/components/ui';
 import { Markdown } from '@/components/Markdown';
+import { PreguntaActividad } from '@/components/PreguntaActividad';
 import { examRules } from '@/api/examen';
 import { describirReglas } from '@/lib/examen/reglas';
 import type { ConfigExamen } from '@/lib/examen/motor';
@@ -50,6 +51,7 @@ export function FichaActividad({ act, items, maxScore, used, bestScore, children
         {bestScore !== null && maxScore !== undefined && <div><dt className="text-gray-500">Mejor calificación</dt><dd className="font-semibold">{puntaje(bestScore, maxScore)}</dd></div>}
       </dl>
       {act.mode === 'practice' && <AvisoVerificacion activityId={act.id} />}
+      {act.mode === 'practice' && <PreguntaActividad activityId={act.id} />}
       {act.mode === 'exam' && <Notice tone="warn">En una evaluación no hay pistas ni retroalimentación inmediata. Sus respuestas se guardan solas; al terminar pulse «Entregar».</Notice>}
       {children}
     </Card>

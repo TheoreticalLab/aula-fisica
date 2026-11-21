@@ -7,6 +7,7 @@ import { fecha, puntaje, relativo, useAction, useAsync } from '@/lib/util';
 import { Badge, ErrorBox, Notice, PageTitle, Spinner } from '@/components/ui';
 import { Ejercicio } from '@/components/Ejercicio';
 import { Markdown } from '@/components/Markdown';
+import { PreguntaActividad } from '@/components/PreguntaActividad';
 import { REVEAL_TEXT } from './Actividad';
 import { AvisoTelemetria, TelemetriaProvider, useTelemetria } from '@/components/Telemetria';
 import { examEntrada, examIntegridad, examOpen, funcionAusente, type AperturaExamen } from '@/api/examen';
@@ -101,9 +102,12 @@ export default function Intento() {
   const { attempt, activity, flags } = view;
   if (usaMotor && apertura.error) return <ErrorBox error={apertura.error} onRetry={apertura.reload} />;
   if (posibleAsistida && asistida.error) return <ErrorBox error={asistida.error} onRetry={asistida.reload} />;
+  // pregunta de la plataforma (migración 108): solo en una práctica en curso del propio estudiante
+  const preguntaEn = flags.is_owner && attempt.mode === 'practice' && attempt.status === 'in_progress' ? attempt.activity_id : null;
   if (posibleAsistida && asistida.data) {
     return (
       <div className="mx-auto max-w-3xl">
+        {preguntaEn && <PreguntaActividad activityId={preguntaEn} />}
         <PageTitle title={activity?.title ?? 'Práctica'} subtitle={<Badge tone="blue">Práctica con aprendizaje asistido</Badge>}
           back={activity ? { to: `/actividad/${activity.id}`, label: 'Actividad' } : undefined} />
         {activity?.instructions && <div className="tarjeta mb-4"><Markdown>{activity.instructions}</Markdown></div>}
@@ -163,6 +167,7 @@ export default function Intento() {
     <TelemetriaProvider attemptId={attempt.id} activo={flags.is_owner && attempt.status === 'in_progress'} examen={attempt.mode === 'exam'}>
     <CalculadoraProvider permitida={conCalculadora}>
     <div className="mx-auto max-w-3xl">
+      {preguntaEn && <PreguntaActividad activityId={preguntaEn} />}
       <PageTitle
         title={activity?.title ?? view.lesson?.title ?? 'Intento'}
         subtitle={
