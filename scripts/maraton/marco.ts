@@ -20,7 +20,7 @@ export const NIVEL_MAX_ORDINARIO = 6;
 export type Magnitud =
   | 'longitud' | 'tiempo' | 'masa' | 'velocidad' | 'aceleracion' | 'fuerza' | 'energia' | 'trabajo'
   | 'momento' | 'impulso' | 'constante_elastica' | 'frecuencia' | 'frecuencia_angular' | 'adimensional'
-  | 'porcentaje' | 'entero';
+  | 'porcentaje' | 'entero' | 'aceleracion_angular';
 
 export interface Parte {
   etiqueta: string;
@@ -332,4 +332,5 @@ export const DIMENSIONES: Record<Magnitud, [number, number, number] | null> = {
   adimensional: [0, 0, 0],
   porcentaje: [0, 0, 0],
   entero: [0, 0, 0],
+  aceleracion_angular: [0, 0, -2],
 };
