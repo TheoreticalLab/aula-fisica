@@ -5,7 +5,8 @@
 import { funcionAusente } from '@/api/examen';
 import { rpc } from '@/lib/supabase';
 
-export interface ConsultaActividad { id: string; titulo: string; texto: string }
+/** mensaje_si (migración 110): recordatorio que se muestra después de responder «Sí» (opcional). */
+export interface ConsultaActividad { id: string; titulo: string; texto: string; mensaje_si?: string | null }
 
 export interface ConsultaActividadDocente {
   id: string;

@@ -18,6 +18,8 @@ import { PracticaAsistida } from './PracticaAsistida';
 import { estaRespondida, ExamenUnaALaVez } from './ExamenUnaALaVez';
 import { BarraTiempoActivo, useTiempoActivo } from '@/components/TiempoActivo';
 import { duracion, puedeEntregar } from '@/lib/tiempoMinimo';
+import { configSecuencial } from '@/api/practicaSecuencial';
+import { PracticaSecuencial } from './PracticaSecuencial';
 
 /** Botón de entrega con los eventos de envío (solicitado → recibido por el servidor, o error). */
 function BotonEntregar({ entregar, ocupado, bloqueo }: { entregar: (tel: ReturnType<typeof useTelemetria>) => void; ocupado: boolean; bloqueo?: string | null }) {
@@ -80,6 +82,9 @@ export default function Intento() {
   // tiempo mínimo de realización (migración 78): latidos solo en prácticas en curso del propio estudiante
   const tiempoPosible = !!st.data && st.data.flags.is_owner && st.data.attempt.mode === 'practice' && !!st.data.attempt.activity_id && st.data.attempt.status === 'in_progress';
   const tiempo = useTiempoActivo(attemptId, tiempoPosible);
+  // práctica secuencial (migración 110): un ejercicio a la vez, al azar y con aviso de rapidez; sin configuración, la clásica
+  const actividadSec = tiempoPosible ? st.data!.attempt.activity_id : null;
+  const sec = useAsync(() => (actividadSec ? configSecuencial(actividadSec).catch(() => null) : Promise.resolve(null)), [actividadSec]);
   // evaluación protegida (migración 85): bloquear al salir e impedir copiar; lo decide el servidor
   const integ = useAsync(() => (usaMotor ? examIntegridad(attemptId) : Promise.resolve(SIN_INTEGRIDAD)), [attemptId, usaMotor]);
   // salida autorizada con código (botón «Salir»): deja de vigilar antes de irse
@@ -96,7 +101,8 @@ export default function Intento() {
   const actividadCalc = st.data?.flags.is_owner && st.data.attempt.status === 'in_progress' ? st.data.attempt.activity_id : null;
   const calc = useAsync(() => (actividadCalc ? calculadoraPermitida(actividadCalc) : Promise.resolve(false)), [actividadCalc]);
   const conCalculadora = !!calc.data && !justSubmitted;
-  if ((st.loading && !st.data) || (usaMotor && apertura.loading && !apertura.data) || (posibleAsistida && asistida.loading && asistida.data === undefined)) return <Spinner />;
+  if ((st.loading && !st.data) || (usaMotor && apertura.loading && !apertura.data) || (posibleAsistida && asistida.loading && asistida.data === undefined)
+    || (actividadSec && sec.loading && sec.data === undefined)) return <Spinner />;
   if (st.error) return <ErrorBox error={st.error} onRetry={st.reload} />;
   const view = st.data!;
   const { attempt, activity, flags } = view;
@@ -207,6 +213,9 @@ export default function Intento() {
       {attempt.status === 'in_progress' && flags.is_owner && <BarraTiempoActivo estado={tiempo} />}
       {vigilar && <AvisoProtegida />}
       <BarreraCopiado attemptId={attempt.id} activo={sinCopiar}>
+      {sec.data && attempt.status === 'in_progress' && flags.is_owner ? (
+        <PracticaSecuencial view={view} config={sec.data} onItem={(i, it) => update(i)(it)} onReload={st.reload} />
+      ) : (
       <div className="space-y-4">
         {view.items.length > 1 && attempt.status === 'in_progress' && flags.is_owner && <MapaEjercicios items={view.items} />}
         {view.items.map((it, i) => (
@@ -217,6 +226,7 @@ export default function Intento() {
           </div>
         ))}
       </div>
+      )}
       </BarreraCopiado>
       <ErrorBox error={action.error} />
       {attempt.status === 'in_progress' && flags.is_owner && activity && (

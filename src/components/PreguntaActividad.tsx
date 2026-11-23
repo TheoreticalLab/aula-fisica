@@ -10,6 +10,8 @@ import { ErrorBox } from './ui';
 
 export function PreguntaActividad({ activityId }: { activityId: string }) {
   const [consulta, setConsulta] = useState<ConsultaActividad | null>(null);
+  // recordatorio tras responder «Sí» (migración 110), con la pregunta que siga pendiente para después
+  const [recordatorio, setRecordatorio] = useState<{ texto: string; siguiente: ConsultaActividad | null } | null>(null);
   const act = useAction();
 
   useEffect(() => {
@@ -24,10 +26,25 @@ export function PreguntaActividad({ activityId }: { activityId: string }) {
     return () => { vivo = false; window.clearInterval(iv); document.removeEventListener('visibilitychange', buscar); };
   }, [activityId]);
 
+  if (recordatorio) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div role="alertdialog" aria-modal="true" aria-labelledby="recordatorio-actividad-titulo" className="tarjeta w-full max-w-lg space-y-4 bg-white dark:bg-gray-900">
+          <h2 id="recordatorio-actividad-titulo" className="text-lg font-bold">Recordatorio</h2>
+          <div className="space-y-2">{recordatorio.texto.split(/\n\s*\n/).map((p, k) => <p key={k}>{p}</p>)}</div>
+          <div className="flex justify-end">
+            <button className="btn-acento min-h-[44px] min-w-[120px]" onClick={() => { setConsulta(recordatorio.siguiente); setRecordatorio(null); }}>Entendido</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (!consulta) return null;
   const responder = async (r: boolean) => {
     const siguiente = await act.run(() => API_CONSULTAS_ACTIVIDAD.declarar(consulta.id, r));
-    if (siguiente !== undefined) setConsulta(siguiente);
+    if (siguiente === undefined) return;
+    if (r && consulta.mensaje_si) setRecordatorio({ texto: consulta.mensaje_si, siguiente });
+    else setConsulta(siguiente);
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
