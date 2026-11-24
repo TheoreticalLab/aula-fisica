@@ -66,3 +66,23 @@ describe('Calificación · política de mayúsculas en las unidades («10290j»)
     expect(gradeNumeric({ format: 'numeric', value: '3 kg' }, '3 KG')).toMatchObject({ status: 'correct' });
   });
 });
+
+describe('Calificación · faradio (capacitores)', () => {
+  const cap: NumericKey = { format: 'numeric', value: '1.0 µF', relTol: 0.02 };
+  it('acepta µF, uF, nF y F equivalentes', () => {
+    expect(gradeNumeric(cap, '1 µF')).toMatchObject({ status: 'correct' });
+    expect(gradeNumeric(cap, '1 uF')).toMatchObject({ status: 'correct' });
+    expect(gradeNumeric(cap, '1000 nF')).toMatchObject({ status: 'correct' });
+    expect(gradeNumeric(cap, '0.000001 F')).toMatchObject({ status: 'correct' });
+  });
+  it('un faradio es un coulomb por voltio, y no se confunde con la carga', () => {
+    expect(parseUnit('F').dims).toEqual(parseUnit('C/V').dims);
+    expect(gradeNumeric(cap, '1 µC')).toMatchObject({ status: 'incorrect', code: 'unit_mismatch' });
+  });
+  it('«uf» en minúsculas se lee como microfaradios', () => {
+    expect(gradeNumeric(cap, '1 uf')).toMatchObject({ status: 'correct' });
+  });
+  it('la carga en µC sigue funcionando', () => {
+    expect(gradeNumeric({ format: 'numeric', value: '240 µC', relTol: 0.02 }, '240 uC')).toMatchObject({ status: 'correct' });
+  });
+});

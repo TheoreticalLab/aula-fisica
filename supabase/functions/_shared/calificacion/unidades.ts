@@ -44,6 +44,7 @@ export const UNITS: Record<string, UnitDef> = {
   Hz: { factor: 1, dims: D(0, 0, -1), prefixable: true },
   C: { factor: 1, dims: D(0, 0, 1, 1), prefixable: true },
   V: { factor: 1, dims: D(1, 2, -3, -1), prefixable: true },
+  F: { factor: 1, dims: D(-1, -2, 4, 2), prefixable: true }, // faradio = C/V (capacitores; «µF», «uF», «nF», «pF»)
   L: { factor: 1e-3, dims: D(0, 3), prefixable: true },
   l: { factor: 1e-3, dims: D(0, 3), prefixable: true },
   t: { factor: 1000, dims: D(1), prefixable: false }, // tonelada métrica

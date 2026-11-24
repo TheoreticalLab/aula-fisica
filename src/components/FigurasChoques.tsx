@@ -11,6 +11,7 @@
  */
 import type { ReactNode } from 'react';
 import { useDark } from '@/lib/tema';
+import { FIGURAS_CIRCUITOS } from './FigurasCircuitos';
 
 const W = 480;
 const SERIF = 'Georgia, "Times New Roman", serif';
@@ -237,6 +238,7 @@ export const FIGURAS: Record<string, () => JSX.Element> = {
   'choque-pared': ChoquePared,
   'bloques-entre-paredes': BloquesEntreParedes,
   'secuencia-choques': SecuenciaChoques,
+  ...FIGURAS_CIRCUITOS,
 };
 
 export function FiguraContenido({ clave }: { clave: string }) {
