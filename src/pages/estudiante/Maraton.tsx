@@ -6,7 +6,7 @@
  * acredita como máximo el tiempo real transcurrido desde que presentó el problema.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { interpretNumeric } from '@calif/calificar.ts';
 import { API_MARATON, esNoValida, type ConsultaMaraton, type EstadoMaraton, type MiInforme } from '@/api/maraton';
@@ -76,6 +76,9 @@ const ESTADO_JORNADA: Record<string, { t: string; tono: 'gray' | 'blue' | 'green
   sin_iniciar: { t: 'Sin iniciar', tono: 'gray' }, en_curso: { t: 'En desarrollo', tono: 'blue' }, completada: { t: 'Completada', tono: 'green' },
   cerrada: { t: 'Cerrada por límite (en revisión)', tono: 'amber' }, incompleta: { t: 'No completada', tono: 'red' }, justificada: { t: 'Justificada', tono: 'gray' },
 };
+
+/** puntos redondeados a centésimas y sin ceros sobrantes: 2.4 → «2.4», 0.24 → «0.24» */
+const pts = (x: number | null | undefined) => (x == null ? '0' : String(Math.round(x * 100) / 100));
 
 function uuid(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID()
@@ -172,9 +175,14 @@ function Condiciones({ e, onIniciar }: { e: EstadoMaraton; onIniciar: (s: Estado
         <li><strong>Duración:</strong> {m.jornadas} jornadas{m.dias ? `, una por día, a elegir en ${m.dias} días` : ''} {m.fecha_inicio ? `desde el ${m.fecha_inicio}` : '(fecha por confirmar)'}.</li>
         <li><strong>Horario diario:</strong> de {m.apertura} a {m.cierre} ({m.zona}).</li>
         <li><strong>Duración orientativa:</strong> {m.tiempo_orientativo[0]}–{m.tiempo_orientativo[1]} min por jornada{m.limite_minutos >= SIN_TOPE_MIN ? ' (sin tope de tiempo)' : ` (máximo ~${m.limite_minutos} min)`}.</li>
-        <li><strong>Comodines:</strong> {m.comodines_total} en todo el maratón{m.comodines_por_jornada !== null ? ` (máximo ${m.comodines_por_jornada} por jornada)` : ''}.</li>
-        <li><strong>Dificultad adaptativa</strong> y <strong>cantidad variable</strong> de ejercicios por jornada.</li>
-        <li><strong>Informes, no notas:</strong> el sistema describe su trabajo; la recuperación la decide el profesor.</li>
+        {m.comodines_total > 0 && <li><strong>Comodines:</strong> {m.comodines_total} en todo el maratón{m.comodines_por_jornada !== null ? ` (máximo ${m.comodines_por_jornada} por jornada)` : ''}.</li>}
+        {m.problemas_jornada
+          ? <li><strong>{m.problemas_jornada} ejercicios por jornada</strong>, uno detrás de otro; cada uno se responde una sola vez.</li>
+          : <li><strong>Dificultad adaptativa</strong> y <strong>cantidad variable</strong> de ejercicios por jornada.</li>}
+        {m.puntos
+          ? <li><strong>Puntuación:</strong> cada ejercicio bien resuelto vale {pts(m.puntos.por_problema)} puntos ({pts(m.puntos.por_jornada)} por jornada, {pts(m.puntos.total)} en total).</li>
+          : <li><strong>Informes, no notas:</strong> el sistema describe su trabajo; la recuperación la decide el profesor.</li>}
+        {m.teoria && <li><strong>«No puedo realizar el ejercicio»</strong> lo lleva a un apartado teórico con ese ejercicio resuelto paso a paso.</li>}
       </ul>
       {m.permanencia && reglasPermanencia(m.permanencia).length > 0 && (
         <div className="mb-4 rounded border border-acento-300 bg-acento-50 p-3 text-sm dark:border-acento-700/60 dark:bg-acento-700/20">
@@ -231,9 +239,15 @@ function Jornada({ e, onEstado }: { e: EstadoMaraton; onEstado: (s: EstadoMarato
       <div className="tarjeta grid grid-cols-2 gap-3 text-sm sm:grid-cols-4" aria-live="polite">
         <div><div className="text-xs uppercase text-gray-500">Jornada</div><div className="text-lg font-semibold">{j ? `${j.numero} de ${e.maraton.jornadas}` : anterior ? `${e.hoy.numero} de ${e.maraton.jornadas}` : '—'}</div></div>
         <div><div className="text-xs uppercase text-gray-500">Estado</div><div className="mt-1">{ej ? <Badge tone={ej.tono}>{ej.t}</Badge> : <Badge>Sin jornada abierta</Badge>}</div></div>
-        <div><div className="text-xs uppercase text-gray-500">Ejercicios respondidos</div><div className="text-lg font-semibold">{j?.respondidos ?? 0}</div></div>
-        <div><div className="text-xs uppercase text-gray-500">Tiempo registrado</div><div className="text-lg font-semibold">{j?.minutos ?? 0} min</div></div>
-        <div className="col-span-2 sm:col-span-4"><span className="text-xs uppercase text-gray-500">Comodines disponibles:</span> <strong>{e.comodines_disponibles}</strong>
+        {e.maraton.problemas_jornada
+          ? <div><div className="text-xs uppercase text-gray-500">Ejercicios hechos</div><div className="text-lg font-semibold">{j?.cerrados ?? 0} de {e.maraton.problemas_jornada}</div></div>
+          : <div><div className="text-xs uppercase text-gray-500">Ejercicios respondidos</div><div className="text-lg font-semibold">{j?.respondidos ?? 0}</div></div>}
+        {e.maraton.puntos
+          ? <div><div className="text-xs uppercase text-gray-500">Puntos de hoy</div><div className="text-lg font-semibold">{pts(j?.puntos)} de {pts(e.maraton.puntos.por_jornada)}</div></div>
+          : <div><div className="text-xs uppercase text-gray-500">Tiempo registrado</div><div className="text-lg font-semibold">{j?.minutos ?? 0} min</div></div>}
+        <div className="col-span-2 sm:col-span-4">
+          {e.puntos && <span className="mr-4"><span className="text-xs uppercase text-gray-500">Puntos acumulados:</span> <strong>{pts(e.puntos.acumulado)} de {pts(e.puntos.maximo)}</strong></span>}
+          {e.maraton.comodines_total > 0 && <><span className="text-xs uppercase text-gray-500">Comodines disponibles:</span> <strong>{e.comodines_disponibles}</strong></>}
           {j?.reabierta_hasta && <span className="ml-3"><Badge tone="purple">Jornada reabierta hasta {fecha(j.reabierta_hasta)}</Badge></span>}</div>
       </div>
       {cierra && minCierre !== null && (minCierre <= 30
@@ -255,7 +269,9 @@ function Jornada({ e, onEstado }: { e: EstadoMaraton; onEstado: (s: EstadoMarato
           <div className="tarjeta border-green-300 text-center dark:border-green-700">
             <div className="text-3xl" aria-hidden>🏁</div>
             <h2 className="mt-1 text-xl font-bold">JORNADA COMPLETADA</h2>
-            <p className="mt-1">Has cumplido los requisitos correspondientes a esta jornada.</p>
+            <p className="mt-1">{e.maraton.puntos
+              ? `Resolviste bien ${j.correctas ?? 0} de ${e.maraton.problemas_jornada} ejercicios: ${pts(j.puntos)} de ${pts(e.maraton.puntos.por_jornada)} puntos.`
+              : 'Has cumplido los requisitos correspondientes a esta jornada.'}</p>
             <p className="text-sm text-gray-600 dark:text-gray-400">{e.hoy.terminado ? 'Completaste todas las jornadas del maratón.'
               : `Podrás continuar el maratón en la próxima jornada${e.hoy.siguiente ? ` (abre el ${fecha(e.hoy.siguiente.abre)})` : ''}.`}</p>
           </div>
@@ -285,6 +301,7 @@ function Problema({ e, onEstado }: { e: EstadoMaraton; onEstado: (s: EstadoMarat
   const [invalida, setInvalida] = useState<string[]>([]);
   const [confirmar, setConfirmar] = useState<'no_puedo' | 'cambio' | null>(null);
   const act = useAction();
+  const navigate = useNavigate();
   // clave de idempotencia por acción: un reintento tras un corte de red reutiliza la misma
   const idems = useRef<Record<string, string>>({});
   const idem = (accion: string) => (idems.current[accion] ??= uuid());
@@ -316,7 +333,10 @@ function Problema({ e, onEstado }: { e: EstadoMaraton; onEstado: (s: EstadoMarat
   async function noPuedo() {
     setConfirmar(null);
     const r = await act.run(() => API_MARATON.noPuedo(p.presentacion_id, idem('no_puedo'), segundos(), proc.trim() || null));
-    if (r) terminar(r);
+    if (!r) return;
+    terminar(r);
+    // apartado teórico (migración 111): el ejercicio resuelto y la teoría; al fondo, «Volver al maratón»
+    if (e.maraton.teoria && !r.aviso) navigate(`/maraton/${e.maraton.id}/teoria/${p.presentacion_id}`);
   }
   async function cambiar() {
     setConfirmar(null);
@@ -327,7 +347,7 @@ function Problema({ e, onEstado }: { e: EstadoMaraton; onEstado: (s: EstadoMarat
 
   return (
     <div className="tarjeta space-y-4">
-      <div className="flex items-center gap-2 text-sm text-gray-500"><span>Ejercicio {p.numero} de la jornada</span></div>
+      <div className="flex items-center gap-2 text-sm text-gray-500"><span>Ejercicio {p.numero} {e.maraton.problemas_jornada ? `de ${e.maraton.problemas_jornada}` : 'de la jornada'}</span></div>
       {etapa > 1 && p.contexto != null ? (
         <>
           <Markdown className="prosa text-base">{p.contexto}</Markdown>
@@ -366,15 +386,21 @@ function Problema({ e, onEstado }: { e: EstadoMaraton; onEstado: (s: EstadoMarat
         <ErrorBox error={act.error} />
         <div className="flex flex-wrap gap-2">
           <button className="btn-primario min-h-[48px] flex-1" disabled={act.busy || !listo}>{act.busy ? 'Enviando…' : 'RESPONDER'}</button>
-          {e.maraton.no_puedo && <button type="button" className="btn-secundario min-h-[48px]" disabled={act.busy} onClick={() => setConfirmar('no_puedo')}>NO PUEDO RESOLVERLO</button>}
-          <button type="button" className="btn-secundario min-h-[48px]" disabled={act.busy || e.comodines_disponibles < 1} onClick={() => setConfirmar('cambio')}>
-            CAMBIAR EJERCICIO ({e.comodines_disponibles})
-          </button>
+          {e.maraton.no_puedo && <button type="button" className="btn-secundario min-h-[48px]" disabled={act.busy} onClick={() => setConfirmar('no_puedo')}>
+            {e.maraton.teoria ? 'NO PUEDO REALIZAR EL EJERCICIO' : 'NO PUEDO RESOLVERLO'}</button>}
+          {e.maraton.comodines_total > 0 && (
+            <button type="button" className="btn-secundario min-h-[48px]" disabled={act.busy || e.comodines_disponibles < 1} onClick={() => setConfirmar('cambio')}>
+              CAMBIAR EJERCICIO ({e.comodines_disponibles})
+            </button>
+          )}
         </div>
       </form>
-      <Modal open={confirmar !== null} onClose={() => setConfirmar(null)} title={confirmar === 'cambio' ? 'Cambiar ejercicio' : 'No puedo resolver este ejercicio'}>
+      <Modal open={confirmar !== null} onClose={() => setConfirmar(null)} title={confirmar === 'cambio' ? 'Cambiar ejercicio' : e.maraton.teoria ? 'No puedo realizar el ejercicio' : 'No puedo resolver este ejercicio'}>
         {confirmar === 'cambio' ? (
           <p className="text-sm">Se usará <strong>1 comodín</strong> (le quedarán {e.comodines_disponibles - 1}). Este ejercicio se retira y no volverá; recibirá otro equivalente.</p>
+        ) : e.maraton.teoria ? (
+          <p className="text-sm">El ejercicio contará como hecho, pero <strong>sin puntos</strong>, y no se puede deshacer. Irá al <strong>apartado teórico</strong>, donde verá este
+            ejercicio resuelto paso a paso y la teoría del maratón. Al final encontrará el botón «Volver al maratón» para seguir con el siguiente ejercicio.</p>
         ) : (
           <p className="text-sm">El ejercicio quedará registrado como no resuelto y recibirá otro. No gasta comodines. Esta decisión no se puede deshacer.</p>
         )}

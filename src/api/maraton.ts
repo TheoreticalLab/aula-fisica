@@ -33,12 +33,22 @@ export interface EstadoMaraton {
     dias?: number | null;
     /** reglas de permanencia que el estudiante debe conocer (migración 98; ausentes antes de aplicarla) */
     permanencia?: { min_correctas: number; presentados_max: number | null; continuidad: boolean; rapido_segundos: number | null };
+    /** jornada fija (migración 111): número exacto de problemas por jornada (null = jornada adaptativa por cuota) */
+    problemas_jornada?: number | null;
+    /** puntuación informativa (migración 111): total del maratón, por jornada y por respuesta correcta */
+    puntos?: { total: number; por_jornada: number; por_problema: number } | null;
+    /** hay apartado teórico tras «No puedo» (migración 111) */
+    teoria?: boolean;
   };
   prueba: boolean;
   hoy: HoyMaraton;
   finalizado: boolean;
   aceptado: boolean;
-  jornada: { numero: number; fecha: string; estado: EstadoJornada; respondidos: number; minutos: number; segundos: number; reabierta_hasta: string | null; cierra: string | null } | null;
+  jornada: {
+    numero: number; fecha: string; estado: EstadoJornada; respondidos: number; minutos: number; segundos: number; reabierta_hasta: string | null; cierra: string | null;
+    /** jornada fija (migración 111): problemas ya cerrados; con puntuación, aciertos y puntos del día */
+    cerrados?: number; correctas?: number; puntos?: number;
+  } | null;
   comodines_disponibles: number;
   /**
    * Problema abierto. Con varias etapas (migración 99): `contexto` es el enunciado inicial, `previas` las etapas ya
@@ -55,6 +65,16 @@ export interface EstadoMaraton {
   informe_disponible: boolean;
   /** fuera del maratón por una regla de permanencia (sin el detalle, que solo ve el profesor) */
   fuera?: { tipo: TipoFuera; jornada: number | null; desde: string } | null;
+  /** puntos acumulados en todo el maratón (migración 111; solo con puntuación) */
+  puntos?: { acumulado: number; maximo: number } | null;
+}
+
+/** Apartado teórico (migración 111): teoría del maratón y solución de los problemas declarados «No puedo». */
+export interface TeoriaMaraton {
+  titulo: string;
+  teoria: string;
+  actual: string | null;
+  resueltos: { presentacion_id: string; jornada: number; numero: number; fecha: string; enunciado: string; partes: { etiqueta: string; unidad: string }[]; solucion: string }[];
 }
 
 export type TipoFuera = 'aciertos' | 'presentados' | 'continuidad' | 'rapidez' | 'declaracion';
@@ -71,7 +91,7 @@ export interface ResumenMaratonEstudiante {
 export interface FilaNivel { nivel: number; presentados: number; validos: number; correctas: number; no_puedo: number; cambios: number; segundos: number }
 export interface FilaTema { tema: string; nombre: string | null; presentados: number; validos: number; correctas: number; no_puedo: number }
 export interface FilaJornada {
-  numero: number; fecha: string; estado: string; via: 'cuota' | 'alternativa' | null; revision?: boolean; motivo?: string | null;
+  numero: number; fecha: string; estado: string; via: 'cuota' | 'alternativa' | 'problemas' | null; revision?: boolean; motivo?: string | null;
   presentados: number; validos: number; correctas: number; incorrectas: number; no_puedo: number; cambios: number; anticipadas: number;
   segundos: number; unidades?: number; nivel_medio: number | null; nivel_maximo: number | null;
 }
@@ -95,6 +115,7 @@ export const API_MARATON = {
   responder: (presentacion: string, idem: string, partes: string[], procedimiento: string | null, segundos: number | null, etapa?: number) =>
     invocar<EstadoMaraton | RespuestaNoValida>('maraton', { action: 'responder', presentacion_id: presentacion, idem, partes, procedimiento, segundos_cliente: segundos, etapa }),
   miInforme: (id: string) => rpc<MiInforme>('maraton_mi_informe', { p_maraton: id }),
+  teoria: (id: string, presentacion: string | null) => rpc<TeoriaMaraton>('maraton_teoria', { p_maraton: id, p_presentacion: presentacion }),
   consultaPendiente: (id: string) => rpc<ConsultaMaraton | null>('maraton_consulta_pendiente', { p_maraton: id }),
   declarar: (id: string, consulta: string, respuesta: boolean) =>
     rpc<EstadoMaraton>('maraton_declarar', { p_maraton: id, p_consulta: consulta, p_respuesta: respuesta }),

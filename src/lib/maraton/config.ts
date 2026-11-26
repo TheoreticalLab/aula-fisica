@@ -13,10 +13,16 @@ export interface ConfigMaraton {
     fraccion_fallo: number;
     /** minutos de trabajo efectivo antes de los cuales la cuota no completa la jornada (migración 97) */
     minutos_minimos: number;
+    /** jornada fija (migración 111): la jornada se completa al cerrar exactamente estos problemas; ausente = cuota */
+    problemas_jornada?: number | null;
+    /** puntuación informativa (migración 111): puntos de todo el maratón, repartidos por respuesta correcta */
+    puntos_total?: number | null;
   };
   dificultad: {
     niveles: number; nivel_inicial: number; adaptativa: boolean; pesos: number[]; ascenso: number; descenso: number; descenso_no_puedo: number;
     nivel_al_iniciar_jornada: 'continuar' | 'inicial'; t_min_factor: number; t_min_nivel_s: (number | null)[] | null;
+    /** niveles en secuencia por número de problema de la jornada (migración 111): manda sobre la adaptación */
+    secuencia?: number[] | null;
   };
   /** reglas de permanencia (migración 98): incumplirlas deja al estudiante fuera del maratón */
   permanencia: {

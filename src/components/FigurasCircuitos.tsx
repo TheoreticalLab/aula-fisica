@@ -107,48 +107,54 @@ function Esquema({ w, h, descripcion, children }: { w: number; h: number; descri
   );
 }
 
-/** [C1 en serie con C2] en paralelo con C3; ese conjunto en serie con C4 y C5; batería de 200 V. */
-function Circuito1() {
+/** Valores de un circuito de cinco capacitores: batería (V) y C1…C5 (µF). */
+interface Valores { v: number; c: [number, number, number, number, number] }
+const uf = (x: number) => `${x} µF`;
+
+/** [C1 en serie con C2] en paralelo con C3; ese conjunto en serie con C4 y C5 (examen del 24-nov: 200 V; 12, 6, 6, 15, 6 µF). */
+function Circuito1({ v = 200, c = [12, 6, 6, 15, 6] }: Partial<Valores>) {
+  const [c1, c2, c3, c4, c5] = c;
   const t = useTinta();
   const top = 70, bot = 290, low = 160;
   return (
-    <Esquema w={560} h={330} descripcion="Batería de 200 V. C1 (12 µF) en serie con C2 (6 µF); esa rama en paralelo con C3 (6 µF); ese conjunto en serie con C4 (15 µF) y C5 (6 µF).">
-      <BateriaV x={60} y1={top} y2={bot} cy={180} valor="200 V" t={t} />
+    <Esquema w={560} h={330} descripcion={`Batería de ${v} V. C1 (${uf(c1)}) en serie con C2 (${uf(c2)}); esa rama en paralelo con C3 (${uf(c3)}); ese conjunto en serie con C4 (${uf(c4)}) y C5 (${uf(c5)}).`}>
+      <BateriaV x={60} y1={top} y2={bot} cy={180} valor={`${v} V`} t={t} />
       <Cable pts={[[60, top], [130, top]]} t={t} />
-      <CapH x1={130} x2={240} y={top} cx={185} i={1} valor="12 µF" t={t} />
-      <CapH x1={240} x2={350} y={top} cx={295} i={2} valor="6 µF" t={t} />
+      <CapH x1={130} x2={240} y={top} cx={185} i={1} valor={uf(c1)} t={t} />
+      <CapH x1={240} x2={350} y={top} cx={295} i={2} valor={uf(c2)} t={t} />
       <Cable pts={[[130, top], [130, low]]} t={t} />
-      <CapH x1={130} x2={350} y={low} cx={240} i={3} valor="6 µF" abajo t={t} />
+      <CapH x1={130} x2={350} y={low} cx={240} i={3} valor={uf(c3)} abajo t={t} />
       <Cable pts={[[350, low], [350, top]]} t={t} />
       <Nodo x={130} y={top} t={t} />
       <Nodo x={350} y={top} t={t} />
-      <CapH x1={350} x2={500} y={top} cx={425} i={4} valor="15 µF" t={t} />
-      <CapV x={500} y1={top} y2={bot} cy={180} i={5} valor="6 µF" t={t} />
+      <CapH x1={350} x2={500} y={top} cx={425} i={4} valor={uf(c4)} t={t} />
+      <CapV x={500} y1={top} y2={bot} cy={180} i={5} valor={uf(c5)} t={t} />
       <Cable pts={[[500, bot], [60, bot]]} t={t} />
     </Esquema>
   );
 }
 
-/** C1 en serie con { C5 en paralelo con [ (C2 ∥ C3) en serie con C4 ] }; batería de 200 V. */
-function Circuito2() {
+/** C1 en serie con { C5 en paralelo con [ (C2 ∥ C3) en serie con C4 ] } (examen del 24-nov: 200 V; 15, 3, 1, 12, 2 µF). */
+function Circuito2({ v = 200, c = [15, 3, 1, 12, 2] }: Partial<Valores>) {
+  const [c1, c2, c3, c4, c5] = c;
   const t = useTinta();
   const top = 70, bot = 290, low = 160;
   return (
-    <Esquema w={600} h={330} descripcion="Batería de 200 V. C1 (15 µF) en serie con un bloque: C5 (2 µF) en paralelo con la rama formada por C2 (3 µF) y C3 (1 µF) en paralelo, en serie con C4 (12 µF).">
-      <BateriaV x={60} y1={top} y2={bot} cy={180} valor="200 V" t={t} />
-      <CapH x1={60} x2={190} y={top} cx={125} i={1} valor="15 µF" t={t} />
+    <Esquema w={600} h={330} descripcion={`Batería de ${v} V. C1 (${uf(c1)}) en serie con un bloque: C5 (${uf(c5)}) en paralelo con la rama formada por C2 (${uf(c2)}) y C3 (${uf(c3)}) en paralelo, en serie con C4 (${uf(c4)}).`}>
+      <BateriaV x={60} y1={top} y2={bot} cy={180} valor={`${v} V`} t={t} />
+      <CapH x1={60} x2={190} y={top} cx={125} i={1} valor={uf(c1)} t={t} />
       <Nodo x={190} y={top} t={t} />
-      <CapV x={190} y1={top} y2={bot} cy={180} i={5} valor="2 µF" t={t} />
+      <CapV x={190} y1={top} y2={bot} cy={180} i={5} valor={uf(c5)} t={t} />
       <Nodo x={190} y={bot} t={t} />
       <Cable pts={[[190, top], [290, top]]} t={t} />
-      <CapH x1={290} x2={430} y={top} cx={360} i={2} valor="3 µF" t={t} />
+      <CapH x1={290} x2={430} y={top} cx={360} i={2} valor={uf(c2)} t={t} />
       <Cable pts={[[290, top], [290, low]]} t={t} />
-      <CapH x1={290} x2={430} y={low} cx={360} i={3} valor="1 µF" abajo t={t} />
+      <CapH x1={290} x2={430} y={low} cx={360} i={3} valor={uf(c3)} abajo t={t} />
       <Cable pts={[[430, low], [430, top]]} t={t} />
       <Nodo x={290} y={top} t={t} />
       <Nodo x={430} y={top} t={t} />
       <Cable pts={[[430, top], [540, top]]} t={t} />
-      <CapV x={540} y1={top} y2={bot} cy={180} i={4} valor="12 µF" t={t} />
+      <CapV x={540} y1={top} y2={bot} cy={180} i={4} valor={uf(c4)} t={t} />
       <Cable pts={[[540, bot], [60, bot]]} t={t} />
     </Esquema>
   );
@@ -178,7 +184,10 @@ function Puente() {
 }
 
 export const FIGURAS_CIRCUITOS: Record<string, () => JSX.Element> = {
-  'capacitores-circuito-1': Circuito1,
-  'capacitores-circuito-2': Circuito2,
+  'capacitores-circuito-1': () => <Circuito1 />,
+  'capacitores-circuito-2': () => <Circuito2 />,
   'capacitores-puente': Puente,
+  // variante del examen (jueves 26-nov-2026): mismos circuitos, otros números
+  'capacitores-circuito-1-b': () => <Circuito1 v={240} c={[6, 12, 8, 20, 5]} />,
+  'capacitores-circuito-2-b': () => <Circuito2 v={150} c={[40, 4, 2, 12, 6]} />,
 };

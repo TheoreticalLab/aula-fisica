@@ -31,6 +31,46 @@ const tipoFila = (f: FilaExportacion) => (f.accion === 'respuesta' ? (f.resultad
 const tonoTipo = (t: PuntoTrayectoria['tipo']) => (t === 'correcta' ? 'green' : t === 'incorrecta' ? 'red' : t === 'abierta' ? 'blue' : 'gray');
 const haceMin = (iso: string) => Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
 
+/**
+ * Puntuación del maratón de jornada fija (migración 111): aciertos × puntos por ejercicio, jornada por jornada.
+ * Informativa: el aula no la escribe en el registro de calificaciones; el profesor la descarga y la traslada.
+ */
+function Puntuacion({ m, d }: { m: MaratonDocente; d: ResumenDocente }) {
+  const np = m.config.carga.problemas_jornada, total = m.config.carga.puntos_total;
+  if (!np || total == null) return null;
+  const n = m.config.programacion.jornadas;
+  const pp = total / (n * np);
+  const r2 = (x: number) => Math.round(x * 100) / 100;
+  const filas = d.estudiantes.map((e) => {
+    const porNum = new Map((e.resumen?.por_jornada ?? []).map((j) => [j.numero, j]));
+    const celdas = Array.from({ length: n }, (_, i) => porNum.get(i + 1) ?? null);
+    const suma = celdas.reduce((s, j) => s + (j?.correctas ?? 0), 0);
+    return { e, celdas, total: r2(suma * pp) };
+  });
+  const csv = () => downloadText(`${m.titulo.replace(/[^\p{L}\p{N}]+/gu, '_').slice(0, 60)}_puntos.csv`, [
+    ['Estudiante', 'ID', ...Array.from({ length: n }, (_, i) => `J${i + 1}`), 'Total', 'Máximo'].join(','),
+    ...filas.map((f) => [`"${f.e.nombre.replace(/"/g, '""')}"`, f.e.login_id ?? '', ...f.celdas.map((j) => (j ? r2(j.correctas * pp) : 0)), f.total, total].join(',')),
+  ].join('\n'));
+  return (
+    <Card title={`Puntuación (${r2(pp)} por ejercicio bien resuelto · ${r2(total / n)} por jornada · ${total} en total)`}
+      actions={<button className="btn-secundario text-sm no-print" onClick={csv}>CSV puntos</button>}>
+      <div className="overflow-x-auto">
+        <table className={TABLA}>
+          <thead><tr><th>Estudiante</th>{Array.from({ length: n }, (_, i) => <th key={i}>J{i + 1}</th>)}<th>Total</th></tr></thead>
+          <tbody>{filas.map((f) => (
+            <tr key={f.e.user_id}>
+              <td>{f.e.nombre}</td>
+              {f.celdas.map((j, i) => <td key={i} className="text-xs" title={j ? `${j.correctas} bien, ${j.incorrectas} mal, ${j.no_puedo} «no puedo» de ${j.presentados}` : 'sin jornada'}>
+                {j ? `${r2(j.correctas * pp)} (${j.correctas}/${np})` : '—'}</td>)}
+              <td className="font-semibold">{f.total} / {total}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
 /** Recarga periódica (solo con la pestaña visible) mientras `activo`; devuelve la hora de la última recarga. */
 function useRecarga(activo: boolean, recargar: () => void) {
   const ref = useRef(recargar);
@@ -86,6 +126,7 @@ export function MaratonInforme({ m }: { m: MaratonDocente }) {
   return (
     <div className="space-y-4">
       <Notice>El sistema no asigna calificaciones. Estos datos describen el trabajo registrado; la decisión sobre la recuperación corresponde al profesor según criterios comunicados a todos.</Notice>
+      <Puntuacion m={m} d={d} />
       <Card title="Estudiantes" actions={
         <div className="flex flex-wrap gap-2 no-print">
           {exp.includes('csv') && <button className="btn-secundario text-sm" onClick={() => downloadText(`${nombreBase}_resumen.csv`, csvResumen(d))}>CSV resumen</button>}
